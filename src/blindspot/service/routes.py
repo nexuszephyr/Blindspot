@@ -20,7 +20,7 @@ def _ctx(request: Request, *, qloo: bool) -> RequestContext:
                           qloo_enabled=qloo)
 
 
-@router.get("/healthz")
+@router.api_route("/healthz", methods=["GET", "HEAD"])
 async def healthz(request: Request):
     return {"ok": True, "mode": request.app.state.client.mode}
 

@@ -150,6 +150,8 @@ class QlooResult(BaseModel):
     fetched_at: float | None = None
     latency_ms: float | None = None
     body: Any = Field(default=None, repr=False)
+    error_body: str | None = Field(default=None, repr=False)  # redacted, degraded only
+    rate_headers: dict[str, str] = Field(default_factory=dict)  # response headers only
     entities: list[Entity] = Field(default_factory=list)
 
     @property

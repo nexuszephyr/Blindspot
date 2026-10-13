@@ -1,0 +1,17 @@
+# docker compose up --build   ->  http://127.0.0.1:8000/healthz
+# Works with or without a .env file (no key = replay mode).
+services:
+  blindspot:
+    build: .
+    image: blindspot:local
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TRUSTED_PROXY_HOPS: "0"
+    volumes:
+      # persist the cache (and an optional private snapshot) between restarts
+      - ./data:/app/data
+    restart: unless-stopped

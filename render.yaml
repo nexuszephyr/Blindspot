@@ -1,0 +1,40 @@
+# Render Blueprint (free web service, Docker runtime, Singapore = closest region to India).
+# Secrets are marked sync:false so Render asks for them in the dashboard; nothing secret is in git.
+services:
+  - type: web
+    name: blindspot
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: QLOO_API_KEY
+        sync: false
+      - key: IP_HASH_SALT
+        generateValue: true
+      - key: QLOO_BASE_URL
+        value: https://hackathon.api.qloo.com
+      - key: QLOO_MODE
+        value: live
+      - key: QLOO_ENABLED
+        value: "true"
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      - key: QLOO_DAILY_LIVE_CAP
+        value: "500"
+      - key: QLOO_CLIENT_HOURLY_CAP
+        value: "30"
+      - key: QLOO_RUN_CAP
+        value: "150"
+      - key: QLOO_DEMO_RESERVE
+        value: "100"
+      - key: QLOO_MAX_LIVE_CALLS
+        value: "100000"
+      - key: QLOO_RPS
+        value: "2"
+      # Private snapshot uploaded as a Render "Secret File" named snapshot.json (optional).
+      - key: QLOO_SNAPSHOT_PATH
+        value: /etc/secrets/snapshot.json
+      - key: ALLOWED_ORIGINS
+        sync: false

@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import random
+import re
 import time
 from collections.abc import Mapping
 from email.utils import parsedate_to_datetime
@@ -50,6 +51,8 @@ ALLOWED_PATHS = {
 }
 MAX_PARAMS = 40
 MAX_RETRY_AFTER_S = 20.0  # longer waits are not worth holding a user request for
+# Response headers worth recording (never request headers, which carry the key).
+RATE_HEADER_RE = re.compile(r"(?i)ratelimit|rate-limit|retry-after|x-request-id|quota")
 
 
 def _parse_retry_after(value: str | None) -> float | None:
@@ -104,6 +107,7 @@ class QlooClient:
         self._http: httpx.AsyncClient | None = None
         self._sleep = sleep
         self._inflight: dict[str, asyncio.Future] = {}
+        self.last_rate_headers: dict[str, str] = {}
         self.seeded = 0
 
     # ------------------------------------------------------------------ lifecycle
@@ -251,10 +255,14 @@ class QlooClient:
             self._inflight.pop(key, None)
 
     async def _live(self, key, endpoint, norm, ctx) -> tuple[QlooResult, str | None]:
-        def degraded(reason, status=None, latency=None):
-            return QlooResult(served_from="degraded", ok=False, endpoint=endpoint, status=status,
-                              reason=reason, cache_key=key, latency_ms=latency)
         t0 = time.perf_counter()
+
+        def degraded(reason, exc=None, status=None):
+            return QlooResult(
+                served_from="degraded", ok=False, endpoint=endpoint,
+                status=status if status is not None else getattr(exc, "status", None),
+                reason=reason, cache_key=key, latency_ms=(time.perf_counter() - t0) * 1000,
+                error_body=getattr(exc, "body", None), rate_headers=dict(self.last_rate_headers))
         try:
             status, body = await self._send(endpoint, norm, ctx)
         except BudgetExceeded as exc:
@@ -262,19 +270,20 @@ class QlooClient:
         except BreakerOpen as exc:
             return degraded(exc.reason), exc.reason
         except QlooAuthError as exc:
-            return degraded("Qloo rejected the server's API key", exc.status), redact(exc.reason)
+            return degraded("Qloo rejected the server's API key", exc), redact(exc.reason)
         except QlooRateLimited as exc:
-            return degraded("Qloo is rate-limiting requests; try again shortly", 429), exc.reason
+            return degraded("Qloo is rate-limiting requests; try again shortly", exc, 429), exc.reason
         except QlooBadRequest as exc:
-            return degraded(f"Qloo rejected the query: {redact(exc.reason)}", exc.status), exc.reason
+            return degraded(f"Qloo rejected the query: {redact(exc.reason)}", exc), exc.reason
         except QlooError as exc:
-            return degraded("Qloo is unavailable right now", exc.status), redact(exc.reason)
+            return degraded("Qloo is unavailable right now", exc), redact(exc.reason)
         latency = (time.perf_counter() - t0) * 1000
         self.cache.put(key, "GET", endpoint, norm, status, body)
         if self.mode == "record":
             self._record_raw(endpoint, norm, status, body, key)
-        return self._ok("live", endpoint, key, status, body, latency_ms=latency,
-                        fetched_at=time.time()), None
+        res = self._ok("live", endpoint, key, status, body, latency_ms=latency, fetched_at=time.time())
+        res.rate_headers = dict(self.last_rate_headers)
+        return res, None
 
     async def _send(self, endpoint: str, norm: dict[str, str], ctx: RequestContext):
         last: QlooError | None = None
@@ -297,6 +306,7 @@ class QlooClient:
                 last = QlooServerError(f"network error: {type(exc).__name__}")
             else:
                 st = resp.status_code
+                self.last_rate_headers = {k: v for k, v in resp.headers.items() if RATE_HEADER_RE.search(k)}
                 if 200 <= st < 300:
                     self.breaker.record_success()
                     try:
@@ -304,20 +314,22 @@ class QlooClient:
                     except ValueError as exc:
                         raise QlooServerError("Qloo returned non-JSON", status=st) from exc
                 msg = redact(_error_message(resp))
+                ebody = redact(resp.text[:1000])
                 if st == 429:
                     retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
                     self.breaker.record_429(retry_after)
-                    last = QlooRateLimited(msg or "rate limited", retry_after=retry_after, status=st)
+                    last = QlooRateLimited(msg or "rate limited", retry_after=retry_after,
+                                           status=st, body=ebody)
                     if retry_after is not None and retry_after > MAX_RETRY_AFTER_S:
                         raise last
                 elif st >= 500:
                     self.breaker.record_failure_other()
-                    last = QlooServerError(msg or "server error", status=st)
+                    last = QlooServerError(msg or "server error", status=st, body=ebody)
                 else:
                     self.breaker.record_failure_other()
                     if st == 401:
-                        raise QlooAuthError(msg or "unauthorized", status=st)
-                    raise QlooBadRequest(msg or "bad request", status=st)
+                        raise QlooAuthError(msg or "unauthorized", status=st, body=ebody)
+                    raise QlooBadRequest(msg or "bad request", status=st, body=ebody)
             if attempt < self.s.qloo_max_attempts:
                 backoff = min(8.0, 0.5 * 2 ** (attempt - 1)) * (0.5 + random.random())  # noqa: S311
                 await self._sleep(max(backoff, retry_after or 0.0))
@@ -396,6 +408,8 @@ class QlooClient:
             "configured_mode": self.s.qloo_mode,
             "qloo_enabled": self.s.qloo_enabled,
             "key_configured": self.s.has_key,
+            # salted hash of the caller's IP: lets you check proxy handling without exposing IPs
+            "your_client_id": ctx.client_id if ctx else None,
             "budget": self.budget.remaining(ctx.client_id if ctx else None),
             "cache_entries": self.cache.size(),
             "snapshot_loaded": self.snapshot.loaded,
