@@ -1,0 +1,22 @@
+{
+  "_fixture": "SYNTHETIC - shape per docs.qloo.com /search schema; values invented",
+  "success": true,
+  "duration": 0.042,
+  "results": [
+    {
+      "entity_id": "00000000-0000-4000-8000-000000000001",
+      "name": "Example Artist One",
+      "types": ["urn:entity:artist"],
+      "popularity": 0.91,
+      "properties": {"short_description": "synthetic"},
+      "tags": [{"id": "urn:tag:genre:music:example", "name": "Example", "type": "urn:tag:genre:music"}]
+    },
+    {
+      "entity_id": "00000000-0000-4000-8000-000000000002",
+      "name": "Example Artist Two",
+      "types": ["urn:entity:artist", "urn:entity:person"],
+      "popularity": 0.55,
+      "properties": {}
+    }
+  ]
+}

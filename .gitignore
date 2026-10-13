@@ -1,0 +1,29 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# local data: cache, raw recordings, snapshot working files (Qloo data never goes in git)
+data/
+*.sqlite
+*.sqlite-*
+*.db
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

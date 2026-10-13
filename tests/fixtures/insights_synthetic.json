@@ -1,0 +1,29 @@
+{
+  "_fixture": "SYNTHETIC - shape per docs.qloo.com /v2/insights schema and @devma/qloo LLM.txt; values invented",
+  "success": true,
+  "results": {
+    "entities": [
+      {
+        "name": "Example Place One",
+        "entity_id": "00000000-0000-4000-8000-0000000000a1",
+        "type": "urn:entity",
+        "subtype": "urn:entity:place",
+        "popularity": 0.97,
+        "location": {"lat": 12.97, "lon": 77.59},
+        "properties": {"address": "1 Example Road", "geocode": {"city": "Example City"}, "akas": ["dropped"]},
+        "query": {"affinity": 0.88},
+        "tags": [{"id": "urn:tag:genre:place:restaurant:example", "name": "Example", "type": "urn:tag:genre:place"}]
+      },
+      {
+        "name": "Example Place Two",
+        "entity_id": "00000000-0000-4000-8000-0000000000a2",
+        "type": "urn:entity",
+        "subtype": "urn:entity:place",
+        "popularity": 0.61,
+        "properties": {},
+        "query": {"affinity": 0.42}
+      }
+    ],
+    "duration": 0.31
+  }
+}
