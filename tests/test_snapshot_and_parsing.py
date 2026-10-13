@@ -60,3 +60,13 @@ def test_bad_snapshot_file_is_ignored(tmp_path):
     p.write_text("{not json", encoding="utf-8")
     assert not Snapshot.load(p).loaded
     assert not Snapshot.load(tmp_path / "missing.json").loaded
+
+
+def test_unwritable_cache_path_falls_back(tmp_path):
+    from blindspot.qloo.client import open_database
+
+    blocker = tmp_path / "file"
+    blocker.write_text("x", encoding="utf-8")
+    db = open_database(blocker / "sub" / "cache.sqlite")  # parent is a file: cannot be created
+    assert db.query("SELECT COUNT(*) n FROM cache")[0]["n"] == 0
+    db.close()

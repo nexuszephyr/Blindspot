@@ -12,6 +12,8 @@ import json
 import logging
 import random
 import re
+import sqlite3
+import tempfile
 import time
 from collections.abc import Mapping
 from email.utils import parsedate_to_datetime
@@ -72,14 +74,32 @@ def _error_message(resp: httpx.Response) -> str:
     try:
         b = resp.json()
         if isinstance(b, dict):
+            # Observed envelope (VERIFIED): {"error": {"reason": ..., "message": ..., "code": ...}}
+            err = b.get("error")
+            if isinstance(err, dict):
+                parts = [str(err[k]) for k in ("message", "reason") if err.get(k)]
+                if parts:
+                    return ": ".join(dict.fromkeys(parts))[:300]
             for k in ("message", "error", "reason", "detail"):
                 if isinstance(b.get(k), str):
                     return b[k][:300]
-                if isinstance(b.get(k), dict) and isinstance(b[k].get("message"), str):
-                    return b[k]["message"][:300]
     except ValueError:
         pass
     return resp.text[:300]
+
+
+def open_database(path) -> Database:
+    """Open the cache DB; if the path is unwritable (e.g. a root-owned volume), fall back to a
+    temp file so the service still starts. The cache is an optimisation, never a hard dependency."""
+    try:
+        return Database(path)
+    except (sqlite3.Error, OSError) as exc:
+        fallback = Path(tempfile.gettempdir()) / "blindspot_qloo_cache.sqlite"
+        log.warning("cache path %s unusable (%s); using %s", path, type(exc).__name__, fallback)
+        try:
+            return Database(fallback)
+        except (sqlite3.Error, OSError):
+            return Database(":memory:")
 
 
 class QlooClient:
@@ -95,7 +115,7 @@ class QlooClient:
     ):
         self.s = settings
         register_secret(settings.qloo_api_key.get_secret_value())
-        self.db = db or Database(settings.qloo_cache_path)
+        self.db = db or open_database(settings.qloo_cache_path)
         self.cache = ResponseCache(self.db, settings.qloo_cache_ttl_days)
         self.calls = CallLog(self.db)
         self.budget = BudgetManager(self.db, Caps.from_settings(settings), clock=clock)

@@ -88,3 +88,11 @@ def test_breaker_half_open_allows_one_probe():
     assert b.allow() and not b.allow()  # only one probe in flight
     b.record_429()  # probe failed -> open again
     assert b.state == "open"
+
+
+async def test_observed_error_envelope_is_surfaced(make_client, ctx, mock_api):
+    # Envelope shape recorded from hackathon.api.qloo.com (a request without a key).
+    mock_api.get("/v2/insights").mock(return_value=httpx.Response(
+        400, json={"error": {"reason": "at least one valid signal or filter is required", "message": "Bad Request", "code": 400}}))
+    res = await make_client().insights({"filter.type": "urn:entity:movie", "take": 2}, ctx)
+    assert res.reason == "Qloo rejected the query: Bad Request: at least one valid signal or filter is required"

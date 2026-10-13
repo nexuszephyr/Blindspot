@@ -1,11 +1,12 @@
-# Render Blueprint (free web service, Docker runtime, Singapore = closest region to India).
+# Render Blueprint (free web service, Docker runtime). Region virginia: Qloo's API resolves to
+# AWS us-east-1, and one audit run makes many Qloo calls but few browser requests (docs/decisions.md D11).
 # Secrets are marked sync:false so Render asks for them in the dashboard; nothing secret is in git.
 services:
   - type: web
     name: blindspot
     runtime: docker
     plan: free
-    region: singapore
+    region: virginia
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
