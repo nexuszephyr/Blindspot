@@ -107,3 +107,26 @@ Status: **PENDING USER ACTION.** No deploy CLI was authenticated during Phase 1.
    - Its `your_client_id` differs between the phone and the laptop, and doesn't change when you add `-H "X-Forwarded-For: 1.2.3.4"`. That last check confirms `TRUSTED_PROXY_HOPS=1` is right for Render.
 6. Measure the cold start: leave the app idle for at least 20 minutes, then run `curl -o /dev/null -w "%{time_total}\n" https://<app>.onrender.com/healthz`.
 7. Keep it warm during judging: in GitHub, go to **Settings → Secrets and variables → Actions → Variables** and set `BLINDSPOT_URL=https://<app>.onrender.com`. That turns on `.github/workflows/keepalive.yml`. Add a 5-minute external `HEAD /healthz` monitor too.
+
+---
+
+## Verification log (2026-10-13, Phase 1)
+
+Every command above was run in a fresh clone that had no `.env`:
+
+| Command | Where | Result |
+|---|---|---|
+| `git clone …`, `cd blindspot`, `make demo`, the four `curl` lines | Linux (`python:3.12` container) | healthy, `mode: replay`; search → `degraded` with guidance; `qloo=false` → `disabled` |
+| `PORT=8010 make demo` | Linux container | healthy on 8010 |
+| `cp .env.example .env` then `make demo` (key left empty) | Linux container | replay mode, `key_configured: false` |
+| `make test`, `python scripts/dev.py test` | Linux container | 50 passed, 1 skipped (the live test) |
+| `mingw32-make demo` | Windows 11, Git Bash | healthy after about 78 s on first run |
+| `$env:PORT = "8010"; python scripts/dev.py demo` | Windows 11, PowerShell | healthy on 8010 |
+| `BLINDSPOT_PORT=8010 docker compose up --build` | Windows 11, Docker Desktop | healthy on 8010 |
+| `docker compose up --build` | Windows 11 | failed here only because port 8000 was taken by another app on the dev machine; the line above is the documented workaround |
+
+Not run yet:
+- Path 1: there's no hosted URL yet.
+- Path 2 with a **real** key: no key was available. A fake key degrades correctly to "Qloo rejected the server's API key".
+- The owner deploy steps.
+- macOS: no Mac was available. CI includes `macos-latest`, but the repo hasn't been pushed yet.
