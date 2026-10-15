@@ -1,0 +1,12 @@
+cities:
+  - id: example_city
+    display_name: Example City
+    location: Example City
+    country: XX
+    script_note: "test fixture"
+    tier: 1
+  - id: other_town
+    display_name: Other Town
+    location: Other Town
+    country: YY
+    tier: 2

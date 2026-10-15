@@ -45,6 +45,8 @@ pydantic-settings==2.15.0
     # via blindspot (pyproject.toml)
 python-dotenv==1.2.4
     # via pydantic-settings
+pyyaml==6.0.3
+    # via blindspot (pyproject.toml)
 starlette==1.8.0
     # via fastapi
 typing-extensions==4.16.0

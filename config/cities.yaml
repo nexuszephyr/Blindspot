@@ -1,0 +1,41 @@
+# Cities Blindspot audits. Data, not code: add or drop a city here, never in src/ or scripts/.
+# location: the exact string sent as filter/signal.location.query (fuzzy locality match, see E4)
+# tier: prior expectation of Qloo coverage (1 = expected rich, 2 = audit focus); coverage_matrix.md
+#       records what the data actually showed.
+cities:
+  - id: bengaluru
+    display_name: Bengaluru
+    location: Bengaluru
+    country: IN
+    script_note: "Latin script; older name 'Bangalore' is common in data"
+    tier: 2
+  - id: lagos
+    display_name: Lagos
+    location: Lagos
+    country: NG
+    script_note: "Latin script; Yoruba names often appear without diacritics"
+    tier: 2
+  - id: tokyo
+    display_name: Tokyo
+    location: Tokyo
+    country: JP
+    script_note: "Many entity names in Japanese script (kanji/kana)"
+    tier: 1
+  - id: sao_paulo
+    display_name: São Paulo
+    location: São Paulo
+    country: BR
+    script_note: "Diacritics: 'São'; unaccented 'Sao Paulo' also seen"
+    tier: 2
+  - id: berlin
+    display_name: Berlin
+    location: Berlin
+    country: DE
+    script_note: "Latin script; umlauts"
+    tier: 1
+  - id: new_york
+    display_name: New York
+    location: New York
+    country: US
+    script_note: "Latin script; 'NYC' alias"
+    tier: 1

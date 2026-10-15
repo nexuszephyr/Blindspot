@@ -1,0 +1,13 @@
+domains:
+  - id: dining
+    filter_type: urn:entity:place
+    take: 5
+    phrasing: "restaurants"
+    location_param: filter
+    params:
+      filter.tags: urn:tag:genre:place:restaurant
+  - id: music
+    filter_type: urn:entity:artist
+    take: 5
+    phrasing: "artists"
+    location_param: signal

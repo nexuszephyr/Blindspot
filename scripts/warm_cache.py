@@ -1,6 +1,6 @@
 """Fill the cache from a query list (demo priority: may use the reserved budget slice).
 
-    python scripts/warm_cache.py [--file scripts/demo_queries.json] [--refresh]
+    python scripts/warm_cache.py [--file config/demo_queries.json] [--refresh]
 
 Already-cached queries cost nothing; --refresh re-fetches them live.
 """
@@ -23,12 +23,12 @@ def load_queries(path: str) -> list[dict]:
 
 async def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--file", default=str(ROOT / "scripts" / "demo_queries.json"))
+    ap.add_argument("--file", default=str(ROOT / "config" / "demo_queries.json"))
     ap.add_argument("--refresh", action="store_true")
     a = ap.parse_args()
     queries = load_queries(a.file)
     client = make_client("live")
-    c = ctx("warm")
+    c = ctx("warm", purpose="app")
     start = live_used(client)
     seen: Counter[str] = Counter()
     try:

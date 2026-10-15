@@ -16,7 +16,7 @@ from _common import Recorder, ctx, live_used, make_client, record_row
 async def main() -> int:
     client = make_client("record")
     rec = Recorder(client, "smoke")
-    c = ctx("smoke")
+    c = ctx("smoke", purpose="smoke")
     before = live_used(client)
     try:
         r = await client.search_entities("Radiohead", c, types=["urn:entity:artist"], take=3)

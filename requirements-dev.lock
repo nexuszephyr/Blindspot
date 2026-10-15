@@ -120,6 +120,8 @@ pytest-asyncio==1.4.0
     # via blindspot (pyproject.toml)
 python-dotenv==1.2.4
     # via pydantic-settings
+pyyaml==6.0.3
+    # via blindspot (pyproject.toml)
 requests==2.34.2
     # via
     #   cachecontrol

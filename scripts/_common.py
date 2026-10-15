@@ -40,9 +40,10 @@ def make_client(mode: str = "record") -> QlooClient:
     return c
 
 
-def ctx(name: str, run_id: str | None = None) -> RequestContext:
+def ctx(name: str, run_id: str | None = None, purpose: str = "script") -> RequestContext:
+    """Patient script context (no deadline), tagged with a purpose for live-call reporting."""
     kw = {"run_id": run_id} if run_id else {}
-    return RequestContext(client_id=f"local:{name}", priority="demo", **kw)
+    return RequestContext(client_id=f"local:{name}", priority="demo", purpose=purpose, **kw)
 
 
 def record_row(exp: str, label: str, res, notes: str = "", **extra: Any) -> dict[str, Any]:
@@ -54,6 +55,8 @@ def record_row(exp: str, label: str, res, notes: str = "", **extra: Any) -> dict
         "call_id": res.call_id,
         "status": res.status,
         "served_from": res.served_from,
+        "outcome": res.outcome,
+        "unverified_params": res.unverified_params,
         "latency_ms": res.latency_ms,
         "count": res.count,
         "top": res.summary(5),

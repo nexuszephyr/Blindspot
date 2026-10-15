@@ -1,6 +1,6 @@
-"""Coverage matrix: 6 cities x 4 domains x probe types (about 96 live calls).
+"""Coverage matrix: cities x domains (both from config/) x probe types.
 
-    python scripts/coverage_matrix.py [--max-calls 150] [--place-loc filter|signal] [--other-loc signal|none]
+    python scripts/coverage_matrix.py [--max-calls 150]
 
 Probe types:
   core       domain + location + audience (age bracket)
@@ -9,9 +9,12 @@ Probe types:
   freshness  core + bias.trends=high
   swap       computed offline: how different the core results are between cities
 
+Each cell's status comes from the client outcome: ok | empty (200, no items) | qloo_error (Qloo
+said no) | resolution_failed (no id; nothing sent) | invalid | not_live (budget/breaker).
+A local refusal is never recorded as a Qloo error.
+
 Full rows (with result names) go to data/coverage/ (gitignored: Qloo data stays out of git).
-docs/coverage_matrix.csv and docs/coverage_grid.md get statuses, counts, latency and overlap only;
-docs/coverage_matrix.md holds the hand-written reading and recommendation.
+docs/coverage_matrix.csv and docs/coverage_grid.md get statuses, counts, latency and overlap only.
 """
 
 from __future__ import annotations
@@ -26,34 +29,23 @@ import time
 from typing import Any
 
 from _common import DATA, ROOT, ctx, live_used, make_client
+from blindspot.catalog import load_cities, load_domains
 
-CITIES = {
-    "Bengaluru": ("bengaluru", "bangalore", "IN"),
-    "Lagos": ("lagos", "NG"),
-    "Tokyo": ("tokyo", "JP"),
-    "São Paulo": ("são paulo", "sao paulo", "BR"),
-    "Berlin": ("berlin", "DE"),
-    "New York": ("new york", "brooklyn", "manhattan", "US"),
-}
-DOMAINS = {
-    "dining": ("urn:entity:place", {"filter.tags": "urn:tag:genre:place:restaurant"}),
-    "music": ("urn:entity:artist", {}),
-    "film_tv": ("urn:entity:movie", {}),
-    "brands": ("urn:entity:brand", {}),
-}
 BRIDGE_FROM = {"dining": "music", "music": "dining", "film_tv": "music", "brands": "music"}
 PROBES = ["core", "bridge", "audience", "freshness"]
 
 
-def geo_match(rows: list[dict[str, Any]], hints: tuple[str, ...]) -> str:
-    """Rough plausibility for places: how many results mention the city/country."""
+def geo_match(rows: list[dict[str, Any]], city) -> str:
+    """Rough plausibility for places: how many results carry the city's country/city in geocode/address."""
+    hints = {city.location.lower(), city.display_name.lower(), city.country.lower()}
     hits = 0
     for e in rows:
         props = e.get("properties") or {}
-        blob = json.dumps(
-            [props.get("address"), props.get("geocode"), e.get("location")], ensure_ascii=False
-        ).lower()
-        hits += any(h.lower() in blob for h in hints)
+        geo = props.get("geocode") or {}
+        blob = json.dumps([props.get("address"), geo], ensure_ascii=False).lower()
+        hits += (
+            any(h in blob for h in hints) or str(geo.get("country_code", "")).lower() == city.country.lower()
+        )
     return f"geo-match {hits}/{len(rows)}"
 
 
@@ -64,162 +56,117 @@ def jaccard(a: set[str], b: set[str]) -> float | None:
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-calls", type=int, default=150)
-    ap.add_argument("--place-loc", choices=["filter", "signal"], default="filter")
-    ap.add_argument("--other-loc", choices=["signal", "none"], default="signal")
-    ap.add_argument("--take", type=int, default=10)
     a = ap.parse_args()
+    cities = load_cities(ROOT / "config")
+    domains = {d.id: d for d in load_domains(ROOT / "config")}
     client = make_client("record")
-    c = ctx("coverage")
+    c = ctx("coverage", purpose="coverage")
     start = live_used(client)
     rows: list[dict[str, Any]] = []
     tops: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
 
-    def loc_params(etype: str, city: str) -> dict[str, str]:
-        if etype == "urn:entity:place":
-            return {f"{a.place_loc}.location.query": city}
-        return {} if a.other_loc == "none" else {"signal.location.query": city}
-
-    async def probe(city, domain, kind, params):
+    async def probe(city, d, kind, extra):
+        params = {
+            "filter.type": d.filter_type,
+            **d.params,
+            **d.location_params(city),
+            **extra,
+            "take": d.take,
+        }
         if live_used(client) - start >= a.max_calls:
             res = None
+            outcome, n, lat, top, reason, unv = "skipped", 0, None, [], "coverage call cap reached", []
         else:
-            res = await client.insights(params, c)
-        if res is None:
-            status, n, lat, top, reason = "skipped", 0, None, [], "coverage call cap reached"
-        else:
-            n = res.count
-            status = "ok" if res.ok and n else ("empty" if res.ok else "error")
-            lat, reason = res.latency_ms, res.reason
+            res = await client.insights(params, c, strict=False)
+            outcome, n, lat, reason, unv = (
+                res.outcome,
+                res.count,
+                res.latency_ms,
+                res.reason,
+                res.unverified_params,
+            )
             top = [e.raw for e in res.entities]
-        tops[(city, domain, kind)] = top
-        note = geo_match(top, CITIES[city]) if domain == "dining" and top else ""
+        tops[(city.id, d.id, kind)] = top
+        note = geo_match(top, city) if d.filter_type == "urn:entity:place" and top else ""
+        has_aff = bool(res and any(e.affinity is not None for e in res.entities))
         row = {
-            "city": city,
-            "domain": domain,
+            "city": city.id,
+            "domain": d.id,
             "probe": kind,
-            "status": status,
+            "status": outcome,
             "count": n,
             "latency_ms": None if lat is None else round(lat),
             "served_from": None if res is None else res.served_from,
+            "has_affinity": has_aff,
             "auto_note": note,
             "reason": reason or "",
+            "unverified_params": ",".join(unv),
             "params": json.dumps(params, ensure_ascii=False),
             "top5": " | ".join(str(e.get("name")) for e in top[:5]),
         }
         rows.append(row)
         print(
-            f"{city:10} {domain:8} {kind:9} {status:6} n={n:<3} {note} {(reason or '')[:60]} :: {row['top5'][:80]}"
+            f"{city.id:10} {d.id:8} {kind:9} {outcome:17} n={n:<3} aff={has_aff!s:5} {note} {(reason or '')[:60]}"
         )
 
     try:
-        for city in CITIES:
-            for domain, (etype, extra) in DOMAINS.items():
-                await probe(
-                    city,
-                    domain,
-                    "core",
-                    {
-                        "filter.type": etype,
-                        **extra,
-                        **loc_params(etype, city),
-                        "signal.demographics.age": "35_and_younger",
-                        "take": a.take,
-                    },
-                )
-        for city in CITIES:
-            for domain, (etype, extra) in DOMAINS.items():
-                src = tops.get((city, BRIDGE_FROM[domain], "core")) or []
+        for city in cities:
+            for d in domains.values():
+                await probe(city, d, "core", {"signal.demographics.age": "35_and_younger"})
+        for city in cities:
+            for d in domains.values():
+                src = tops.get((city.id, BRIDGE_FROM.get(d.id, "music"), "core")) or []
                 seed = next((e.get("entity_id") for e in src if e.get("entity_id")), None)
                 if seed:
-                    await probe(
-                        city,
-                        domain,
-                        "bridge",
-                        {
-                            "filter.type": etype,
-                            **extra,
-                            **loc_params(etype, city),
-                            "signal.interests.entities": seed,
-                            "take": a.take,
-                        },
-                    )
+                    await probe(city, d, "bridge", {"signal.interests.entities": [seed]})
                 else:
                     rows.append(
                         {
-                            "city": city,
-                            "domain": domain,
+                            "city": city.id,
+                            "domain": d.id,
                             "probe": "bridge",
-                            "status": "skipped",
+                            "status": "resolution_failed",
                             "count": 0,
-                            "reason": "no seed entity from bridge domain",
+                            "reason": "no seed entity: the bridge domain's core probe returned none",
                         }
                     )
                 await probe(
                     city,
-                    domain,
+                    d,
                     "audience",
-                    {
-                        "filter.type": etype,
-                        **extra,
-                        **loc_params(etype, city),
-                        "signal.demographics.gender": "female",
-                        "signal.demographics.age": "55_and_older",
-                        "take": a.take,
-                    },
+                    {"signal.demographics.gender": "female", "signal.demographics.age": "55_and_older"},
                 )
                 await probe(
-                    city,
-                    domain,
-                    "freshness",
-                    {
-                        "filter.type": etype,
-                        **extra,
-                        **loc_params(etype, city),
-                        "signal.demographics.age": "35_and_younger",
-                        "bias.trends": "high",
-                        "take": a.take,
-                    },
+                    city, d, "freshness", {"signal.demographics.age": "35_and_younger", "bias.trends": "high"}
                 )
     finally:
         await client.aclose()
 
-    # swap-pair feasibility: low overlap between two cities' core results = a usable swap pair
-    for domain in DOMAINS:
-        sets = {
-            city: {e.get("entity_id") for e in tops.get((city, domain, "core"), [])} - {None}
-            for city in CITIES
-        }
-        pairs = [(x, y, jaccard(sets[x], sets[y])) for x, y in itertools.combinations(CITIES, 2)]
+    ids = lambda k: {e.get("entity_id") for e in tops.get(k, [])} - {None}  # noqa: E731
+    for d in domains.values():
+        sets = {city.id: ids((city.id, d.id, "core")) for city in cities}
+        pairs = [(x, y, jaccard(sets[x], sets[y])) for x, y in itertools.combinations(sets, 2)]
         valid = [p for p in pairs if p[2] is not None]
         mean = sum(p[2] for p in valid) / len(valid) if valid else None
-        feasible = mean is not None and mean < 0.3 and len(valid) >= 10
+        feasible = mean is not None and mean < 0.3 and len(valid) >= max(1, len(pairs) * 2 // 3)
         rows.append(
             {
                 "city": "*",
-                "domain": domain,
+                "domain": d.id,
                 "probe": "swap",
                 "status": "ok" if feasible else ("empty" if not valid else "weak"),
                 "count": len(valid),
                 "auto_note": f"mean core overlap between cities={'n/a' if mean is None else round(mean, 2)}",
-                "reason": json.dumps(
-                    {f"{x}~{y}": None if j is None else round(j, 2) for x, y, j in pairs}, ensure_ascii=False
-                ),
+                "reason": json.dumps({f"{x}~{y}": None if j is None else round(j, 2) for x, y, j in pairs}),
             }
         )
-        # freshness / audience sensitivity: did the extra signal change results?
         for kind in ("freshness", "audience", "bridge"):
-            ov = [
-                jaccard(
-                    {e.get("entity_id") for e in tops.get((city, domain, "core"), [])} - {None},
-                    {e.get("entity_id") for e in tops.get((city, domain, kind), [])} - {None},
-                )
-                for city in CITIES
-            ]
+            ov = [jaccard(ids((city.id, d.id, "core")), ids((city.id, d.id, kind))) for city in cities]
             ov = [x for x in ov if x is not None]
             rows.append(
                 {
                     "city": "*",
-                    "domain": domain,
+                    "domain": d.id,
                     "probe": f"{kind}_vs_core",
                     "status": "info",
                     "count": len(ov),
@@ -238,8 +185,10 @@ async def main() -> int:
         "count",
         "latency_ms",
         "served_from",
+        "has_affinity",
         "auto_note",
         "reason",
+        "unverified_params",
         "params",
         "top5",
     ]
@@ -247,51 +196,55 @@ async def main() -> int:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
-    public = ROOT / "docs" / "coverage_matrix.csv"
-    with public.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fields[:8], extrasaction="ignore")
+    public_fields = fields[:9]  # no result names, no raw reasons from Qloo
+    with (ROOT / "docs" / "coverage_matrix.csv").open("w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=public_fields, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
-    write_markdown(rows)
+    write_markdown(rows, cities, domains)
     print(f"\ncoverage live calls: {live_used(client) - start}; lifetime total: {live_used(client)}")
-    print(f"full rows (with names, gitignored): {full}\npublic grid: {public} + docs/coverage_grid.md")
+    print(f"full rows (gitignored): {full}\npublic: docs/coverage_matrix.csv + docs/coverage_grid.md")
     return 0
 
 
-def write_markdown(rows: list[dict[str, Any]]) -> None:
-    sym = {"ok": "ok", "empty": "EMPTY", "error": "ERR", "skipped": "skip"}
+def write_markdown(rows, cities, domains) -> None:
     lines = [
-        "<!-- generated by scripts/coverage_matrix.py; edit the 'Recommendation' section by hand -->",
-        "# Coverage matrix (generated grid)",
+        "<!-- generated by scripts/coverage_matrix.py; the reading is in docs/coverage_matrix.md -->",
+        "# Coverage grid (generated)",
         "",
-        "Cell = status / result count. Full rows with result names are in data/coverage/ (gitignored).",
+        "Cell = outcome / result count (`aff` = affinity scores present). Outcomes: ok, empty (200, no items),"
+        " qloo_error, resolution_failed (no id; nothing sent), skipped.",
         "",
     ]
     for kind in PROBES:
         lines += [
             f"## Probe: {kind}",
             "",
-            "| city | " + " | ".join(DOMAINS) + " |",
-            "|---|" + "---|" * len(DOMAINS),
+            "| city | " + " | ".join(domains) + " |",
+            "|---|" + "---|" * len(domains),
         ]
-        for city in CITIES:
+        for city in cities:
             cells = []
-            for d in DOMAINS:
+            for d in domains:
                 r = next(
-                    (x for x in rows if x["city"] == city and x["domain"] == d and x["probe"] == kind), None
+                    (x for x in rows if x["city"] == city.id and x["domain"] == d and x["probe"] == kind),
+                    None,
                 )
                 cells.append(
                     "-"
                     if r is None
-                    else f"{sym.get(r['status'], r['status'])} / {r['count']}"
+                    else f"{r['status']} / {r['count']}"
+                    + (" aff" if r.get("has_affinity") else "")
                     + (f" ({r['auto_note']})" if r.get("auto_note") else "")
                 )
-            lines.append(f"| {city} | " + " | ".join(cells) + " |")
+            lines.append(f"| {city.display_name} | " + " | ".join(cells) + " |")
         lines.append("")
     lines += ["## Derived", "", "| domain | probe | status | note |", "|---|---|---|---|"]
-    for r in rows:
-        if r["city"] == "*":
-            lines.append(f"| {r['domain']} | {r['probe']} | {r['status']} | {r.get('auto_note', '')} |")
+    lines += [
+        f"| {r['domain']} | {r['probe']} | {r['status']} | {r.get('auto_note', '')} |"
+        for r in rows
+        if r["city"] == "*"
+    ]
     (ROOT / "docs" / "coverage_grid.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

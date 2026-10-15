@@ -15,6 +15,7 @@ RUN pip install -r requirements.lock
 
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
+COPY config ./config
 RUN pip install --no-deps . \
     && useradd --create-home --uid 10001 app \
     && mkdir -p /app/data \

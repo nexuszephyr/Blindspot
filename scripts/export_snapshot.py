@@ -1,6 +1,6 @@
 """Export a named query set from the cache into a minimal snapshot file (0 live calls).
 
-    python scripts/export_snapshot.py [--file scripts/demo_queries.json] [--out data/snapshot/snapshot.json]
+    python scripts/export_snapshot.py [--file config/demo_queries.json] [--out data/snapshot/snapshot.json]
     python scripts/export_snapshot.py --synthetic   # dev only: snapshot built from the SYNTHETIC
                                                      # test fixtures, to exercise offline mode
 
@@ -24,7 +24,7 @@ from blindspot.qloo.snapshot import Snapshot, build_snapshot
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--file", default=str(ROOT / "scripts" / "demo_queries.json"))
+    ap.add_argument("--file", default=str(ROOT / "config" / "demo_queries.json"))
     ap.add_argument("--out")
     ap.add_argument("--name", default="phase1-demo")
     ap.add_argument("--synthetic", action="store_true")

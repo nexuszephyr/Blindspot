@@ -1,0 +1,35 @@
+# Taste domains Blindspot audits. Data, not code.
+# location_param: which location parameter localizes this domain ("filter" restricts results to
+#   the place; "signal" only influences ranking). Settled by recon E4.
+# params: extra insights params for every query in this domain (ids only, never free text).
+# tag_query: free text resolved to a tag id via /v2/tags for tag-signal probes (E11).
+domains:
+  - id: dining
+    filter_type: urn:entity:place
+    take: 10
+    phrasing: "restaurants"
+    location_param: filter
+    params:
+      filter.tags: urn:tag:genre:place:restaurant
+    tag_query: italian
+  - id: music
+    filter_type: urn:entity:artist
+    take: 10
+    phrasing: "music artists"
+    location_param: signal
+    params: {}
+    tag_query: pop
+  - id: film_tv
+    filter_type: urn:entity:movie
+    take: 10
+    phrasing: "films"
+    location_param: signal
+    params: {}
+    tag_query: comedy
+  - id: brands
+    filter_type: urn:entity:brand
+    take: 10
+    phrasing: "brands"
+    location_param: signal
+    params: {}
+    tag_query: fashion
