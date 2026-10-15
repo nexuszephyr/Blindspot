@@ -28,7 +28,7 @@ def test_bad_config_rejected(tmp_path):
                 "domains": [
                     {
                         "id": "games",
-                        "filter_type": "urn:entity:videogame",
+                        "filter_type": "urn:entity:video_game",
                         "take": 5,
                         "phrasing": "x",
                         "location_param": "signal",
@@ -38,7 +38,7 @@ def test_bad_config_rejected(tmp_path):
         ),
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="video_game"):
+    with pytest.raises(ValueError, match="videogame"):
         load_domains(tmp_path)
 
 

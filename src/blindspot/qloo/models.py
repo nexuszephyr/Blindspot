@@ -15,7 +15,9 @@ from .params import split_list
 
 ServedFrom = Literal["live", "cache", "snapshot", "disabled", "degraded"]
 
-# Insights filter.type: the official hackathon list (CLAUDE.md). It is `video_game`, not `videogame`.
+# Insights filter.type. VERIFIED live 2026-10-15 (recon E3 + probe): the hackathon host ACCEPTS
+# `urn:entity:videogame` and REJECTS `urn:entity:video_game` (400 "not supported for filter.type"),
+# contradicting the developer guide. Real responses win (CLAUDE.md).
 INSIGHTS_TYPES = frozenset(
     {
         "urn:entity:artist",
@@ -27,11 +29,10 @@ INSIGHTS_TYPES = frozenset(
         "urn:entity:place",
         "urn:entity:podcast",
         "urn:entity:tv_show",
-        "urn:entity:video_game",
+        "urn:entity:videogame",
     }
 )
-# /search has its OWN `types` list (docs.qloo.com get-search). Spellings here are UNVERIFIED (doc)
-# until recon E1 records which ones the hackathon host accepts.
+# /search has its OWN `types` list. VERIFIED (E1): `videogame` accepted, `video_game` rejected with 400.
 SEARCH_TYPES = frozenset(
     {
         "urn:entity:artist",
@@ -44,7 +45,6 @@ SEARCH_TYPES = frozenset(
         "urn:entity:podcast",
         "urn:entity:tv_show",
         "urn:entity:videogame",
-        "urn:entity:video_game",
     }
 )
 Outcome = Literal["ok", "empty", "qloo_error", "resolution_failed", "invalid", "disabled", "not_live"]
@@ -120,7 +120,8 @@ def extract_items(body: Any) -> list[Any]:
     if isinstance(res, list):
         return res
     if isinstance(res, dict):
-        for k in ("entities", "tags", "audiences", "results"):
+        # VERIFIED containers: entities (insights), tags, tag_types, audiences, audience_types
+        for k in ("entities", "tags", "tag_types", "audiences", "audience_types", "results"):
             if isinstance(res.get(k), list):
                 return res[k]
     for k in ("entities", "tags", "audiences"):
@@ -157,7 +158,9 @@ class InsightsQuery(BaseModel):
     @classmethod
     def _known_type(cls, v: str) -> str:
         if v not in INSIGHTS_TYPES:
-            hint = " (did you mean 'urn:entity:video_game'?)" if "videogame" in v else ""
+            hint = (
+                " (the hackathon host accepts 'urn:entity:videogame', VERIFIED)" if "video_game" in v else ""
+            )
             raise ValueError(f"unsupported filter.type {v!r}{hint}; valid: {sorted(INSIGHTS_TYPES)}")
         return v
 

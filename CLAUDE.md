@@ -5,7 +5,7 @@
 - Auth: `X-Api-Key` header. Never a query param, never a Bearer token.
 - `/v2/insights` is a GET with a query string. Never POST/JSON body. Always append a path.
 - Do NOT use `/recommendations` or `/recs` (legacy, unsupported).
-- Insights `filter.type` values: urn:entity:artist, book, brand, destination, movie, person, place, podcast, tv_show, video_game. (It is `video_game`, not `videogame`.) 403 = unsupported type. Music = artist. Food/drink venues = place or brand.
+- Insights `filter.type` values: urn:entity:artist, book, brand, destination, movie, person, place, podcast, tv_show, videogame. The guide says `video_game`, but the hackathon host REJECTS `urn:entity:video_game` (400) and ACCEPTS `urn:entity:videogame` for both insights and search (VERIFIED live 2026-10-15, docs/qloo_api_reality.md E3). Unsupported types return 400 `{"errors":[...]}` here (the guide says 403). Music = artist. Food/drink venues = place or brand.
 - `/search` has its OWN supported `types` list, different from insights `filter.type`.
 - Typical flow: /search (entity IDs) or /v2/tags (tag IDs) -> pass as signal/filter params to /v2/insights.
 - `filter.tags` and `signal.interests.tags` need valid tag IDs from /v2/tags. `signal.demographics.audiences` needs valid audience URNs. Never free text.

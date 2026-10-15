@@ -13,12 +13,53 @@ from typing import Any
 
 from .errors import IdFormatError, QlooParamError
 
-_COMMON_INSIGHTS = {"filter.type", "take", "page"}
-
-# Per filter.type. Filled from recon evidence; each entry cites its proof in qloo_api_reality.md.
+# page/offset VERIFIED on place (E9: page 2 == offset 5, no overlap with page 1).
+_COMMON_INSIGHTS = {"filter.type", "take", "page", "offset"}
+_ENTITY_SEED = {"signal.interests.entities"}  # E3: returns scored results for every type below
+# Each set holds params observed to CHANGE results (assert_param_effective) in recorded live responses,
+# recon run 2026-10-15 (docs/qloo_api_reality.md E3-E11). Accepted-but-ineffective params are left out
+# on purpose: for places, signal.demographics.age/gender leave the result set unchanged (Jaccard 1.0),
+# and bias.trends / filter.popularity.min=0.9 did not change artist results.
+_TASTE = {
+    "signal.interests.entities",
+    "signal.interests.tags",
+    "signal.location.query",
+    "signal.demographics.age",
+    "signal.demographics.audiences",
+}
 VERIFIED_INSIGHTS: dict[str, set[str]] = {
-    "urn:entity:artist": _COMMON_INSIGHTS | {"signal.interests.entities"},
-    "urn:entity:place": _COMMON_INSIGHTS | {"filter.location.query"},
+    "urn:entity:artist": _COMMON_INSIGHTS
+    | _TASTE
+    | {
+        "signal.demographics.gender",
+        "filter.popularity.max",
+        "filter.results.entities",
+        "feature.explainability",
+    },
+    "urn:entity:movie": _COMMON_INSIGHTS | _TASTE,
+    "urn:entity:brand": _COMMON_INSIGHTS | _TASTE,
+    "urn:entity:place": _COMMON_INSIGHTS
+    | {
+        "filter.location.query",
+        "filter.tags",
+        "signal.location.query",
+        "signal.interests.entities",
+        "signal.interests.tags",
+        "signal.demographics.audiences",
+        "bias.trends",
+        "feature.explainability",
+    },
+    **{
+        t: _COMMON_INSIGHTS | _ENTITY_SEED
+        for t in (
+            "urn:entity:tv_show",
+            "urn:entity:person",
+            "urn:entity:book",
+            "urn:entity:podcast",
+            "urn:entity:destination",
+            "urn:entity:videogame",
+        )
+    },
 }
 VERIFIED_OTHER: dict[str, set[str]] = {
     "/search": {"query", "types", "take"},

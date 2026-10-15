@@ -207,7 +207,7 @@ class Recon:
             "urn:entity:person",
             "urn:entity:book",
             "urn:entity:podcast",
-            "urn:entity:video_game",
+            "urn:entity:videogame",
             "urn:entity:destination",
         ):
             await self.insights(
@@ -280,7 +280,9 @@ class Recon:
             ra, _ = await self.get(
                 "E5", f"audiences parent={t}", "/v2/audiences", {"filter.parents.types": t, "take": 20}
             )
-            aud_ids += [x for x in (e.entity_id or e.raw.get("id") for e in ra.entities) if x]
+            aud_ids += [
+                x for x in (e.raw.get("id") for e in ra.entities) if x
+            ]  # the urn:audience: id, not entity_id
         self.results["audience_ids"] = aud_ids[:3]
         rid = await self.seed("artist")
         await self.insights(

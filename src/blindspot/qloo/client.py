@@ -90,6 +90,10 @@ def _error_message(resp: httpx.Response) -> str:
                 parts = [str(err[k]) for k in ("message", "reason") if err.get(k)]
                 if parts:
                     return ": ".join(dict.fromkeys(parts))[:300]
+            # Second VERIFIED envelope (insights validation): {"errors": [{"message": ..., "path": ...}]}
+            errs = b.get("errors")
+            if isinstance(errs, list) and errs:
+                return "; ".join(str(e.get("message", e)) for e in errs if isinstance(e, dict))[:300]
             for k in ("message", "error", "reason", "detail"):
                 if isinstance(b.get(k), str):
                     return b[k][:300]

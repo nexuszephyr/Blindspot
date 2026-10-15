@@ -1,0 +1,113 @@
+city,domain,probe,status,count,latency_ms,served_from,has_affinity,auto_note
+bengaluru,dining,core,ok,10,,cache,True,geo-match 10/10
+bengaluru,music,core,ok,10,,cache,True,
+bengaluru,film_tv,core,ok,10,,cache,True,
+bengaluru,brands,core,ok,10,,cache,True,
+lagos,dining,core,ok,10,1863,live,True,geo-match 10/10
+lagos,music,core,ok,10,406,live,True,
+lagos,film_tv,core,ok,10,609,live,True,
+lagos,brands,core,ok,10,618,live,True,
+tokyo,dining,core,ok,10,,cache,True,geo-match 10/10
+tokyo,music,core,ok,10,,cache,True,
+tokyo,film_tv,core,ok,10,,cache,True,
+tokyo,brands,core,ok,10,,cache,True,
+sao_paulo,dining,core,ok,10,3604,live,True,geo-match 10/10
+sao_paulo,music,core,ok,10,1375,live,True,
+sao_paulo,film_tv,core,ok,10,693,live,True,
+sao_paulo,brands,core,ok,10,2059,live,True,
+berlin,dining,core,ok,10,1616,live,True,geo-match 10/10
+berlin,music,core,ok,10,1365,live,True,
+berlin,film_tv,core,ok,10,663,live,True,
+berlin,brands,core,ok,10,590,live,True,
+new_york,dining,core,ok,10,7955,live,True,geo-match 10/10
+new_york,music,core,ok,10,1380,live,True,
+new_york,film_tv,core,ok,10,1607,live,True,
+new_york,brands,core,ok,10,1320,live,True,
+bengaluru,dining,bridge,ok,10,1243,live,True,geo-match 10/10
+bengaluru,dining,audience,ok,10,1045,live,True,geo-match 10/10
+bengaluru,dining,freshness,ok,10,2098,live,True,geo-match 10/10
+bengaluru,music,bridge,ok,10,458,live,True,
+bengaluru,music,audience,ok,10,1385,live,True,
+bengaluru,music,freshness,ok,10,987,live,True,
+bengaluru,film_tv,bridge,ok,10,1068,live,True,
+bengaluru,film_tv,audience,ok,10,1517,live,True,
+bengaluru,film_tv,freshness,ok,10,1638,live,True,
+bengaluru,brands,bridge,ok,10,730,live,True,
+bengaluru,brands,audience,ok,10,775,live,True,
+bengaluru,brands,freshness,ok,10,1543,live,True,
+lagos,dining,bridge,ok,10,1008,live,True,geo-match 10/10
+lagos,dining,audience,ok,10,1035,live,True,geo-match 10/10
+lagos,dining,freshness,ok,10,1696,live,True,geo-match 10/10
+lagos,music,bridge,ok,10,827,live,True,
+lagos,music,audience,ok,10,579,live,True,
+lagos,music,freshness,ok,10,579,live,True,
+lagos,film_tv,bridge,ok,10,1806,live,True,
+lagos,film_tv,audience,ok,10,1555,live,True,
+lagos,film_tv,freshness,ok,10,1773,live,True,
+lagos,brands,bridge,ok,10,960,live,True,
+lagos,brands,audience,ok,10,971,live,True,
+lagos,brands,freshness,ok,10,1950,live,True,
+tokyo,dining,bridge,ok,10,4426,live,True,geo-match 10/10
+tokyo,dining,audience,ok,10,5350,live,True,geo-match 10/10
+tokyo,dining,freshness,ok,10,12516,live,True,geo-match 10/10
+tokyo,music,bridge,ok,10,1260,live,True,
+tokyo,music,audience,ok,10,1024,live,True,
+tokyo,music,freshness,ok,10,783,live,True,
+tokyo,film_tv,bridge,ok,10,943,live,True,
+tokyo,film_tv,audience,ok,10,924,live,True,
+tokyo,film_tv,freshness,ok,10,2925,live,True,
+tokyo,brands,bridge,ok,10,762,live,True,
+tokyo,brands,audience,ok,10,758,live,True,
+tokyo,brands,freshness,ok,10,848,live,True,
+sao_paulo,dining,bridge,ok,10,2736,live,True,geo-match 10/10
+sao_paulo,dining,audience,ok,10,3000,live,True,geo-match 10/10
+sao_paulo,dining,freshness,ok,10,3144,live,True,geo-match 10/10
+sao_paulo,music,bridge,ok,10,1480,live,True,
+sao_paulo,music,audience,ok,10,506,live,True,
+sao_paulo,music,freshness,ok,10,501,live,True,
+sao_paulo,film_tv,bridge,ok,10,1163,live,True,
+sao_paulo,film_tv,audience,ok,10,1118,live,True,
+sao_paulo,film_tv,freshness,ok,10,2486,live,True,
+sao_paulo,brands,bridge,ok,10,3473,live,True,
+sao_paulo,brands,audience,ok,10,787,live,True,
+sao_paulo,brands,freshness,ok,10,819,live,True,
+berlin,dining,bridge,ok,10,1177,live,True,geo-match 10/10
+berlin,dining,audience,ok,10,1150,live,True,geo-match 10/10
+berlin,dining,freshness,ok,10,1762,live,True,geo-match 10/10
+berlin,music,bridge,ok,10,894,live,True,
+berlin,music,audience,ok,10,1203,live,True,
+berlin,music,freshness,ok,10,925,live,True,
+berlin,film_tv,bridge,ok,10,1221,live,True,
+berlin,film_tv,audience,ok,10,862,live,True,
+berlin,film_tv,freshness,ok,10,985,live,True,
+berlin,brands,bridge,ok,10,785,live,True,
+berlin,brands,audience,ok,10,1281,live,True,
+berlin,brands,freshness,ok,10,794,live,True,
+new_york,dining,bridge,ok,10,6972,live,True,geo-match 10/10
+new_york,dining,audience,ok,10,7234,live,True,geo-match 10/10
+new_york,dining,freshness,ok,10,10503,live,True,geo-match 9/10
+new_york,music,bridge,ok,10,1123,live,True,
+new_york,music,audience,ok,10,1217,live,True,
+new_york,music,freshness,ok,10,1147,live,True,
+new_york,film_tv,bridge,ok,10,1539,live,True,
+new_york,film_tv,audience,ok,10,923,live,True,
+new_york,film_tv,freshness,ok,10,2143,live,True,
+new_york,brands,bridge,ok,10,842,live,True,
+new_york,brands,audience,ok,10,1758,live,True,
+new_york,brands,freshness,ok,10,1243,live,True,
+*,dining,swap,ok,15,,,,mean core overlap between cities=0.0
+*,dining,freshness_vs_core,info,6,,,,mean overlap with core=0.0
+*,dining,audience_vs_core,info,6,,,,mean overlap with core=1.0
+*,dining,bridge_vs_core,info,6,,,,mean overlap with core=0.05
+*,music,swap,ok,15,,,,mean core overlap between cities=0.01
+*,music,freshness_vs_core,info,6,,,,mean overlap with core=1.0
+*,music,audience_vs_core,info,6,,,,mean overlap with core=0.0
+*,music,bridge_vs_core,info,6,,,,mean overlap with core=0.02
+*,film_tv,swap,ok,15,,,,mean core overlap between cities=0.12
+*,film_tv,freshness_vs_core,info,6,,,,mean overlap with core=1.0
+*,film_tv,audience_vs_core,info,6,,,,mean overlap with core=0.04
+*,film_tv,bridge_vs_core,info,6,,,,mean overlap with core=0.06
+*,brands,swap,ok,15,,,,mean core overlap between cities=0.02
+*,brands,freshness_vs_core,info,6,,,,mean overlap with core=1.0
+*,brands,audience_vs_core,info,6,,,,mean overlap with core=0.0
+*,brands,bridge_vs_core,info,6,,,,mean overlap with core=0.04

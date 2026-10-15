@@ -105,11 +105,12 @@ async def test_outcomes_empty_and_qloo_error(make_client, mock_api):
 
 
 # ---------------------------------------------------------------- F5: enums, GET only
-async def test_videogame_rejected_with_hint(make_client, mock_api):
+async def test_video_game_spelling_rejected_with_hint(make_client, mock_api):
+    # VERIFIED live: the host rejects video_game and accepts videogame (docs say the opposite)
     route = mock_api.route().mock(return_value=httpx.Response(200, json={}))
-    r = await make_client().insights({"filter.type": "urn:entity:videogame", "take": 2}, C())
-    assert r.outcome == "invalid" and "urn:entity:video_game" in r.reason and route.call_count == 0
-    assert InsightsQuery(**{"filter.type": "urn:entity:video_game"})
+    r = await make_client().insights({"filter.type": "urn:entity:video_game", "take": 2}, C())
+    assert r.outcome == "invalid" and "urn:entity:videogame" in r.reason and route.call_count == 0
+    assert InsightsQuery(**{"filter.type": "urn:entity:videogame"})
 
 
 async def test_only_get_and_no_legacy_endpoints(make_client, mock_api, insights_body):
@@ -136,9 +137,9 @@ async def test_bogus_param_raises_in_strict_mode(make_client, mock_api):
 async def test_non_strict_logs_unverified_params(make_client, mock_api, insights_body):
     mock_api.get("/v2/insights").mock(return_value=httpx.Response(200, json=insights_body))
     c = make_client()
-    r = await c.insights({**PLACE, "bias.trends": "high"}, C(run_id="run_u"), strict=False)
-    assert r.ok and r.unverified_params == ["bias.trends"]
-    assert c.calls.for_run("run_u")[0]["unverified_params"] == "bias.trends"
+    r = await c.insights({**PLACE, "signal.demographics.age": "36_to_55"}, C(run_id="run_u"), strict=False)
+    assert r.ok and r.unverified_params == ["signal.demographics.age"]
+    assert c.calls.for_run("run_u")[0]["unverified_params"] == "signal.demographics.age"
 
 
 def test_assert_param_effective():
