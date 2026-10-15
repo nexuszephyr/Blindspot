@@ -1,87 +1,173 @@
-# Qloo API reality (Phase 1)
+# Qloo API reality
 
-**Status on 2026-10-13: recon has NOT run yet.** There is no `QLOO_API_KEY` on this machine, so
-every live experiment (E1–E10) is pending. What follows is the documented behavior plus the few
-things checked against the real host without a key. After recon runs, each row gets updated to
-VERIFIED or FAILED.
-
-## Labels and sources
+This is what the hackathon API actually does: endpoints, parameters, scores, quirks and limits.
+Recon ran on 2026-10-15 (`scripts/recon.py`, 194 live attempts, purpose `recon`). Raw rows are in
+`data/recon/*.jsonl` and raw bodies in `data/raw/`, both gitignored. This doc records field
+names, outcomes and counts only, never Qloo names, ids or scores.
 
 | Label | Meaning |
 |---|---|
-| **VERIFIED** | Seen in a recorded real response from `hackathon.api.qloo.com` |
-| **FAILED** | Tried against the real API; it did not behave as documented |
-| **UNVERIFIED (doc)** | Stated in official Qloo docs; not yet probed |
-| **UNVERIFIED (3p)** | Only from third-party packages (`@devma/qloo` LLM.txt, `@buildwithlayer/qloo-mcp` tools.json) |
+| **VERIFIED** | Seen in a recorded live response from `hackathon.api.qloo.com` |
+| **FAILED** | Tried live; it did not behave as documented |
+| **UNVERIFIED** | From documentation only; not exercised |
 
 Sources:
-- [HG] Hackathon developer guide: https://docs.qloo.com/reference/qloo-llm-hackathon-developer-guide
-- [PR] Parameter reference: https://docs.qloo.com/reference/parameters
-- [EP] Entity-type parameter guide: https://docs.qloo.com/reference/available-parameters-by-entity-type
-- [DD] Insights API deep dive: https://docs.qloo.com/reference/insights-api-deep-dive
-- [SR] `/search` reference: https://docs.qloo.com/reference/get-search
-- [LLM] `@devma/qloo@1.0.1` `LLM.txt`
-- [MCP] `@buildwithlayer/qloo-mcp@0.0.4` `dist/tools.json` (an OpenAPI-derived parameter list; it points at `staging.api.qloo.com`/`api.qloo.com`, which the guide says to avoid)
-- [PROBE] My own requests on 2026-10-13. These were sent with no key or a fake key, so none came out of the hackathon quota.
+- [HG] the hackathon developer guide
+- [PR] the parameter reference
+- [EP] the entity-type parameter guide
+- [DD] the Insights deep dive
+- [SR] the `/search` reference (all at docs.qloo.com)
+- [R-En] a recon experiment row; [AUD] the Phase 1 audit live checks
 
-## Basics
+## Basics and limits
 
 | Claim | Label | Source |
 |---|---|---|
-| Base URL is `https://hackathon.api.qloo.com`. Staging and production hosts return 401 for hackathon keys | host reachable: **VERIFIED**; 401 on other hosts: UNVERIFIED (doc) | [PROBE], [HG] |
-| Auth goes in the `X-Api-Key` header. Query-param and Bearer auth are not accepted | header name: UNVERIFIED (doc) | [HG] |
-| No key returns `401 {"error":{"reason":"No API key found in request","message":"Unauthorized","code":401}}` | **VERIFIED** | [PROBE] |
-| An invalid key returns 401 with message `Unauthorized` (about 1.2 s cold, about 0.76 s warm, from the dev machine) | **VERIFIED** | [PROBE] |
-| The host resolves to AWS us-east-1 address ranges (52.201.x, 35.169.x, 50.16.x). TCP connect from the dev machine takes about 250 ms | **VERIFIED** (DNS + timing); "us-east-1" is inferred from the IP ranges | [PROBE] |
-| 401 responses carry no rate-limit headers | **VERIFIED** (401 only) | [PROBE] |
-| `/v2/insights` is GET with query-string params. POST with a JSON body fails | UNVERIFIED (doc) | [HG] |
-| `/recommendations` and `/recs` are legacy and unsupported. The bare base URL returns 404 | UNVERIFIED (doc) | [HG] |
-| Invalid parameters are **silently ignored**, and `200` with empty `entities` often means a bad param | UNVERIFIED (doc), recon E9 | [HG] |
-| Hackathon keys have rate and monthly quotas (numbers unpublished). Limits can be raised via Discord #api-help | UNVERIFIED (doc) | [HG] |
-| Private server-side caching is allowed with no time limit. **"Don't store Qloo response data in a public repository."** | doc (terms) | [HG] |
-| Keys are deactivated after the hackathon closes; they stay active through judging | UNVERIFIED (doc) | [HG] |
+| Base URL `https://hackathon.api.qloo.com`; key in the `X-Api-Key` header | VERIFIED | [AUD], R-E1..E11 |
+| No key returns `401 {"error":{"reason":"No API key found in request","message":"Unauthorized","code":401}}` | VERIFIED | R-E9 |
+| Bad key returns `401 …"reason":"API keys mismatch"…` | VERIFIED | R-E9 |
+| Unknown path returns `404 {"error":{"reason":"Not Found","message":"The requested resource could not be found.","code":404}}` | VERIFIED | R-E9 |
+| Bare base URL `GET /` returns **200** with API info (`title, version, description, documentation, contact, deployment_date`). The guide says 404 | FAILED (doc) | R-E9 |
+| Insights validation errors use a **second envelope**: `400 {"errors":[{"message":…,"path":…}]}`. The client parses both | VERIFIED | R-E3, E4, E9 |
+| Unsupported `filter.type` returns **400** `{"errors":[{"message":"The value … is not supported for filter.type"}]}`. The guide says 403 | FAILED (doc) | R-E3, E9 |
+| Quota: `x-month-ratelimit-limit: 10000`, `x-second-ratelimit-limit: 5` (plus `-remaining` and `-reset`) on 200 responses; none on 401 | VERIFIED | [AUD], R-E9 |
+| Insights `take` must be 1–50 (`take must be an integer value between 1 and 50`) | VERIFIED | R-E9 |
+| `/search` `take` max is **100** (250 → `take: must be <= 100`) | VERIFIED | R-E1 |
+| Pagination: `page=2` returns exactly the same ids as `offset=5` (`take=5`), with no overlap with page 1 | VERIFIED | R-E9 |
+| Invalid params are silently ignored: a bogus param returned identical results | VERIFIED | [AUD] L3 |
+| A free-text value in `signal.interests.tags` made the host **hang** (ReadTimeout at 15 s) instead of erroring. The client now refuses non-id values locally | VERIFIED | R-E9 |
+| Latency: search 0.3–1.2 s; insights entity-seeded 0.3–4.7 s; location-filtered places about 0.7–4.4 s; `signal.location.query` + `filter.tags` on places 28 s or **timed out** (4 of 6 cities at 4×10 s) | VERIFIED | R-E4, coverage |
 
-## Endpoints
+## Entity types
 
-| Endpoint | Purpose | Label |
+| Claim | Label | Source |
 |---|---|---|
-| `GET /search` (`query`, `types`, `take`, `page`, `filter.location`, `filter.radius` in miles, `filter.tags`, `filter.popularity`, `filter.exists`, `sort_by=match\|distance\|popularity`, `bias.location*`) | Name → entity ids | UNVERIFIED (doc) [SR] |
-| `GET /entities?entity_ids=` (plus `external.<source>.ids` lookups: imdb, spotify, musicbrainz, wikidata, resy, michelin, …) | Ids → entities | UNVERIFIED (3p) [MCP] |
-| `GET /v2/insights` | Recommendations / affinity | UNVERIFIED (doc) [HG] |
-| `GET /v2/tags` (`filter.query`, `filter.tag.types`, `filter.parents.types`, `feature.typo_tolerance`) | Tag search | UNVERIFIED (doc/3p) [HG][MCP] |
-| `GET /v2/tags/types` | Tag types per entity type | UNVERIFIED (3p) [MCP] |
-| `GET /v2/audiences` (`filter.parents.types`, `filter.audience.types`, `filter.results.audiences`) and `GET /v2/audiences/types` | Audience ids for `signal.demographics.audiences` | UNVERIFIED (doc) [DD][MCP] |
-| `GET /v2/insights/compare`, `GET /analysis`, `GET /trends/entity`, `GET /trends/category` | Comparison, taste analysis, trends | UNVERIFIED (3p) [MCP]. Not in the client's allow-list yet |
+| Insights accepts `urn:entity:videogame` (200) and **rejects `urn:entity:video_game`** (400). The guide and CLAUDE.md said the opposite; CLAUDE.md is now corrected | VERIFIED | R-E3 + probe |
+| `/search` accepts `types=urn:entity:videogame` and rejects `video_game` (400 lists the allowed values) | VERIFIED | R-E1 |
+| Insights with an entity seed works for `artist, movie, tv_show, brand, person, book, podcast, destination, videogame` | VERIFIED | R-E3 |
+| Place insights work with `filter.location.query` alone | VERIFIED | R-E4 |
 
-## Entity types (`filter.type`)
+## E1. Search
 
-`urn:entity:artist|book|brand|destination|movie|person|place|podcast|tv_show|video_game` per [HG]. **Discrepancy:**
-[MCP] and [SR] spell the last one `urn:entity:videogame`. Recon E3 tries both. [HG] says a 403
-"You do not have permission to access urn:entity:…" means the type is unsupported. Use
-`artist`, not `music`; use `place`/`brand`, not `food_and_drink`. `urn:heatmap` exists [EP];
-`urn:demographics` appears in use-case pages (UNVERIFIED). `/search` also accepts `urn:entity:locality` [SR].
+- **Response shape** (VERIFIED): `{"results":[…]}` only. There is no `success` or `duration`, so the synthetic fixture was corrected.
+- **Item fields** (VERIFIED): `entity_id, name, types[], popularity, properties, tags, disambiguation`. Some items also have `location`.
+- **Typed searches** (VERIFIED): returned results for six seeds, including a Nigerian and an Indian artist.
+- **Name handling** (VERIFIED): the ambiguous untyped `Mercury` returned 10 mixed results. Japanese-script `宮崎駿` returned 5. Both an accented name and a one-letter typo returned 3.
+- **Localities** (VERIFIED): `types=urn:entity:locality` returned results for all six configured cities.
+- **Limits** (VERIFIED): `take` 1/50/100 worked; 250 was rejected.
+- **Entity ids** (VERIFIED): uppercase UUIDs.
 
-## E1–E10
+## E2. Tags
 
-Every row starts as **PENDING (needs key)**. The "Documented answer" column is what we expect.
-`scripts/recon.py` runs the probe that settles it.
+| Claim | Label |
+|---|---|
+| `GET /v2/tags?filter.query=` → `{"success","duration","results":{"tags":[…]}}`; items have `id, name, type, parents, popularity, properties, tags` | VERIFIED |
+| Tag ids look like `urn:tag:<family>:<namespace>:<value>`, e.g. families `genre:place`, `genre:music`, `genre:media`, `cuisine:qloo`, `category:place`, `amenity:place`, `dining_option:qloo`, `keyword:qloo` | VERIFIED |
+| Place categories: "restaurant", "cafe", "music venue" and "street food" each returned 10 tags; "afrobeats" 4; "bollywood" and "anime" 10 each | VERIFIED |
+| The configured dining tag `urn:tag:genre:place:restaurant` exists (`filter.results.tags` lookup) and narrows place results (Jaccard 0–0.11 against the location-only results) | VERIFIED |
+| `feature.typo_tolerance=true` with "itallian" returned 5 tags | VERIFIED |
+| `/v2/tags/types` → `{"results":{"tag_types":[{"type","parents":[{"type"}]}]}}` (the client originally missed this container; fixed) | VERIFIED |
 
-| # | Question | Documented answer (label) | Recon probe |
-|---|---|---|---|
-| E1 | Search fields, ambiguity, non-English names, `take` limit | Response is `{success, duration, results:[…]}`; item fields (`entity_id`, `name`, `types`, `properties`, `popularity`, `location`, `external`) are referenced but not shown [SR]. `take` max 199 per schema `exclusiveMaximum: 200` [SR]; the client clamps at 50 | Typed searches for 6 names, untyped "Mercury", 宮崎駿, accents/typos, locality "São Paulo", take 1/50/100/250 |
-| E2 | Tag ids and families; place categories | Tag ids look like `urn:tag:genre:place:restaurant:italian` / `urn:tag:genre:music:pop` (UNVERIFIED (3p) [LLM]). Tags must be valid ids, or you get "at least one valid signal or filter is required" (UNVERIFIED (doc) [HG]) | `/v2/tags/types` (all and place), tag search for restaurant/cafe/music venue/afrobeats/bollywood/anime/street food, typo tolerance, tag-type filter |
-| E3 | Insights per type; where scores live; ordering | Response is `{success, results:{entities:[…], duration}}` [DD][LLM]. Popularity is a 0–1 percentile [PR]. Affinity is in `query.affinity`/affinity ranks per result [DD]; exact shape undocumented. Default ordering is affinity (`sort_by=affinity\|distance` for places) [MCP] | Seeded insights for artist/movie/tv/brand plus cross-domain; person/book/podcast/video_game vs videogame/destination; the client records `has_affinity`, `has_popularity`, `affinity_sorted` |
-| E4 | Location: signal vs filter; name formats; city coverage | `filter.location.query` = fuzzy locality name that **restricts** results (place/destination); `signal.location.query` = locality that **influences** affinity [DD][MCP]. Unmatched names return **400** [DD]. Radius default 15 km (max 800 km) [DD]. [EP] does **not** list `signal.location*` for artist/movie/brand, so location may not move non-place domains (key risk) | 6 cities × filter vs signal; Bengaluru/Bangalore/"Bengaluru, India"/Sao Paulo/NYC/Osaka; both together; an unmatched name; artist/movie/brand with `signal.location.query` across 3 cities (do results differ?) |
-| E5 | Audiences and demographics | `signal.demographics.age` ∈ `35_and_younger\|36_to_55\|55_and_older`; `signal.demographics.gender` ∈ `male\|female` [MCP]; audiences are `urn:audience:*` ids from `/v2/audiences` [DD]. Demographics alone fail; they need a primary signal (UNVERIFIED (3p) [LLM]) | Audience types and lists; demographics-only (expect error); age/gender modifiers on an artist seed; an audience id on artist and place; `urn:demographics` |
-| E6 | Popularity and trends effects | `filter.popularity.min/max` = 0–1 percentile [PR]; `bias.trends` ∈ off…very_high, default medium [DD] ([MCP] lists only off/low/medium/high) | Baseline vs popularity.max=0.5 / min=0.9 / trends off / trends high (artist), trends off vs high (NY places). Compare overlap |
-| E7 | Score a fixed candidate list | `filter.results.entities` = "comma-separated entity IDs … often used to assess the affinity of an entity towards input" [PR][MCP]. The candidate limit is undocumented; `take` max 50 [DD] | Take a 50-entity pool, then score 5/25/all candidates against `signal.location.query=Lagos`, and 10 against an entity signal |
-| E8 | Explainability | `feature.explainability=true` adds per-result `query.explainability` (input contributions normalized 0–1) and top-level aggregates for top-3/5/10/all; on failure, `query.explainability.warning` [DD] | Explainability on artist and place queries |
-| E9 | Limits, pagination, error shapes | `take` default 20 / max 50 for insights [DD] (the MCP spec says default 5); `page` 1–100 recommended, `offset` also available [DD]. Error envelope: **VERIFIED** for 401 (see Basics). 429 is documented with `code/reason/message` but the example is copy-pasted, and **no rate-limit headers are documented** [SR] | No key, bad key, unknown path, bare `/`, POST insights, missing/invalid `filter.type`, take=0/200, invalid tag; page 1 vs 2 vs offset 5. Deliberate 429s are **not** triggered (quota) |
-| E10 | Place cross-refs (coords, address, external ids) | Places have geocode fields (`properties.geocode.{name,admin1_region,admin2_region,country_code}`) [PR]; external Resy/Michelin/Tablet/Tripadvisor data appear as filters [PR], so some `external.*` data is likely present; lat/lon via WKT/geohash support [PR] | Tokyo places → `GET /entities` for 3 ids, dump `properties` and `external` keys; place search with a location bias |
+## E3. Insights by type, scores and order
 
-## Quirks worth knowing before Phase 2 (all from docs)
+| Claim | Label |
+|---|---|
+| Response: `{"success","results":{"entities":[…]}}`, plus a top-level `"query":{"localities":…}` when a location is used | VERIFIED |
+| Entity fields: `entity_id, name, type, subtype, popularity, properties, tags, external, disambiguation, query`; places add `location{lat,lon[,geohash]}` and `references` | VERIFIED |
+| **Affinity is per result in `query.affinity`.** It's present for every entity-seeded query (all types in E3) and results are sorted by affinity, descending | VERIFIED |
+| `query.measurements` (`audience_growth`) appears alongside affinity; place queries with a location add `query.distance` | VERIFIED |
+| `popularity` is present on every result (search and insights) | VERIFIED |
+| Cross-domain seeding works (artist → movie, brand → artist) | VERIFIED |
 
-- Invalid params are ignored silently. An empty 200 is ambiguous ("no data" vs "bad param"), so Phase 2 needs a sanity check for empty results.
-- The API can't filter response fields, and some responses carry verbose fields (`akas`). The snapshot minimizer drops them.
-- `filter.geocode.name` is exact-match and meant for small towns only [MCP]; for cities use `filter.location.query`.
-- Weighted signals and `*.query` name-resolution parameters work via POST only [LLM][PR]. That contradicts "POST fails" in [HG]; needs a probe if Phase 2 wants weights.
+## E4. Location
+
+| Claim | Label |
+|---|---|
+| Places: `filter.location.query` returns 10 results for all six cities. Name variants "Bangalore", "Bengaluru, India", "Sao Paulo", "NYC" and "Osaka" all resolve | VERIFIED |
+| Unresolvable locality returns `400 {"errors":[{"message":"filter.location.query is unable to resolve to a valid locality."}]}` | VERIFIED |
+| **Non-place domains are localized by `signal.location.query`.** Music, film and brands gave completely different results across three cities (Jaccard 0.0 for every pair) | VERIFIED |
+| Places with `signal.location.query` + `filter.tags`: 2 of 6 cities returned (28 s and 4.7 s); 4 timed out. Use `filter.location.query` for places | VERIFIED |
+| Using both filter and signal on places | UNVERIFIED (not run this pass) |
+
+## E5. Audiences and demographics
+
+| Claim | Label |
+|---|---|
+| `/v2/audiences/types` → `{"results":{"audience_types":[{"type":"urn:audience:<group>","parents":[…]}]}}`, 10 types | VERIFIED |
+| `/v2/audiences` with no filter returns 400 "At least one of the following parameters must be provided: filter.results.audiences, filter.parents.types, filter.audience.types, …" | VERIFIED |
+| `/v2/audiences?filter.parents.types=urn:audience:<group>` → `{"results":{"audiences":[…]}}`. Items have **both** `id` (`urn:audience:<group>:<name>`, the value to send) and `entity_id` (a UUID, not accepted as an audience) | VERIFIED |
+| Demographics alone return `400 "at least one valid signal or filter is required for entity insights"` | VERIFIED |
+| Artists: `signal.demographics.age` (55_and_older, 35_and_younger) and `gender=female` each change results (Jaccard 0.11 against the baseline; the three variants differ from each other) | VERIFIED |
+| An audience id changes artist results (Jaccard 0.82) and place results in Lagos | VERIFIED |
+| **Places: age and gender signals do NOT change the result set** (Jaccard 1.0 against location+age and in the coverage audience probe). They only add affinity scores | VERIFIED |
+
+## E6. Popularity and trends
+
+| Claim | Label |
+|---|---|
+| Artist `filter.popularity.max=0.5` replaces the whole result set (Jaccard 0.0) | VERIFIED |
+| Artist `filter.popularity.min=0.9`: no change (the seed's neighbours are already popular), so inconclusive | VERIFIED (no effect here) |
+| Artist `bias.trends=off` or `high`: no change | VERIFIED (no effect) |
+| Place `bias.trends=high` replaces the whole set (Jaccard 0.0) and **adds affinity**; `off` matches the baseline | VERIFIED |
+| Coverage freshness probe: `bias.trends=high` changes dining in every city (overlap with core 0.0) and **does not change** music, film or brands (overlap 1.0) | VERIFIED |
+
+## E7. Candidate scoring (`filter.results.entities`)
+
+| Claim | Label |
+|---|---|
+| With an **entity signal**, 10 candidates returned 9 scored, sorted results, all from the candidate list | VERIFIED |
+| With a **location signal only**, sending 5, 25 or 51 candidates returned **1** result each time | VERIFIED |
+| Maximum candidate count | UNVERIFIED (51 was accepted; the output cap is `take` ≤ 50) |
+
+Implication: scoring an agent's own recommendations needs a taste signal (entity, tag or audience) together with the location. Location alone ranks almost nothing.
+
+## E8. Explainability
+
+`feature.explainability=true` adds `query.explainability` per result and a top-level `query.explainability`, for both artist and place queries (VERIFIED). The detailed structure of the "why" is not documented here, because it contains Qloo data.
+
+## E9. Limits and errors
+
+See "Basics and limits". No 429 or 5xx was observed in about 290 calls at 4 req/s; both shapes are UNVERIFIED (deliberately not triggered). Timeouts were observed on slow place queries.
+
+## E10. Place cross-references
+
+| Claim | Label |
+|---|---|
+| Insights places include `location{lat,lon,geohash}`, `external.google_place`, `properties.address`, and `properties.geocode{name,city,admin1_region,country,country_code,metro}` | VERIFIED |
+| `GET /entities?entity_ids=` for 3 places returns `location{lat,lon}`, `properties.address`, `geocode`, `phone`, `website`, `hours`, `business_rating`; `external` was empty there | VERIFIED |
+| Yelp or TripAdvisor ids | UNVERIFIED (not seen) |
+
+## E11. Where scores come from (new)
+
+Each domain was tested with signal combinations in one rich and one focus city (from `config/`), plus a rank-stability check. Every row was `outcome=ok`, with 10 results.
+
+| Domain | Location only | + entity | + tag | + age | + audience | Entity only |
+|---|---|---|---|---|---|---|
+| dining (place, `filter.location.query` + restaurant tag) | **no affinity** (`distance` only) | affinity, set changes | affinity, set changes | affinity, **set unchanged** | affinity, set changes (1 of 2 cities timed out) | affinity |
+| music (artist, `signal.location.query`) | affinity | affinity | affinity | affinity | affinity | affinity |
+| film_tv (movie) | affinity | affinity | affinity | affinity | affinity | affinity |
+| brands | affinity | affinity | affinity | affinity | affinity | affinity |
+
+- Wherever affinity is present, results are sorted by it, descending (`affinity_sorted=true`).
+- **Rank stability:** in every domain, the top 10 of `take=20` equals `take=10` exactly. Order is deterministic even with no scores.
+
+**Recommendation for Phase 2:**
+1. Use **rank-based metrics** (overlap@k, rank correlation and position of the agent's items in Qloo's list) as the primary measure. They work in every domain, and ranks are stable.
+2. Use `query.affinity` only as a secondary signal, and only within one query. Absolute values aren't comparable across queries.
+3. For dining, always add a taste signal (tag, entity or audience id) if you want scores.
+4. To score an agent's own candidates, use `filter.results.entities` **with a taste signal**, never location alone (E7).
+
+## Parameters VERIFIED as effective
+
+The strict guard (`src/blindspot/qloo/params.py`) only allows these, per type:
+
+| Type | Parameters |
+|---|---|
+| artist | entities, tags, `signal.location.query`, age, gender, audiences, `filter.popularity.max`, `filter.results.entities`, `feature.explainability` |
+| movie, brand | entities, tags, `signal.location.query`, age, audiences |
+| place | `filter.location.query`, `filter.tags`, `signal.location.query`, entities, tags, audiences, `bias.trends`, `feature.explainability` |
+| other types | `signal.interests.entities` |
+
+All types also accept `filter.type`, `take`, `page` and `offset`.
+
+Deliberately not allowlisted: age and gender on places, and `bias.trends` / `filter.popularity.min` on artists. Each was accepted but had no measured effect.

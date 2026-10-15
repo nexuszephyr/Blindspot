@@ -1,22 +1,36 @@
 {
-  "_fixture": "SYNTHETIC - shape per docs.qloo.com /search schema; values invented",
-  "success": true,
-  "duration": 0.042,
+  "_fixture": "SYNTHETIC - shape VERIFIED against live /search (top level: results only); values invented",
   "results": [
     {
       "entity_id": "00000000-0000-4000-8000-000000000001",
       "name": "Example Artist One",
-      "types": ["urn:entity:artist"],
+      "types": [
+        "urn:entity:artist"
+      ],
       "popularity": 0.91,
-      "properties": {"short_description": "synthetic"},
-      "tags": [{"id": "urn:tag:genre:music:example", "name": "Example", "type": "urn:tag:genre:music"}]
+      "properties": {
+        "short_description": "synthetic"
+      },
+      "tags": [
+        {
+          "id": "urn:tag:genre:music:example",
+          "name": "Example",
+          "type": "urn:tag:genre:music"
+        }
+      ],
+      "disambiguation": "synthetic"
     },
     {
       "entity_id": "00000000-0000-4000-8000-000000000002",
       "name": "Example Artist Two",
-      "types": ["urn:entity:artist", "urn:entity:person"],
+      "types": [
+        "urn:entity:artist",
+        "urn:entity:person"
+      ],
       "popularity": 0.55,
-      "properties": {}
+      "properties": {},
+      "disambiguation": "synthetic",
+      "tags": []
     }
   ]
 }

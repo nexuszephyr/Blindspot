@@ -1,5 +1,5 @@
 {
-  "_fixture": "SYNTHETIC - shape per docs.qloo.com /v2/insights schema and @devma/qloo LLM.txt; values invented",
+  "_fixture": "SYNTHETIC - shape VERIFIED against live /v2/insights; values invented",
   "success": true,
   "results": {
     "entities": [
@@ -9,10 +9,34 @@
         "type": "urn:entity",
         "subtype": "urn:entity:place",
         "popularity": 0.97,
-        "location": {"lat": 12.97, "lon": 77.59},
-        "properties": {"address": "1 Example Road", "geocode": {"city": "Example City"}, "akas": ["dropped"]},
-        "query": {"affinity": 0.88},
-        "tags": [{"id": "urn:tag:genre:place:restaurant:example", "name": "Example", "type": "urn:tag:genre:place"}]
+        "location": {
+          "lat": 12.97,
+          "lon": 77.59
+        },
+        "properties": {
+          "address": "1 Example Road",
+          "geocode": {
+            "city": "Example City"
+          },
+          "akas": [
+            "dropped"
+          ]
+        },
+        "query": {
+          "affinity": 0.88,
+          "measurements": {
+            "audience_growth": 0
+          }
+        },
+        "tags": [
+          {
+            "id": "urn:tag:genre:place:restaurant:example",
+            "name": "Example",
+            "type": "urn:tag:genre:place"
+          }
+        ],
+        "disambiguation": "synthetic",
+        "external": {}
       },
       {
         "name": "Example Place Two",
@@ -21,7 +45,15 @@
         "subtype": "urn:entity:place",
         "popularity": 0.61,
         "properties": {},
-        "query": {"affinity": 0.42}
+        "query": {
+          "affinity": 0.42,
+          "measurements": {
+            "audience_growth": 0
+          }
+        },
+        "disambiguation": "synthetic",
+        "external": {},
+        "tags": []
       }
     ],
     "duration": 0.31

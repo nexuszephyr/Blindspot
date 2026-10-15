@@ -1,5 +1,7 @@
 # Running Blindspot (for judges)
 
+> `<repo-url>` below is a placeholder until the public repository exists (see `docs/NEEDS_FROM_USER.md`).
+
 There are three ways to run it. The first needs no setup at all.
 
 | Path | You need | First run | What you get |

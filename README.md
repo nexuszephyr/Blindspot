@@ -29,12 +29,19 @@ With a key in `.env`:
 
 ```bash
 python scripts/smoke.py                 # about 4 live calls
-python scripts/recon.py                 # about 121 live calls (cap: --max-calls 300)
+python scripts/recon.py                 # E1-E11, about 200 live calls (cap: --max-calls 200)
 python scripts/coverage_matrix.py       # about 96 live calls (cap: --max-calls 150)
+```
+
+Windows without `make`: `python scripts/dev.py setup|demo|test|check`.
+
+```bash
 python -m blindspot.qloo.cli budget     # remaining budgets, cache size, breaker state
 python -m blindspot.qloo.cli search "Burna Boy" --types urn:entity:artist
 python -m blindspot.qloo.cli calls --last 10
 ```
+
+Cities, domains and demo queries are data in `config/`. Steps only the owner can do: [docs/NEEDS_FROM_USER.md](docs/NEEDS_FROM_USER.md).
 
 Docs: [API reality](docs/qloo_api_reality.md) · [coverage matrix](docs/coverage_matrix.md) · [decisions](docs/decisions.md) · [Phase 1 report](docs/phase1_report.md)
 

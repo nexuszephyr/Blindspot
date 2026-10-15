@@ -213,3 +213,72 @@ What Phase 2 must do first: F1, then run recon and the coverage matrix, F5 (conf
 | 9 | Deploy to Render: set `QLOO_API_KEY` in the dashboard; then verify `/healthz` from another network | gate 11 | S | **You** |
 | 10 | Restart Docker Desktop and re-run the image scan (`make docker-scan`) | gate 9 | S | **You** (start Docker) |
 | 11 | Decide the snapshot-terms question (Qloo Discord) | open | S | **You** |
+
+---
+
+## Fix pass (2026-10-15)
+
+The original audit text above is unchanged. Commits:
+- `130ded8`: tests F2, F3
+- `8b4a7cb`: main fix batch
+- `831071e`: F13
+- `10d5ce8`: F5 config
+- `f2eb3e1`: VERIFIED-facts follow-up
+- `6c49485`: deadline-test timing
+- the final docs commit
+
+### Finding status
+
+| ID | Status | What changed / evidence | Commit |
+|---|---|---|---|
+| F1 | FIXED | List params accept `a,b` or lists. Entity, tag and audience params must be ids (UUID, `urn:tag:`, `urn:audience:`), else `outcome=resolution_failed` and no call is sent. Names resolve via `/search` and `/v2/tags` (`insights(resolve=…)`). New `outcome` field on results and call-log rows. Tests: `test_free_text_never_sent_as_id`, `test_names_resolve_to_ids`, `test_unresolvable_name_makes_zero_insights_calls`. The redaction test's 401 branch now really runs (`assert r3.status == 401`) | 8b4a7cb, 130ded8 |
+| F2 | FIXED | `test_raw_ip_never_stored` checks a known IP is absent from cache, calls, live_attempts, `/status` and logs. M9 is now killed | 130ded8 |
+| F3 | FIXED | `test_key_never_on_stdout_stderr` runs the CLI (4 commands), `scripts/smoke.py`, service startup and error paths under `capfd`/`caplog` with a hostile upstream echoing the key. M1a, M1c and M1d are now killed | 130ded8 |
+| F4 | FIXED | Cooperative per-request deadline (`REQUEST_DEADLINE_S=8`, web only); backoff and `Retry-After` never sleep past it; `wait_for` fence; followers survive a cancelled leader. Tests: slow server 20 s with a 1 s deadline returns in < 1.5 s and the budget doesn't grow afterwards; `Retry-After: 5` with a 2 s deadline degrades in < 1 s; 50 concurrent requests against `429 Retry-After: 30` all return, p95 < 8.5 s; the breaker answers in < 0.2 s | 8b4a7cb |
+| F5 | FIXED (2 of 3) / **DISPUTED** (1 of 3) | The POST probe is removed (`test_only_get_and_no_legacy_endpoints`). Cities and domains moved to `config/*.yaml` with validation, and `test_no_configured_city_in_src` guards it. **The `videogame` part is disputed with live evidence:** the hackathon host returns 200 for `filter.type=urn:entity:videogame` and 400 "not supported for filter.type" for `urn:entity:video_game`; `/search` behaves the same (recon E1/E3 plus a probe). The enums follow the real API; CLAUDE.md is corrected (D29) | 10d5ce8, f2eb3e1 |
+| F6 | FIXED | `coalesced` flag on results and call-log rows; live calls are reported from `live_attempts` (real upstream requests) by purpose. `test_coalesced_rows_are_marked` | 8b4a7cb |
+| F7 | FIXED | `qloo/params.py`: per-type allowlist of params *proven effective* by recon; strict by default (`QlooParamError` before any call); `strict=False` logs `unverified_params`; `assert_param_effective()` | 8b4a7cb, f2eb3e1 |
+| F8 | DEFERRED (user) | `<repo-url>` stays a clearly marked placeholder; push steps are in `docs/NEEDS_FROM_USER.md` | n/a |
+| F9 | FIXED | Empty 200s expire after 1 h (`test_empty_results_expire_after_an_hour`) | 8b4a7cb |
+| F10 | FIXED | Bodies over 4 MB are refused (`test_huge_body_rejected`) | 8b4a7cb |
+| F11 | FIXED | One rate-limited request counts once toward the breaker (`test_one_rate_limited_request_does_not_trip_breaker`) | 8b4a7cb |
+| F12 | FIXED | Scanner pattern for unquoted `*KEY|TOKEN|SECRET|PASSWORD*=value` | 8b4a7cb |
+| F13 | FIXED | Repo formatted; `make check` runs `ruff format --check` | 831071e |
+| F14 | FIXED | Indexes on `live_attempts(client_id, ts)`, `(run_id)` and `calls(purpose)`; call-log retention 30 days (`live_attempts` kept for the lifetime cap) | 8b4a7cb |
+| F15 | FIXED | The CLI installs log redaction (covered by the F3 test) | 8b4a7cb |
+| F16 | FIXED | Rate headers are returned per response; the shared attribute is removed | 8b4a7cb |
+| F17 | FIXED | Replay mode serves stale cache rows (`test_replay_serves_stale_cache`) | 8b4a7cb |
+| F18 | FIXED | `render.yaml` cites D22 | 8b4a7cb |
+| F19 | FIXED | `.dist/` gitignored | 8b4a7cb |
+| N1 | ACTED | `QLOO_RPS=4`, token-bucket capacity 1 (no burst above 5/s) | 8b4a7cb |
+| N2 | ACTED | `--no-server-header` | 8b4a7cb |
+| N3 | DEFERRED | Synchronous SQLite in async handlers: sub-millisecond queries on one instance; revisit if profiling shows it | n/a |
+| N4 | DEFERRED | The limiter's 50k-key clear: memory stays bounded; acceptable for one free instance | n/a |
+| N5 | ACTED | `purpose` column; the audit's rows were re-tagged `audit`; cached responses kept | 8b4a7cb |
+
+Found during the fix pass and fixed:
+- The second error envelope `{"errors":[…]}` wasn't parsed.
+- `tag_types` and `audience_types` containers weren't extracted, which made lookups look empty.
+- Audience URN `id` vs UUID `entity_id`.
+- Scripts crashed printing non-Latin names on Windows consoles.
+
+### Mutation results (re-run in temp clones, key unset, outbound network blocked)
+
+| ID | Mutation | Result |
+|---|---|---|
+| M1a | Key in the auth-error message | KILLED (`test_leaks`) |
+| M1b | Key in a log line | Survives: the redaction filter masks it, so the leak is prevented (M1d shows the filter is what stops it) |
+| M1c | Key printed to stdout | KILLED (`test_leaks`) |
+| M1d | Redaction removed (`redact` returns its input) | KILLED (`test_leaks`) |
+| M2 | Kill switch as a global flag | KILLED |
+| M3 | Ignore `Retry-After` | KILLED |
+| M4 | Order-dependent cache key | KILLED |
+| M5 | No per-client hourly cap | KILLED |
+| M6 | Key as a query param | KILLED |
+| M7 | `served_from` always `live` | KILLED |
+| M8 | Breaker never recovers | KILLED |
+| M9 | Raw IP as `client_id` | KILLED (`test_raw_ip_never_stored`) |
+
+### Gates after the fix pass
+
+Gates 1–8, 12 and 13 now PASS. Gate 9 (Docker image scan) and gate 10 (Docker commands) are PENDING-USER: Docker Desktop is off. Gate 11 (hosted) is PENDING-USER. Details are in [phase1_report.md](phase1_report.md).

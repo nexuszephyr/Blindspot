@@ -18,7 +18,7 @@ Each entry: decision, then reason. "Review first" marks the ones the project own
 - `data/` (cache, raw recordings, snapshot) is gitignored.
 - Test fixtures are **synthetic**: they copy the documented shape, with invented ids, names and scores (`tests/fixtures/README.md`).
 - The committed coverage grid and CSV hold statuses, counts, latency and overlap only, never result names.
-- The demo query list (`scripts/demo_queries.json`) holds queries only, no ids from Qloo.
+- The demo query list (`config/demo_queries.json`) holds queries only, no ids from Qloo.
 
 **Open question for you:** is even a *minimal* snapshot (ids, names, scores for about 50 demo queries) allowed in the public repo so judges can run fully offline? Ask in Qloo's Discord #api-help. Until then the committed snapshot is **empty**, marked "needs terms check", and the no-snapshot fallback works: replay mode returns `served_from: degraded` with "use the hosted demo, or add your own QLOO_API_KEY".
 
@@ -89,3 +89,32 @@ Ad-hoc traffic may use only `daily − QLOO_DEMO_RESERVE`, even when the reserve
 **D23. Planned live calls:** smoke 4, recon about 121 (`--max-calls 300`), coverage about 96 (`--max-calls 150`). That's about 221 of 600, leaving room for re-runs. Everything goes through the client, so cached repeats are free and the lifetime cap of 600 is enforced by code.
 
 **Used so far: 0** hackathon-key calls. Six requests went to the real host with no key or a fake key, purely for connectivity, error-shape and latency checks. They were rejected at authentication, so they should not count toward the key's quota (how Qloo meters rejected requests is unverified).
+
+## Audit fix pass (2026-10-15)
+
+**D24. Ids, not names, go to Qloo.** Entity, tag and audience parameters must hold ids of the VERIFIED shapes: UUID entity ids, `urn:tag:…` and `urn:audience:…`. Anything else is `outcome=resolution_failed`, and no request is sent. Names are resolved explicitly through `client.insights(..., resolve={param: [names]})` using `/search` and `/v2/tags`; each lookup is cached, logged and budgeted. Audiences have no name lookup: use the `id` field from `/v2/audiences`, never its `entity_id` UUID (VERIFIED, E5).
+
+**D25. Every result has an `outcome`:** `ok | empty | qloo_error | resolution_failed | invalid | disabled | not_live`. Reports classify by `outcome`, never by `served_from`, so a local refusal can't be read as a Qloo error.
+
+**D26. Strict parameter guard (`qloo/params.py`).** Qloo ignores unknown parameters silently, so app code refuses any parameter not VERIFIED as *effective* for the `filter.type`, before any network call. Scripts may use `strict=False`, and every unverified parameter they send is logged in the call log. The allowlist only grows with recorded evidence.
+
+**D27. The web deadline is cooperative.** Each web request carries `RequestContext.deadline`, set from `REQUEST_DEADLINE_S` (8 s). Retries, backoff, `Retry-After` and token waits never go past it, and an outer `wait_for` fence plus follower handling make sure a cancelled leader can't crash shared calls. Scripts and the CLI have no deadline.
+
+**D28. Token-bucket capacity 1 at `QLOO_RPS=4`.** With no burst, a cold bucket can't exceed Qloo's VERIFIED limit of 5 req/s.
+
+**D29. Real API over docs: the video game type is `urn:entity:videogame`.** The guide says `video_game`, but the hackathon host rejects it (400) for both insights and search (VERIFIED). The enums follow the API, and CLAUDE.md's fact line was corrected with this evidence.
+
+**D30. Each call-log row has a `purpose`** (`app | audit | recon | coverage | smoke | script`), and live-call reporting breaks down by purpose (`/status` → `live_calls_by_purpose`). The audit's earlier rows were re-tagged `audit` by a one-off local SQL update; the cached responses were kept.
+
+**D31. Cities, domains and demo queries are data in `config/`,** validated by `blindspot.catalog`. A test fails if a configured city name appears in `src/`.
+
+**D32. Small hardening:**
+- Empty 200s are cached for 1 h only.
+- Response bodies over 4 MB are refused.
+- One rate-limited request counts once toward the breaker.
+- Rate-limit headers are recorded per response.
+- Replay mode serves stale cache rows, labelled `cache` with their `fetched_at`.
+- Call-log rows are deleted after 30 days. `live_attempts` rows are kept, because the lifetime cap counts them.
+- The CLI installs log redaction.
+- `--no-server-header` is set.
+- `ruff format` is enforced by `make check`.

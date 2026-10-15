@@ -1,47 +1,51 @@
 # Coverage matrix
 
-**Status: PENDING (needs key).** The matrix hasn't run because there's no `QLOO_API_KEY` on the
-dev machine. `scripts/coverage_matrix.py` is written and ready (about 96 live calls). When it
-runs, it writes the generated grid to `docs/coverage_grid.md` and `docs/coverage_matrix.csv`
-(statuses, counts, latency and overlap only). Full rows with result names go to
-`data/coverage/` (gitignored, per Qloo's no-public-storage rule). After the run, the
-recommendation below gets rewritten from the data.
+The coverage matrix ran on 2026-10-15 (`scripts/coverage_matrix.py`, 88 live calls, purpose `coverage`). It covered 6 cities × 4 domains (both from `config/`) × 4 probe types, plus a swap analysis.
+- The generated grid is in [coverage_grid.md](coverage_grid.md), with a CSV in [coverage_matrix.csv](coverage_matrix.csv). Both hold statuses, counts, latency and overlap only.
+- Full rows with result names are in `data/coverage/`, which is gitignored (Qloo terms).
 
-## Design
+## Probes
 
-- **Cities (6):** Bengaluru, Lagos, Tokyo (Osaka is tried as a name format in recon E4), São Paulo, Berlin, New York.
-- **Domains (4):**
+| Probe | Query |
+|---|---|
+| core | domain + location + `signal.demographics.age=35_and_younger` |
+| bridge | location + a seed entity taken from another domain's core result in the same city |
+| audience | location + `gender=female` + `age=55_and_older` |
+| freshness | core + `bias.trends=high` |
+| swap | offline: mean Jaccard overlap of core results between every pair of cities |
 
-| Domain | `filter.type` | Extra | Location parameter |
-|---|---|---|---|
-| dining | `urn:entity:place` | `filter.tags=urn:tag:genre:place:restaurant` (tag id to be confirmed by E2) | `filter.location.query` (restricts) |
-| music | `urn:entity:artist` | none | `signal.location.query` (influences; may be ignored, see E4) |
-| film/TV | `urn:entity:movie` | none | `signal.location.query` |
-| brands | `urn:entity:brand` | none | `signal.location.query` |
+Dining uses `filter.location.query` plus the restaurant tag. The other domains use `signal.location.query`, as E4 recommends.
 
-- **Probes per cell:**
+## Result
 
-| Probe | Query | What it tells us |
-|---|---|---|
-| core | domain + location + `signal.demographics.age=35_and_younger` | Is there data for "this audience in this place"? |
-| bridge | core + `signal.interests.entities` = top core entity from another domain in the same city (dining↔music; film/brands ← music) | Do cross-domain signals work and stay local? |
-| audience | location + `gender=female` + `age=55_and_older` | Does a contrasting audience change results? (`audience_vs_core` overlap) |
-| freshness | core + `bias.trends=high` | Does trend bias change results? (`freshness_vs_core` overlap) |
-| swap | computed offline, no calls | Mean Jaccard overlap of core top-10 between city pairs. Low overlap means "swap the city" is a usable test |
+**96 of 96 cells are `ok` with 10 results each.** There were no `empty`, `qloo_error` or `resolution_failed` cells, and every cell has affinity scores, because each probe includes an age or entity signal. Plausibility for dining: 239 of 240 dining results (24 cells × 10) geo-match their city (`properties.geocode` country or city), and the only miss is one New York freshness result. The music, film and brands cells were not checked for plausibility automatically; their city-specificity is shown by the near-zero swap overlap.
 
-- **Statuses:** `ok` (results returned), `empty` (200 with no results, which may mean an ignored param), `error` (degraded, reason recorded), `skipped` (call cap reached or no bridge seed).
-- **Plausibility:** for dining, an automatic geo-match (how many results mention the city or country in their address or geocode). For other domains, a manual reading of `data/coverage/*.csv` after the run.
-- **Flags:** `--place-loc signal` and `--other-loc none` let you re-run with the location mode that recon E4 shows actually works.
+| Domain | Swap: mean core overlap between cities | Audience probe vs core | Freshness vs core | Bridge vs core | Median / max latency |
+|---|---|---|---|---|---|
+| dining | 0.00 | **1.00 (no effect)** | 0.00 (strong) | 0.05 | 2.4 s / 12.5 s |
+| music | 0.01 | 0.00 (strong) | **1.00 (no effect)** | 0.02 | 1.0 s / 1.5 s |
+| film_tv | 0.12 | 0.04 (strong) | **1.00 (no effect)** | 0.06 | 1.2 s / 2.9 s |
+| brands | 0.02 | 0.00 (strong) | **1.00 (no effect)** | 0.04 | 0.8 s / 3.5 s |
 
-## Recommendation: PROVISIONAL (from documentation, not data)
+Reading the table:
+- **Every city is rich.** Lagos and Bengaluru returned full, city-specific result sets in every domain, the same as New York and Berlin. The tier-2 ("audit focus") cities aren't thin.
+- **Cities are strongly distinct** (swap overlap ≤ 0.12). That makes "swap the city" a powerful test of cultural blindness: an agent that gives the same answer for Lagos and Berlin will score badly against Qloo.
+- **Demographic signals don't move places.** For dining, the audience probe's results are identical to core. To create an audience contrast in dining, use **audience ids** (`urn:audience:…`, which changed place results in E5 and E11), not age or gender.
+- **`bias.trends` only moves places.** For music, film and brands it's a no-op.
 
-This is a hypothesis to test, not a finding:
+## Recommendation
 
-1. **Dining is the safest domain.** Location filtering is native for `urn:entity:place` and documented in detail (`filter.location.query`, geocode, radius).
-2. **Music, film/TV and brands carry the main risk.** The entity-type parameter guide lists no `signal.location*` parameter for artist, movie or brand, so a city may not move their results at all. If E4 shows identical results across cities, Phase 2 should localize those domains another way:
-   - (a) audience ids (E5)
-   - (b) region or genre tags (E2, e.g. afrobeats, bollywood)
-   - (c) bridge signals seeded from local places (the bridge probe)
+- **Cities: keep all six** (Bengaluru, Lagos, Tokyo, São Paulo, Berlin, New York). Every city/domain cell has data, and the cities are clearly distinct from each other.
+- **Domains: keep all four.**
+  - music, film/TV and brands are fast (about 1 s), and every signal type works.
+  - dining works with `filter.location.query` and a tag, but it's slower (median 2.4 s), and `signal.location.query` on places can time out (E4).
+- **Viable probe types:**
 
-   If none of these work, cut the domain.
-3. **Cities:** keep all six until the data says otherwise. Tokyo is preferred over Osaka because larger metros probably have denser coverage. The cities most at risk of thin data are Lagos and Bengaluru, which are also the most interesting ones for a cultural-blindness audit.
+  | Probe | Verdict |
+  |---|---|
+  | core | yes, all domains |
+  | bridge | yes, all domains (it changes results) |
+  | audience | yes for music, film and brands with age/gender. For dining, use audience ids, because age and gender have no effect |
+  | freshness (`bias.trends`) | **dining only**; drop it for the other domains |
+  | swap | yes, all domains (the strongest probe) |
+- **Phase 2 scoring:** per E11, use rank-based metrics, with affinity only within a query.
