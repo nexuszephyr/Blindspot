@@ -29,7 +29,7 @@ With a key in `.env`:
 
 ```bash
 python scripts/smoke.py                 # about 4 live calls
-python scripts/recon.py                 # E1-E11, about 200 live calls (cap: --max-calls 200)
+python scripts/recon.py                 # E1-E11, about 200 live calls cold (cap: --max-calls 250)
 python scripts/coverage_matrix.py       # about 96 live calls (cap: --max-calls 150)
 ```
 

@@ -571,7 +571,9 @@ def shape_check() -> int:
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", help="comma list, e.g. E1,E11")
-    ap.add_argument("--max-calls", type=int, default=200)
+    ap.add_argument(
+        "--max-calls", type=int, default=250
+    )  # a cold full run needs ~200 attempts (slow place queries retry)
     ap.add_argument("--shape-check", action="store_true")
     a = ap.parse_args()
     if a.shape_check:
