@@ -164,6 +164,7 @@ async def test_deadline_slow_server(make_settings, mock_api, search_body):
 
     mock_api.get("/search").mock(side_effect=slow)
     c = QlooClient(make_settings(), snapshot=Snapshot())  # real sleep
+    c._client()  # build the HTTP client (SSL setup) before timing
     t = time.monotonic()
     r = await c.search_entities("slow", _web(1.0))
     assert time.monotonic() - t < 1.5 and r.served_from == "degraded" and r.outcome == "not_live"
@@ -178,6 +179,7 @@ async def test_retry_after_beyond_deadline_degrades_now(make_settings, mock_api)
 
     route = mock_api.get("/search").mock(return_value=httpx.Response(429, headers={"Retry-After": "5"}))
     c = QlooClient(make_settings(), snapshot=Snapshot())
+    c._client()  # build the HTTP client (SSL setup) before timing
     t = time.monotonic()
     r = await c.search_entities("ra", _web(2.0))
     assert time.monotonic() - t < 1.0 and r.outcome == "qloo_error" and route.call_count == 1
