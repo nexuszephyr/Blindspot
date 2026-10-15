@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from .db import Database
+from .models import extract_items
+
+EMPTY_TTL_S = 3600.0
 
 Params = Mapping[str, Any]
 
@@ -65,7 +68,7 @@ class ResponseCache:
         self.db = db
         self.ttl_s = ttl_days * 86400
 
-    def get(self, key: str, *, now: float | None = None) -> CacheEntry | None:
+    def get(self, key: str, *, now: float | None = None, ignore_ttl: bool = False) -> CacheEntry | None:
         rows = self.db.query(
             "SELECT key,status,body,fetched_at,source FROM cache WHERE key=?", (key,)
         )
@@ -73,10 +76,13 @@ class ResponseCache:
             return None
         r = rows[0]
         now = time.time() if now is None else now
-        # Snapshot-seeded rows don't expire: they are the offline demo data.
-        if r["source"] != "snapshot" and now - r["fetched_at"] > self.ttl_s:
+        body = json.loads(r["body"])
+        # Snapshot-seeded rows don't expire: they are the offline demo data. Empty 200s get a short
+        # TTL so a bad-param empty result is not pinned for days (audit F9).
+        ttl = self.ttl_s if extract_items(body) else min(self.ttl_s, EMPTY_TTL_S)
+        if r["source"] != "snapshot" and not ignore_ttl and now - r["fetched_at"] > ttl:
             return None
-        return CacheEntry(r["key"], r["status"], json.loads(r["body"]), r["fetched_at"], r["source"])
+        return CacheEntry(r["key"], r["status"], body, r["fetched_at"], r["source"])
 
     def put(
         self,

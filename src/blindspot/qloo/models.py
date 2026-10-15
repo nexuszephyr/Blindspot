@@ -11,17 +11,24 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .params import split_list
+
 ServedFrom = Literal["live", "cache", "snapshot", "disabled", "degraded"]
 
-# filter.type values from the hackathon developer guide. The guide writes `video_game` while
-# the OpenAPI spec writes `videogame`; both are accepted until recon settles it.
-ENTITY_TYPES = {
+# Insights filter.type: the official hackathon list (CLAUDE.md). It is `video_game`, not `videogame`.
+INSIGHTS_TYPES = frozenset({
     "urn:entity:artist", "urn:entity:book", "urn:entity:brand", "urn:entity:destination",
     "urn:entity:movie", "urn:entity:person", "urn:entity:place", "urn:entity:podcast",
-    "urn:entity:tv_show", "urn:entity:video_game", "urn:entity:videogame",
-}
-INSIGHTS_TYPES = ENTITY_TYPES | {"urn:heatmap", "urn:demographics"}
-SEARCH_TYPES = ENTITY_TYPES | {"urn:entity:locality"}
+    "urn:entity:tv_show", "urn:entity:video_game",
+})
+# /search has its OWN `types` list (docs.qloo.com get-search). Spellings here are UNVERIFIED (doc)
+# until recon E1 records which ones the hackathon host accepts.
+SEARCH_TYPES = frozenset({
+    "urn:entity:artist", "urn:entity:book", "urn:entity:brand", "urn:entity:locality",
+    "urn:entity:movie", "urn:entity:person", "urn:entity:place", "urn:entity:podcast",
+    "urn:entity:tv_show", "urn:entity:videogame", "urn:entity:video_game",
+})
+Outcome = Literal["ok", "empty", "qloo_error", "resolution_failed", "invalid", "disabled", "not_live"]
 
 
 class Entity(BaseModel):
@@ -130,8 +137,16 @@ class InsightsQuery(BaseModel):
     @classmethod
     def _known_type(cls, v: str) -> str:
         if v not in INSIGHTS_TYPES:
-            raise ValueError(f"unsupported filter.type {v!r}")
+            hint = " (did you mean 'urn:entity:video_game'?)" if "videogame" in v else ""
+            raise ValueError(f"unsupported filter.type {v!r}{hint}; valid: {sorted(INSIGHTS_TYPES)}")
         return v
+
+    @field_validator("signal_interests_entities", "signal_interests_tags", "signal_demographics_audiences",
+                     "filter_tags", "filter_results_entities", "filter_exclude_entities", mode="before")
+    @classmethod
+    def _listify_ids(cls, v: Any) -> list[str] | None:
+        # 'a,b' and ['a','b'] mean the same thing (audit F1); id *shape* is checked in params.check_ids
+        return split_list(v) or None
 
     def to_params(self) -> dict[str, Any]:
         return self.model_dump(by_alias=True, exclude_none=True)
@@ -145,6 +160,11 @@ class QlooResult(BaseModel):
     endpoint: str
     status: int | None = None
     reason: str | None = None  # human-readable, set when degraded/disabled
+    # ok | empty (200, no items) | qloo_error (Qloo said no) | resolution_failed (no id, nothing sent)
+    # | invalid (rejected locally) | disabled | not_live (replay, budget, breaker, deadline)
+    outcome: Outcome = "ok"
+    coalesced: bool = False  # shared another request's in-flight live call (no upstream call of its own)
+    unverified_params: list[str] = Field(default_factory=list)
     cache_key: str
     call_id: int | None = None
     fetched_at: float | None = None

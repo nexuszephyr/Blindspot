@@ -22,7 +22,8 @@ dist/
 .coverage
 htmlcov/
 
-# editors / OS
+# editors / OS / tool droppings
+.dist/
 .vscode/
 .idea/
 .DS_Store

@@ -25,6 +25,8 @@ PATTERNS = {
     "generic-api-key-assignment": re.compile(
         rb"(?i)(api[_-]?key|secret|token|passwd|password)[\"']?\s*[:=]\s*[\"']([A-Za-z0-9_\-]{24,})[\"']"),
     "x-api-key-header": re.compile(rb"(?i)x-api-key[\"']?\s*:\s*[\"']?[A-Za-z0-9_\-]{20,}"),
+    # unquoted KEY=value lines (e.g. a committed .env); allowlisted: empty values in .env.example
+    "env-style-secret": re.compile(rb"(?m)^\s*[A-Z][A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\s*=\s*[^\s#'\"]{16,}"),
     "aws-access-key": re.compile(rb"AKIA[0-9A-Z]{16}"),
     "private-key": re.compile(rb"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     "github-token": re.compile(rb"gh[pousr]_[A-Za-z0-9]{36,}"),

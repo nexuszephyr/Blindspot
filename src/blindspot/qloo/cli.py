@@ -10,6 +10,7 @@ import sys
 from ..config import get_settings
 from .client import QlooClient
 from .context import RequestContext
+from .redact import install_log_redaction
 
 
 def _print(obj) -> None:
@@ -23,6 +24,7 @@ def _result(res) -> dict:
 
 
 async def _main(args: argparse.Namespace) -> int:
+    install_log_redaction()
     client = QlooClient(get_settings())
     client.startup()
     ctx = RequestContext.script("cli")

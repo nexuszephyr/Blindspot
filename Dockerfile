@@ -27,4 +27,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 # Shell form so $PORT (set by hosts like Render) is expanded. X-Forwarded-For handling is done
 # by the app itself (TRUSTED_PROXY_HOPS), so uvicorn's own proxy-header rewriting is off.
-CMD ["sh", "-c", "exec uvicorn blindspot.service.app:main_app --factory --host 0.0.0.0 --port ${PORT} --no-proxy-headers"]
+CMD ["sh", "-c", "exec uvicorn blindspot.service.app:main_app --factory --host 0.0.0.0 --port ${PORT} --no-proxy-headers --no-server-header"]

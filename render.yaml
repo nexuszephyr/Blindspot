@@ -1,5 +1,5 @@
 # Render Blueprint (free web service, Docker runtime). Region virginia: Qloo's API resolves to
-# AWS us-east-1, and one audit run makes many Qloo calls but few browser requests (docs/decisions.md D11).
+# AWS us-east-1, and one audit run makes many Qloo calls but few browser requests (docs/decisions.md D22).
 # Secrets are marked sync:false so Render asks for them in the dashboard; nothing secret is in git.
 services:
   - type: web
@@ -33,7 +33,9 @@ services:
       - key: QLOO_MAX_LIVE_CALLS
         value: "100000"
       - key: QLOO_RPS
-        value: "2"
+        value: "4"
+      - key: REQUEST_DEADLINE_S
+        value: "8"
       # Private snapshot uploaded as a Render "Secret File" named snapshot.json (optional).
       - key: QLOO_SNAPSHOT_PATH
         value: /etc/secrets/snapshot.json

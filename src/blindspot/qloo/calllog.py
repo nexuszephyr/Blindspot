@@ -29,10 +29,14 @@ class CallLog:
         result_count: int | None = None,
         error: str | None = None,
         cache_key: str | None = None,
+        outcome: str | None = None,
+        coalesced: bool = False,
+        unverified_params: list[str] | None = None,
     ) -> int:
         cur = self.db.execute(
             "INSERT INTO calls(run_id,client_id,ts,endpoint,params_json,served_from,status,"
-            "latency_ms,result_count,error,cache_key) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            "latency_ms,result_count,error,cache_key,outcome,purpose,coalesced,unverified_params)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 ctx.run_id,
                 ctx.client_id,
@@ -45,6 +49,10 @@ class CallLog:
                 result_count,
                 None if error is None else redact(error)[:500],
                 cache_key,
+                outcome,
+                ctx.purpose,
+                int(coalesced),
+                ",".join(unverified_params) if unverified_params else None,
             ),
         )
         return int(cur.lastrowid or 0)

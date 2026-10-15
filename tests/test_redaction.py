@@ -22,7 +22,7 @@ async def test_key_never_leaks(make_client, ctx, mock_api, search_body, caplog, 
 
     r1 = await c.search_entities("x", ctx)
     r2 = await c.search_entities("y", ctx)
-    r3 = await c.insights({"filter.type": "urn:entity:movie", "signal.interests.tags": ["urn:tag:genre:x"]}, ctx)
+    r3 = await c.insights({"filter.type": "urn:entity:movie", "signal.interests.tags": ["urn:tag:genre:x"]}, ctx, strict=False)
     assert r3.status == 401, r3.reason  # the 401 path must really run (audit F3)
     logging.getLogger("blindspot.test").warning("leak attempt %s", FAKE_KEY)
 

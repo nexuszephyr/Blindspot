@@ -81,8 +81,8 @@ class BudgetManager:
                 if self._n("run_id = ?", (ctx.run_id,)) >= c.run:
                     raise BudgetExceeded("this run has reached its live-query limit", scope="run")
             self.db.execute(
-                "INSERT INTO live_attempts(ts,client_id,run_id,priority) VALUES(?,?,?,?)",
-                (now, ctx.client_id, ctx.run_id, ctx.priority),
+                "INSERT INTO live_attempts(ts,client_id,run_id,priority,purpose) VALUES(?,?,?,?,?)",
+                (now, ctx.client_id, ctx.run_id, ctx.priority, ctx.purpose),
             )
 
     def remaining(self, client_id: str | None = None, run_id: str | None = None) -> dict[str, Any]:
@@ -112,6 +112,11 @@ class BudgetManager:
                 used = self._n("run_id = ?", (run_id,))
                 out["run"] = {"cap": c.run, "used": used, "remaining": max(0, c.run - used)}
             return out
+
+    def by_purpose(self) -> dict[str, int]:
+        """Live attempts (real upstream requests) broken down by purpose."""
+        rows = self.db.query("SELECT COALESCE(purpose,'app') p, COUNT(*) n FROM live_attempts GROUP BY 1")
+        return {r["p"]: r["n"] for r in rows}
 
     def total_used(self) -> int:
         return self._n()

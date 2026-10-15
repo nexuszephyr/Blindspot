@@ -5,11 +5,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Literal
 
 Priority = Literal["adhoc", "demo"]
+# What a call is for; live-call reporting is broken down by it.
+Purpose = Literal["app", "audit", "recon", "coverage", "smoke", "script"]
 
 # Used when IP_HASH_SALT is unset: hashes stay stable for the life of the process only.
 _PROCESS_SALT = secrets.token_bytes(32)
@@ -35,8 +38,15 @@ class RequestContext:
     allow_live: bool = True
     # "demo" calls may dip into the reserved slice of the daily budget.
     priority: Priority = "adhoc"
+    purpose: Purpose = "app"
+    # Absolute time.monotonic() deadline for the whole request chain; None = no deadline (scripts).
+    deadline: float | None = None
+
+    def remaining(self) -> float | None:
+        return None if self.deadline is None else self.deadline - time.monotonic()
 
     @classmethod
-    def script(cls, name: str = "script", *, priority: Priority = "demo") -> RequestContext:
-        """Context for local scripts and the CLI."""
-        return cls(client_id=f"local:{name}", priority=priority)
+    def script(cls, name: str = "script", *, priority: Priority = "demo",
+               purpose: Purpose = "script") -> RequestContext:
+        """Context for local scripts and the CLI: patient (no deadline)."""
+        return cls(client_id=f"local:{name}", priority=priority, purpose=purpose)

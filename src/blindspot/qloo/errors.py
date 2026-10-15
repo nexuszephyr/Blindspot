@@ -47,3 +47,24 @@ class BreakerOpen(QlooError):
 
 class InvalidQuery(QlooError):
     """Rejected locally before any network call (too large, bad type, ...)."""
+
+
+class QlooParamError(InvalidQuery):
+    """A parameter not VERIFIED for this filter.type (Qloo would silently ignore it)."""
+
+    def __init__(self, reason: str, *, params: list[str]):
+        super().__init__(reason)
+        self.params = params
+
+
+class IdFormatError(InvalidQuery):
+    """Free text where Qloo expects an entity/tag/audience id: a resolution failure."""
+
+    def __init__(self, reason: str, *, param: str, values: list[str]):
+        super().__init__(reason)
+        self.param = param
+        self.values = values
+
+
+class DeadlineExceeded(QlooError):
+    """The request's overall deadline ran out (retries, backoff and waits included)."""

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     qloo_client_hourly_cap: int = 60
     qloo_run_cap: int = 150
     qloo_demo_reserve: int = 100
-    qloo_rps: float = 2.0
+    qloo_rps: float = 4.0  # Qloo allows 5 req/s (VERIFIED header); keep headroom
 
     qloo_cache_path: Path = Path("data/qloo_cache.sqlite")
     qloo_cache_ttl_days: float = 7.0
@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # Number of trusted reverse proxies in front of the app (Render = 1). 0 = ignore X-Forwarded-For.
     trusted_proxy_hops: int = 0
     http_rate_per_minute: int = 30
+    # Overall deadline for one web request (resolution + retries + backoff + Qloo calls).
+    request_deadline_s: float = 8.0
+    config_dir: Path = Path("config")
 
     @field_validator("qloo_base_url")
     @classmethod

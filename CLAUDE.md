@@ -22,3 +22,8 @@
 - Every result carries `served_from` (live|cache|snapshot|disabled|degraded). Never fake it.
 - Cities and domains are data (config/), never hard-coded.
 - Do not reproduce Qloo data in committed files beyond tiny fixtures; the snapshot is "needs terms check".
+## Verified facts (Phase 1 audit, 2026-10-15)
+- Quota: 10,000 calls/month, max 5 requests/second. Keep QLOO_RPS <= 4 for headroom.
+- Unknown/bogus params are silently ignored (VERIFIED live). The client must catch them before sending.
+- Affinity scores appear on insights seeded with an entity signal, but NOT on location-only place queries. Never assume scores exist; handle both.
+- Every web request must have an overall deadline; never let a judge wait on Qloo retries.

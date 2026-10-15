@@ -56,7 +56,7 @@ def demo() -> int:
     print(f"  status:  http://127.0.0.1:{port}/api/qloo/status")
     print(f"  search:  http://127.0.0.1:{port}/api/qloo/search?q=Radiohead\n")
     return run(VPY, "-m", "uvicorn", "blindspot.service.app:main_app", "--factory",
-               "--host", env.get("HOST", "127.0.0.1"), "--port", port, "--no-proxy-headers", env=env)
+               "--host", env.get("HOST", "127.0.0.1"), "--port", port, "--no-proxy-headers", "--no-server-header", env=env)
 
 
 def _env_file_has_key() -> bool:
