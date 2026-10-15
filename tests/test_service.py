@@ -64,12 +64,16 @@ def test_http_rate_limit_per_ip(make_settings):
 def test_forwarded_for_trusted_only_with_proxy_hops(make_settings):
     # without trusted hops, spoofed XFF headers don't create new identities
     with TestClient(_app(make_settings, http_rate_per_minute=2)) as tc:
-        codes = [tc.get("/api/qloo/status", headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
-                 for i in range(4)]
+        codes = [
+            tc.get("/api/qloo/status", headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
+            for i in range(4)
+        ]
         assert codes[-1] == 429
     with TestClient(_app(make_settings, http_rate_per_minute=2, trusted_proxy_hops=1)) as tc:
-        codes = [tc.get("/api/qloo/status", headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
-                 for i in range(4)]
+        codes = [
+            tc.get("/api/qloo/status", headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
+            for i in range(4)
+        ]
         assert codes == [200] * 4
 
 

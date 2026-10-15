@@ -52,8 +52,13 @@ log = logging.getLogger("blindspot.qloo")
 
 # Only documented read endpoints may be called; anything else is rejected locally.
 ALLOWED_PATHS = {
-    "/search", "/entities", "/v2/insights", "/v2/tags", "/v2/tags/types",
-    "/v2/audiences", "/v2/audiences/types",
+    "/search",
+    "/entities",
+    "/v2/insights",
+    "/v2/tags",
+    "/v2/tags/types",
+    "/v2/audiences",
+    "/v2/audiences/types",
 }
 MAX_PARAMS = 40
 MAX_RETRY_AFTER_S = 20.0  # longer waits are not worth holding a user request for
@@ -152,9 +157,11 @@ class QlooClient:
         if self._http is None:
             self._http = httpx.AsyncClient(
                 base_url=self.s.qloo_base_url,
-                headers={"X-Api-Key": self.s.qloo_api_key.get_secret_value(),
-                         "Accept": "application/json",
-                         "User-Agent": "blindspot/0.1 (+qloo-hackathon)"},
+                headers={
+                    "X-Api-Key": self.s.qloo_api_key.get_secret_value(),
+                    "Accept": "application/json",
+                    "User-Agent": "blindspot/0.1 (+qloo-hackathon)",
+                },
                 timeout=httpx.Timeout(self.s.qloo_timeout_s, connect=5.0),
                 transport=self._transport,
                 follow_redirects=False,
@@ -207,25 +214,56 @@ class QlooClient:
         def finish(res: QlooResult, *, error: str | None = None, log_params=None) -> QlooResult:
             res.unverified_params = unverified
             res.call_id = self.calls.record(
-                ctx, endpoint, log_params if log_params is not None else params, res.served_from,
-                status=res.status, latency_ms=res.latency_ms, result_count=res.count,
+                ctx,
+                endpoint,
+                log_params if log_params is not None else params,
+                res.served_from,
+                status=res.status,
+                latency_ms=res.latency_ms,
+                result_count=res.count,
                 error=error if error is not None else (res.reason if not res.ok else None),
-                cache_key=key, outcome=res.outcome, coalesced=res.coalesced, unverified_params=unverified,
+                cache_key=key,
+                outcome=res.outcome,
+                coalesced=res.coalesced,
+                unverified_params=unverified,
             )
             return res
 
         def degraded(reason: str, outcome: str = "not_live", *, status: int | None = None) -> QlooResult:
-            return QlooResult(served_from="degraded", ok=False, endpoint=endpoint, status=status,
-                              reason=reason, cache_key=key, outcome=outcome)
+            return QlooResult(
+                served_from="degraded",
+                ok=False,
+                endpoint=endpoint,
+                status=status,
+                reason=reason,
+                cache_key=key,
+                outcome=outcome,
+            )
 
         try:
             # Kill switches: ops-level first, then this request only.
             if not self.s.qloo_enabled:
-                return finish(QlooResult(served_from="disabled", ok=False, endpoint=endpoint, outcome="disabled",
-                                         reason="Qloo is switched off on this server", cache_key=key))
+                return finish(
+                    QlooResult(
+                        served_from="disabled",
+                        ok=False,
+                        endpoint=endpoint,
+                        outcome="disabled",
+                        reason="Qloo is switched off on this server",
+                        cache_key=key,
+                    )
+                )
             if not ctx.qloo_enabled:
-                return finish(QlooResult(served_from="disabled", ok=False, endpoint=endpoint, outcome="disabled",
-                                         reason="Qloo grounding is off for this request", cache_key=key))
+                return finish(
+                    QlooResult(
+                        served_from="disabled",
+                        ok=False,
+                        endpoint=endpoint,
+                        outcome="disabled",
+                        reason="Qloo grounding is off for this request",
+                        cache_key=key,
+                    )
+                )
             try:
                 norm = self._validate(endpoint, params)
                 check_ids(norm)
@@ -243,19 +281,32 @@ class QlooClient:
                 hit = self.cache.get(key, ignore_ttl=self.mode == "replay")
                 if hit is not None:
                     src = "snapshot" if hit.source == "snapshot" else "cache"
-                    return finish(self._ok(src, endpoint, key, hit.status, hit.body,
-                                           fetched_at=hit.fetched_at), log_params=norm)
+                    return finish(
+                        self._ok(src, endpoint, key, hit.status, hit.body, fetched_at=hit.fetched_at),
+                        log_params=norm,
+                    )
                 snap = self.snapshot.get(key)
                 if snap is not None:
-                    return finish(self._ok("snapshot", endpoint, key, int(snap.get("status", 200)),
-                                           snap["body"], fetched_at=snap.get("fetched_at")),
-                                  log_params=norm)
+                    return finish(
+                        self._ok(
+                            "snapshot",
+                            endpoint,
+                            key,
+                            int(snap.get("status", 200)),
+                            snap["body"],
+                            fetched_at=snap.get("fetched_at"),
+                        ),
+                        log_params=norm,
+                    )
 
             if self.mode == "replay":
-                return finish(degraded(
-                    "offline replay mode: this query is not in the bundled snapshot or cache. "
-                    "Use the hosted demo, or add your own QLOO_API_KEY to run it live."),
-                    log_params=norm)
+                return finish(
+                    degraded(
+                        "offline replay mode: this query is not in the bundled snapshot or cache. "
+                        "Use the hosted demo, or add your own QLOO_API_KEY to run it live."
+                    ),
+                    log_params=norm,
+                )
             if not ctx.allow_live:
                 return finish(degraded("live Qloo calls are not allowed for this request"), log_params=norm)
             rem = ctx.remaining()
@@ -284,9 +335,15 @@ class QlooClient:
                 res, err = await asyncio.wait_for(asyncio.shield(fut), ctx.remaining())
             except (TimeoutError, asyncio.CancelledError):
                 # leader cancelled or our own deadline hit: degrade, never crash the follower
-                return QlooResult(served_from="degraded", ok=False, endpoint=endpoint, cache_key=key,
-                                  outcome="not_live", coalesced=True,
-                                  reason="request deadline reached while waiting for a shared Qloo call"), "deadline"
+                return QlooResult(
+                    served_from="degraded",
+                    ok=False,
+                    endpoint=endpoint,
+                    cache_key=key,
+                    outcome="not_live",
+                    coalesced=True,
+                    reason="request deadline reached while waiting for a shared Qloo call",
+                ), "deadline"
             return res.model_copy(update={"coalesced": True}), err
         fut = asyncio.get_running_loop().create_future()
         self._inflight[key] = fut
@@ -307,14 +364,24 @@ class QlooClient:
 
         def degraded(reason, exc=None, status=None, outcome="qloo_error"):
             return QlooResult(
-                served_from="degraded", ok=False, endpoint=endpoint, outcome=outcome,
+                served_from="degraded",
+                ok=False,
+                endpoint=endpoint,
+                outcome=outcome,
                 status=status if status is not None else getattr(exc, "status", None),
-                reason=reason, cache_key=key, latency_ms=(time.perf_counter() - t0) * 1000,
-                error_body=getattr(exc, "body", None), rate_headers=getattr(exc, "headers", {}))
+                reason=reason,
+                cache_key=key,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+                error_body=getattr(exc, "body", None),
+                rate_headers=getattr(exc, "headers", {}),
+            )
+
         try:
             status, body, headers = await self._send(endpoint, norm, ctx)
         except BudgetExceeded as exc:
-            return degraded(f"live budget reached ({exc.scope}): {exc.reason}", outcome="not_live"), exc.reason
+            return degraded(
+                f"live budget reached ({exc.scope}): {exc.reason}", outcome="not_live"
+            ), exc.reason
         except BreakerOpen as exc:
             return degraded(exc.reason, outcome="not_live"), exc.reason
         except DeadlineExceeded as exc:
@@ -341,7 +408,8 @@ class QlooClient:
         for attempt in range(1, self.s.qloo_max_attempts + 1):
             if not self.breaker.allow():
                 raise BreakerOpen(
-                    f"Qloo is rate-limiting; pausing live calls for {self.breaker.retry_in():.0f}s")
+                    f"Qloo is rate-limiting; pausing live calls for {self.breaker.retry_in():.0f}s"
+                )
             try:
                 rem = ctx.remaining()
                 if rem is not None and rem <= 0.05:
@@ -359,8 +427,9 @@ class QlooClient:
             retry_after: float | None = None
             try:
                 async with self.sem:
-                    resp = await self._client().get(endpoint, params=norm,
-                                                    timeout=httpx.Timeout(per_try, connect=min(5.0, per_try)))
+                    resp = await self._client().get(
+                        endpoint, params=norm, timeout=httpx.Timeout(per_try, connect=min(5.0, per_try))
+                    )
             except (httpx.TimeoutException, httpx.TransportError) as exc:
                 self.breaker.record_failure_other()
                 last = QlooServerError(f"network error: {type(exc).__name__}")
@@ -370,7 +439,9 @@ class QlooClient:
                 if 200 <= st < 300:
                     self.breaker.record_success()
                     if len(resp.content) > MAX_BODY_BYTES:  # audit F10
-                        raise QlooServerError(f"Qloo response too large ({len(resp.content)} bytes)", status=st)
+                        raise QlooServerError(
+                            f"Qloo response too large ({len(resp.content)} bytes)", status=st
+                        )
                     try:
                         return st, resp.json(), headers
                     except ValueError as exc:
@@ -384,8 +455,9 @@ class QlooClient:
                         counted_429 = True
                     else:
                         self.breaker.record_failure_other()
-                    last = QlooRateLimited(msg or "rate limited", retry_after=retry_after,
-                                           status=st, body=ebody)
+                    last = QlooRateLimited(
+                        msg or "rate limited", retry_after=retry_after, status=st, body=ebody
+                    )
                     if retry_after is not None and retry_after > MAX_RETRY_AFTER_S:
                         last.headers = headers
                         raise last
@@ -394,7 +466,9 @@ class QlooClient:
                     last = QlooServerError(msg or "server error", status=st, body=ebody)
                 else:
                     self.breaker.record_failure_other()
-                    err = (QlooAuthError if st == 401 else QlooBadRequest)(msg or "rejected", status=st, body=ebody)
+                    err = (QlooAuthError if st == 401 else QlooBadRequest)(
+                        msg or "rejected", status=st, body=ebody
+                    )
                     err.headers = headers
                     raise err
                 last.headers = headers
@@ -408,12 +482,20 @@ class QlooClient:
         assert last is not None
         raise last
 
-    def _ok(self, served_from, endpoint, key, status, body, *, fetched_at=None,
-            latency_ms=None) -> QlooResult:
+    def _ok(
+        self, served_from, endpoint, key, status, body, *, fetched_at=None, latency_ms=None
+    ) -> QlooResult:
         entities = [Entity.parse(x) for x in extract_items(body)]
         return QlooResult(
-            served_from=served_from, ok=True, endpoint=endpoint, status=status, cache_key=key,
-            body=body, fetched_at=fetched_at, latency_ms=latency_ms, entities=entities,
+            served_from=served_from,
+            ok=True,
+            endpoint=endpoint,
+            status=status,
+            cache_key=key,
+            body=body,
+            fetched_at=fetched_at,
+            latency_ms=latency_ms,
+            entities=entities,
             outcome="ok" if entities else "empty",
         )
 
@@ -425,25 +507,50 @@ class QlooClient:
         (d / name).write_text(redact(json.dumps(doc, ensure_ascii=False, indent=1)), encoding="utf-8")
 
     # ------------------------------------------------------------------ typed API
-    async def search_entities(self, query: str, ctx: RequestContext, *, types: list[str] | None = None,
-                              take: int = 5, strict: bool = True, **extra: Any) -> QlooResult:
+    async def search_entities(
+        self,
+        query: str,
+        ctx: RequestContext,
+        *,
+        types: list[str] | None = None,
+        take: int = 5,
+        strict: bool = True,
+        **extra: Any,
+    ) -> QlooResult:
         if types and any(t not in SEARCH_TYPES for t in types):
             return await self._local_fail("/search", ctx, "invalid", "invalid query: unsupported search type")
-        return await self.request("/search", {"query": query, "types": types, "take": take, **extra}, ctx,
-                                  strict=strict)
+        return await self.request(
+            "/search", {"query": query, "types": types, "take": take, **extra}, ctx, strict=strict
+        )
 
     async def get_entities(self, entity_ids: list[str], ctx: RequestContext) -> QlooResult:
         return await self.request("/entities", {"entity_ids": entity_ids}, ctx)
 
-    async def search_tags(self, ctx: RequestContext, *, query: str | None = None,
-                          tag_types: list[str] | None = None, parent_types: list[str] | None = None,
-                          take: int = 10, **extra: Any) -> QlooResult:
-        return await self.request("/v2/tags", {
-            "filter.query": query, "filter.tag.types": tag_types,
-            "filter.parents.types": parent_types, "take": take, **extra}, ctx)
+    async def search_tags(
+        self,
+        ctx: RequestContext,
+        *,
+        query: str | None = None,
+        tag_types: list[str] | None = None,
+        parent_types: list[str] | None = None,
+        take: int = 10,
+        **extra: Any,
+    ) -> QlooResult:
+        return await self.request(
+            "/v2/tags",
+            {
+                "filter.query": query,
+                "filter.tag.types": tag_types,
+                "filter.parents.types": parent_types,
+                "take": take,
+                **extra,
+            },
+            ctx,
+        )
 
-    async def resolve_ids(self, param: str, names: list[str | tuple[str, str]],
-                          ctx: RequestContext) -> tuple[list[str], list[str]]:
+    async def resolve_ids(
+        self, param: str, names: list[str | tuple[str, str]], ctx: RequestContext
+    ) -> tuple[list[str], list[str]]:
         """Names -> Qloo ids via /search (entities) or /v2/tags (tags); each lookup is a normal
         cached, logged, budgeted request. Audiences have no name lookup yet. Returns (ids, unresolved)."""
         family = ID_PARAMS[param][0]
@@ -462,8 +569,14 @@ class QlooClient:
             (ids if ok else missing).append(found if ok else name)
         return ids, missing
 
-    async def insights(self, q: InsightsQuery | Mapping[str, Any], ctx: RequestContext, *,
-                       resolve: Mapping[str, list] | None = None, strict: bool = True) -> QlooResult:
+    async def insights(
+        self,
+        q: InsightsQuery | Mapping[str, Any],
+        ctx: RequestContext,
+        *,
+        resolve: Mapping[str, list] | None = None,
+        strict: bool = True,
+    ) -> QlooResult:
         """Ids pass straight through; names given in `resolve` ({param: [name | (name, type)]}) are
         resolved first. Any unresolved name -> outcome=resolution_failed and NO insights call."""
         try:
@@ -474,37 +587,64 @@ class QlooClient:
         params = query.to_params()
         for param, names in (resolve or {}).items():
             if param not in ID_PARAMS:
-                return await self._local_fail("/v2/insights", ctx, "invalid", f"cannot resolve names for {param}")
+                return await self._local_fail(
+                    "/v2/insights", ctx, "invalid", f"cannot resolve names for {param}"
+                )
             ids, missing = await self.resolve_ids(param, list(names), ctx)
             if missing:
-                return await self._local_fail("/v2/insights", ctx, "resolution_failed",
-                                              f"resolution failed: no Qloo id found for {param} {missing}")
+                return await self._local_fail(
+                    "/v2/insights",
+                    ctx,
+                    "resolution_failed",
+                    f"resolution failed: no Qloo id found for {param} {missing}",
+                )
             params[param] = split_list(params.get(param)) + ids
         return await self.request("/v2/insights", params, ctx, strict=strict)
 
-    async def score_candidates(self, filter_type: str, candidate_ids: list[str], ctx: RequestContext,
-                               *, strict: bool = True, **signals: Any) -> QlooResult:
+    async def score_candidates(
+        self,
+        filter_type: str,
+        candidate_ids: list[str],
+        ctx: RequestContext,
+        *,
+        strict: bool = True,
+        **signals: Any,
+    ) -> QlooResult:
         """Rank a fixed candidate list against a signal via filter.results.entities (recon E7)."""
-        params = {"filter.type": filter_type, "filter.results.entities": candidate_ids,
-                  "take": min(len(candidate_ids), self.s.qloo_max_take), **signals}
+        params = {
+            "filter.type": filter_type,
+            "filter.results.entities": candidate_ids,
+            "take": min(len(candidate_ids), self.s.qloo_max_take),
+            **signals,
+        }
         return await self.insights(params, ctx, strict=strict)
 
-    async def list_audiences(self, ctx: RequestContext, *, parent_types: list[str] | None = None,
-                             audience_types: list[str] | None = None, take: int = 20) -> QlooResult:
+    async def list_audiences(
+        self,
+        ctx: RequestContext,
+        *,
+        parent_types: list[str] | None = None,
+        audience_types: list[str] | None = None,
+        take: int = 20,
+    ) -> QlooResult:
         """GET /v2/audiences (documented; see recon E5)."""
-        return await self.request("/v2/audiences", {
-            "filter.parents.types": parent_types, "filter.audience.types": audience_types,
-            "take": take}, ctx)
+        return await self.request(
+            "/v2/audiences",
+            {"filter.parents.types": parent_types, "filter.audience.types": audience_types, "take": take},
+            ctx,
+        )
 
     async def list_audience_types(self, ctx: RequestContext, take: int = 50) -> QlooResult:
         return await self.request("/v2/audiences/types", {"take": take}, ctx)
 
     async def _local_fail(self, endpoint: str, ctx: RequestContext, outcome: str, reason: str) -> QlooResult:
         key = cache_key("GET", endpoint, {})
-        res = QlooResult(served_from="degraded", ok=False, endpoint=endpoint, reason=reason, cache_key=key,
-                         outcome=outcome)
-        res.call_id = self.calls.record(ctx, endpoint, {}, "degraded", error=reason, cache_key=key,
-                                        outcome=outcome)
+        res = QlooResult(
+            served_from="degraded", ok=False, endpoint=endpoint, reason=reason, cache_key=key, outcome=outcome
+        )
+        res.call_id = self.calls.record(
+            ctx, endpoint, {}, "degraded", error=reason, cache_key=key, outcome=outcome
+        )
         return res
 
     # ------------------------------------------------------------------ status
@@ -523,6 +663,9 @@ class QlooClient:
             "snapshot_entries": len(self.snapshot.entries),
             "seeded_from_snapshot": self.seeded,
             "live_calls_by_purpose": self.budget.by_purpose(),
-            "breaker": {"state": self.breaker.state, "trips": self.breaker.trips,
-                        "retry_in_s": round(self.breaker.retry_in(), 1)},
+            "breaker": {
+                "state": self.breaker.state,
+                "trips": self.breaker.trips,
+                "retry_in_s": round(self.breaker.retry_in(), 1),
+            },
         }

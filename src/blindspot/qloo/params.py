@@ -50,8 +50,9 @@ def check_ids(params: Mapping[str, Any]) -> None:
     for name, (family, pat) in ID_PARAMS.items():
         bad = [x for x in split_list(params.get(name)) if not pat.match(x)]
         if bad:
-            raise IdFormatError(f"{name} needs {family} ids, got non-id value(s): {bad[:3]}", param=name,
-                                values=bad)
+            raise IdFormatError(
+                f"{name} needs {family} ids, got non-id value(s): {bad[:3]}", param=name, values=bad
+            )
 
 
 def unverified(path: str, params: Mapping[str, Any]) -> list[str]:
@@ -69,19 +70,32 @@ def check_params(path: str, params: Mapping[str, Any], *, strict: bool) -> list[
     """Raise QlooParamError in strict mode; otherwise return the unverified names for logging."""
     extra = unverified(path, params)
     if extra and strict:
-        allowed = sorted(VERIFIED_INSIGHTS.get(str(params.get("filter.type")), _COMMON_INSIGHTS)
-                         if path == "/v2/insights" else VERIFIED_OTHER.get(path, set()))
-        raise QlooParamError(f"parameter(s) {extra} not verified for {params.get('filter.type') or path}; "
-                             f"verified: {allowed}", params=extra)
+        allowed = sorted(
+            VERIFIED_INSIGHTS.get(str(params.get("filter.type")), _COMMON_INSIGHTS)
+            if path == "/v2/insights"
+            else VERIFIED_OTHER.get(path, set())
+        )
+        raise QlooParamError(
+            f"parameter(s) {extra} not verified for {params.get('filter.type') or path}; verified: {allowed}",
+            params=extra,
+        )
     return extra
 
 
 def assert_param_effective(baseline: Iterable[Any], variant: Iterable[Any]) -> dict[str, Any]:
     """Did adding a parameter change the results? Takes entity lists (or ids) from two runs."""
+
     def ids(xs):
         return [getattr(x, "entity_id", x) for x in xs]
+
     a, b = ids(baseline), ids(variant)
     sa, sb = set(a), set(b)
     jac = len(sa & sb) / len(sa | sb) if sa | sb else 1.0
-    return {"changed": a != b, "set_changed": sa != sb, "order_only": a != b and sa == sb,
-            "jaccard": round(jac, 3), "n_baseline": len(a), "n_variant": len(b)}
+    return {
+        "changed": a != b,
+        "set_changed": sa != sb,
+        "order_only": a != b and sa == sb,
+        "jaccard": round(jac, 3),
+        "n_baseline": len(a),
+        "n_variant": len(b),
+    }

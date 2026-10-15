@@ -27,9 +27,14 @@ from typing import Any
 
 from _common import DATA, ROOT, ctx, live_used, make_client
 
-CITIES = {"Bengaluru": ("bengaluru", "bangalore", "IN"), "Lagos": ("lagos", "NG"),
-          "Tokyo": ("tokyo", "JP"), "São Paulo": ("são paulo", "sao paulo", "BR"),
-          "Berlin": ("berlin", "DE"), "New York": ("new york", "brooklyn", "manhattan", "US")}
+CITIES = {
+    "Bengaluru": ("bengaluru", "bangalore", "IN"),
+    "Lagos": ("lagos", "NG"),
+    "Tokyo": ("tokyo", "JP"),
+    "São Paulo": ("são paulo", "sao paulo", "BR"),
+    "Berlin": ("berlin", "DE"),
+    "New York": ("new york", "brooklyn", "manhattan", "US"),
+}
 DOMAINS = {
     "dining": ("urn:entity:place", {"filter.tags": "urn:tag:genre:place:restaurant"}),
     "music": ("urn:entity:artist", {}),
@@ -45,8 +50,9 @@ def geo_match(rows: list[dict[str, Any]], hints: tuple[str, ...]) -> str:
     hits = 0
     for e in rows:
         props = e.get("properties") or {}
-        blob = json.dumps([props.get("address"), props.get("geocode"), e.get("location")],
-                          ensure_ascii=False).lower()
+        blob = json.dumps(
+            [props.get("address"), props.get("geocode"), e.get("location")], ensure_ascii=False
+        ).lower()
         hits += any(h.lower() in blob for h in hints)
     return f"geo-match {hits}/{len(rows)}"
 
@@ -87,67 +93,156 @@ async def main() -> int:
             top = [e.raw for e in res.entities]
         tops[(city, domain, kind)] = top
         note = geo_match(top, CITIES[city]) if domain == "dining" and top else ""
-        row = {"city": city, "domain": domain, "probe": kind, "status": status, "count": n,
-               "latency_ms": None if lat is None else round(lat), "served_from":
-               None if res is None else res.served_from, "auto_note": note, "reason": reason or "",
-               "params": json.dumps(params, ensure_ascii=False),
-               "top5": " | ".join(str(e.get("name")) for e in top[:5])}
+        row = {
+            "city": city,
+            "domain": domain,
+            "probe": kind,
+            "status": status,
+            "count": n,
+            "latency_ms": None if lat is None else round(lat),
+            "served_from": None if res is None else res.served_from,
+            "auto_note": note,
+            "reason": reason or "",
+            "params": json.dumps(params, ensure_ascii=False),
+            "top5": " | ".join(str(e.get("name")) for e in top[:5]),
+        }
         rows.append(row)
-        print(f"{city:10} {domain:8} {kind:9} {status:6} n={n:<3} {note} {(reason or '')[:60]} :: {row['top5'][:80]}")
+        print(
+            f"{city:10} {domain:8} {kind:9} {status:6} n={n:<3} {note} {(reason or '')[:60]} :: {row['top5'][:80]}"
+        )
 
     try:
         for city in CITIES:
             for domain, (etype, extra) in DOMAINS.items():
-                await probe(city, domain, "core", {"filter.type": etype, **extra, **loc_params(etype, city),
-                                                   "signal.demographics.age": "35_and_younger", "take": a.take})
+                await probe(
+                    city,
+                    domain,
+                    "core",
+                    {
+                        "filter.type": etype,
+                        **extra,
+                        **loc_params(etype, city),
+                        "signal.demographics.age": "35_and_younger",
+                        "take": a.take,
+                    },
+                )
         for city in CITIES:
             for domain, (etype, extra) in DOMAINS.items():
                 src = tops.get((city, BRIDGE_FROM[domain], "core")) or []
                 seed = next((e.get("entity_id") for e in src if e.get("entity_id")), None)
                 if seed:
-                    await probe(city, domain, "bridge", {"filter.type": etype, **extra,
-                                **loc_params(etype, city), "signal.interests.entities": seed, "take": a.take})
+                    await probe(
+                        city,
+                        domain,
+                        "bridge",
+                        {
+                            "filter.type": etype,
+                            **extra,
+                            **loc_params(etype, city),
+                            "signal.interests.entities": seed,
+                            "take": a.take,
+                        },
+                    )
                 else:
-                    rows.append({"city": city, "domain": domain, "probe": "bridge", "status": "skipped",
-                                 "count": 0, "reason": "no seed entity from bridge domain"})
-                await probe(city, domain, "audience", {"filter.type": etype, **extra, **loc_params(etype, city),
-                            "signal.demographics.gender": "female",
-                            "signal.demographics.age": "55_and_older", "take": a.take})
-                await probe(city, domain, "freshness", {"filter.type": etype, **extra,
-                            **loc_params(etype, city), "signal.demographics.age": "35_and_younger",
-                            "bias.trends": "high", "take": a.take})
+                    rows.append(
+                        {
+                            "city": city,
+                            "domain": domain,
+                            "probe": "bridge",
+                            "status": "skipped",
+                            "count": 0,
+                            "reason": "no seed entity from bridge domain",
+                        }
+                    )
+                await probe(
+                    city,
+                    domain,
+                    "audience",
+                    {
+                        "filter.type": etype,
+                        **extra,
+                        **loc_params(etype, city),
+                        "signal.demographics.gender": "female",
+                        "signal.demographics.age": "55_and_older",
+                        "take": a.take,
+                    },
+                )
+                await probe(
+                    city,
+                    domain,
+                    "freshness",
+                    {
+                        "filter.type": etype,
+                        **extra,
+                        **loc_params(etype, city),
+                        "signal.demographics.age": "35_and_younger",
+                        "bias.trends": "high",
+                        "take": a.take,
+                    },
+                )
     finally:
         await client.aclose()
 
     # swap-pair feasibility: low overlap between two cities' core results = a usable swap pair
     for domain in DOMAINS:
-        sets = {city: {e.get("entity_id") for e in tops.get((city, domain, "core"), [])} - {None}
-                for city in CITIES}
+        sets = {
+            city: {e.get("entity_id") for e in tops.get((city, domain, "core"), [])} - {None}
+            for city in CITIES
+        }
         pairs = [(x, y, jaccard(sets[x], sets[y])) for x, y in itertools.combinations(CITIES, 2)]
         valid = [p for p in pairs if p[2] is not None]
         mean = sum(p[2] for p in valid) / len(valid) if valid else None
         feasible = mean is not None and mean < 0.3 and len(valid) >= 10
-        rows.append({"city": "*", "domain": domain, "probe": "swap",
-                     "status": "ok" if feasible else ("empty" if not valid else "weak"),
-                     "count": len(valid), "auto_note": f"mean core overlap between cities="
-                     f"{'n/a' if mean is None else round(mean, 2)}",
-                     "reason": json.dumps({f"{x}~{y}": None if j is None else round(j, 2)
-                                           for x, y, j in pairs}, ensure_ascii=False)})
+        rows.append(
+            {
+                "city": "*",
+                "domain": domain,
+                "probe": "swap",
+                "status": "ok" if feasible else ("empty" if not valid else "weak"),
+                "count": len(valid),
+                "auto_note": f"mean core overlap between cities={'n/a' if mean is None else round(mean, 2)}",
+                "reason": json.dumps(
+                    {f"{x}~{y}": None if j is None else round(j, 2) for x, y, j in pairs}, ensure_ascii=False
+                ),
+            }
+        )
         # freshness / audience sensitivity: did the extra signal change results?
         for kind in ("freshness", "audience", "bridge"):
-            ov = [jaccard({e.get("entity_id") for e in tops.get((city, domain, "core"), [])} - {None},
-                          {e.get("entity_id") for e in tops.get((city, domain, kind), [])} - {None})
-                  for city in CITIES]
+            ov = [
+                jaccard(
+                    {e.get("entity_id") for e in tops.get((city, domain, "core"), [])} - {None},
+                    {e.get("entity_id") for e in tops.get((city, domain, kind), [])} - {None},
+                )
+                for city in CITIES
+            ]
             ov = [x for x in ov if x is not None]
-            rows.append({"city": "*", "domain": domain, "probe": f"{kind}_vs_core",
-                         "status": "info", "count": len(ov),
-                         "auto_note": f"mean overlap with core={round(sum(ov) / len(ov), 2) if ov else 'n/a'}"})
+            rows.append(
+                {
+                    "city": "*",
+                    "domain": domain,
+                    "probe": f"{kind}_vs_core",
+                    "status": "info",
+                    "count": len(ov),
+                    "auto_note": f"mean overlap with core={round(sum(ov) / len(ov), 2) if ov else 'n/a'}",
+                }
+            )
 
     stamp = time.strftime("%Y%m%dT%H%M%S")
     (DATA / "coverage").mkdir(parents=True, exist_ok=True)
     full = DATA / "coverage" / f"coverage_{stamp}.csv"
-    fields = ["city", "domain", "probe", "status", "count", "latency_ms", "served_from", "auto_note",
-              "reason", "params", "top5"]
+    fields = [
+        "city",
+        "domain",
+        "probe",
+        "status",
+        "count",
+        "latency_ms",
+        "served_from",
+        "auto_note",
+        "reason",
+        "params",
+        "top5",
+    ]
     with full.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
@@ -165,18 +260,32 @@ async def main() -> int:
 
 def write_markdown(rows: list[dict[str, Any]]) -> None:
     sym = {"ok": "ok", "empty": "EMPTY", "error": "ERR", "skipped": "skip"}
-    lines = ["<!-- generated by scripts/coverage_matrix.py; edit the 'Recommendation' section by hand -->",
-             "# Coverage matrix (generated grid)", "",
-             "Cell = status / result count. Full rows with result names are in data/coverage/ (gitignored).", ""]
+    lines = [
+        "<!-- generated by scripts/coverage_matrix.py; edit the 'Recommendation' section by hand -->",
+        "# Coverage matrix (generated grid)",
+        "",
+        "Cell = status / result count. Full rows with result names are in data/coverage/ (gitignored).",
+        "",
+    ]
     for kind in PROBES:
-        lines += [f"## Probe: {kind}", "", "| city | " + " | ".join(DOMAINS) + " |",
-                  "|---|" + "---|" * len(DOMAINS)]
+        lines += [
+            f"## Probe: {kind}",
+            "",
+            "| city | " + " | ".join(DOMAINS) + " |",
+            "|---|" + "---|" * len(DOMAINS),
+        ]
         for city in CITIES:
             cells = []
             for d in DOMAINS:
-                r = next((x for x in rows if x["city"] == city and x["domain"] == d and x["probe"] == kind), None)
-                cells.append("-" if r is None else f"{sym.get(r['status'], r['status'])} / {r['count']}"
-                             + (f" ({r['auto_note']})" if r.get("auto_note") else ""))
+                r = next(
+                    (x for x in rows if x["city"] == city and x["domain"] == d and x["probe"] == kind), None
+                )
+                cells.append(
+                    "-"
+                    if r is None
+                    else f"{sym.get(r['status'], r['status'])} / {r['count']}"
+                    + (f" ({r['auto_note']})" if r.get("auto_note") else "")
+                )
             lines.append(f"| {city} | " + " | ".join(cells) + " |")
         lines.append("")
     lines += ["## Derived", "", "| domain | probe | status | note |", "|---|---|---|---|"]

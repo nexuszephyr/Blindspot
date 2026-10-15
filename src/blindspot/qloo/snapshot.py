@@ -41,8 +41,7 @@ def _minimize_entity(e: Any) -> Any:
             out["properties"] = kept
     if isinstance(e.get("tags"), list):
         out["tags"] = [
-            {k: t[k] for k in _TAG_KEYS if k in t} if isinstance(t, dict) else t
-            for t in e["tags"][:5]
+            {k: t[k] for k in _TAG_KEYS if k in t} if isinstance(t, dict) else t for t in e["tags"][:5]
         ]
     return out
 
@@ -101,9 +100,14 @@ class Snapshot:
             return 0
         for e in self.entries.values():
             cache.put(
-                e["key"], e.get("method", "GET"), e.get("path", "/"), e.get("params", {}),
-                int(e.get("status", 200)), e["body"],
-                fetched_at=float(e.get("fetched_at", time.time())), source="snapshot",
+                e["key"],
+                e.get("method", "GET"),
+                e.get("path", "/"),
+                e.get("params", {}),
+                int(e.get("status", 200)),
+                e["body"],
+                fetched_at=float(e.get("fetched_at", time.time())),
+                source="snapshot",
             )
         return len(self.entries)
 

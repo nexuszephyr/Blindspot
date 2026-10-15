@@ -50,6 +50,7 @@ def isolated_env(tmp_path, monkeypatch):
     monkeypatch.setenv("QLOO_SNAPSHOT_PATH", str(tmp_path / "none.json"))
     monkeypatch.setenv("QLOO_RAW_DIR", str(tmp_path / "raw"))
     from blindspot.config import get_settings
+
     get_settings.cache_clear()
     yield tmp_path
     get_settings.cache_clear()
@@ -66,7 +67,15 @@ def test_key_never_on_stdout_stderr(isolated_env, mock_api, capfd, caplog):
     from blindspot.qloo import cli
 
     cli.main(["search", "x"])
-    cli.main(["insights", "--type", "urn:entity:artist", "-p", "signal.interests.entities=00000000-0000-4000-8000-000000000001"])
+    cli.main(
+        [
+            "insights",
+            "--type",
+            "urn:entity:artist",
+            "-p",
+            "signal.interests.entities=00000000-0000-4000-8000-000000000001",
+        ]
+    )
     cli.main(["calls", "--last", "5"])
     cli.main(["budget"])
     # scripts/smoke.py end to end (401 path)
@@ -78,6 +87,7 @@ def test_key_never_on_stdout_stderr(isolated_env, mock_api, capfd, caplog):
         sys.path.remove(str(ROOT / "scripts"))
     # service startup + an error path
     from blindspot.service.app import main_app
+
     with TestClient(main_app()) as tc:
         tc.get("/api/qloo/search", params={"q": "y"})
         tc.get("/api/qloo/status")

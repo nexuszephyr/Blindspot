@@ -69,9 +69,7 @@ class ResponseCache:
         self.ttl_s = ttl_days * 86400
 
     def get(self, key: str, *, now: float | None = None, ignore_ttl: bool = False) -> CacheEntry | None:
-        rows = self.db.query(
-            "SELECT key,status,body,fetched_at,source FROM cache WHERE key=?", (key,)
-        )
+        rows = self.db.query("SELECT key,status,body,fetched_at,source FROM cache WHERE key=?", (key,))
         if not rows:
             return None
         r = rows[0]

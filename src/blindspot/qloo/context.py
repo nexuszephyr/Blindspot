@@ -46,7 +46,8 @@ class RequestContext:
         return None if self.deadline is None else self.deadline - time.monotonic()
 
     @classmethod
-    def script(cls, name: str = "script", *, priority: Priority = "demo",
-               purpose: Purpose = "script") -> RequestContext:
+    def script(
+        cls, name: str = "script", *, priority: Priority = "demo", purpose: Purpose = "script"
+    ) -> RequestContext:
         """Context for local scripts and the CLI: patient (no deadline)."""
         return cls(client_id=f"local:{name}", priority=priority, purpose=purpose)

@@ -5,8 +5,12 @@ from blindspot.qloo.db import Database
 
 
 def test_key_stable_under_param_reordering():
-    a = cache_key("GET", "/v2/insights", {"filter.type": "urn:entity:artist", "take": 5, "bias.trends": "high"})
-    b = cache_key("get", "v2/insights/", {"bias.trends": "high", "take": "5", "filter.type": "urn:entity:artist"})
+    a = cache_key(
+        "GET", "/v2/insights", {"filter.type": "urn:entity:artist", "take": 5, "bias.trends": "high"}
+    )
+    b = cache_key(
+        "get", "v2/insights/", {"bias.trends": "high", "take": "5", "filter.type": "urn:entity:artist"}
+    )
     assert a == b
 
 
@@ -20,7 +24,9 @@ def test_equivalent_forms_share_key():
 def test_different_queries_differ():
     assert cache_key("GET", "/search", {"query": "a"}) != cache_key("GET", "/search", {"query": "b"})
     # list order is preserved (it may be meaningful to Qloo)
-    assert cache_key("GET", "/search", {"types": ["a", "b"]}) != cache_key("GET", "/search", {"types": ["b", "a"]})
+    assert cache_key("GET", "/search", {"types": ["a", "b"]}) != cache_key(
+        "GET", "/search", {"types": ["b", "a"]}
+    )
 
 
 def test_hit_miss_and_ttl(tmp_path):

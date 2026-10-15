@@ -23,10 +23,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SECRET_VARS = ("QLOO_API_KEY", "IP_HASH_SALT")
 PATTERNS = {
     "generic-api-key-assignment": re.compile(
-        rb"(?i)(api[_-]?key|secret|token|passwd|password)[\"']?\s*[:=]\s*[\"']([A-Za-z0-9_\-]{24,})[\"']"),
+        rb"(?i)(api[_-]?key|secret|token|passwd|password)[\"']?\s*[:=]\s*[\"']([A-Za-z0-9_\-]{24,})[\"']"
+    ),
     "x-api-key-header": re.compile(rb"(?i)x-api-key[\"']?\s*:\s*[\"']?[A-Za-z0-9_\-]{20,}"),
     # unquoted KEY=value lines (e.g. a committed .env); allowlisted: empty values in .env.example
-    "env-style-secret": re.compile(rb"(?m)^\s*[A-Z][A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\s*=\s*[^\s#'\"]{16,}"),
+    "env-style-secret": re.compile(
+        rb"(?m)^\s*[A-Z][A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\s*=\s*[^\s#'\"]{16,}"
+    ),
     "aws-access-key": re.compile(rb"AKIA[0-9A-Z]{16}"),
     "private-key": re.compile(rb"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     "github-token": re.compile(rb"gh[pousr]_[A-Za-z0-9]{36,}"),
@@ -63,8 +66,9 @@ def scan_bytes(data: bytes, where: str, secrets: dict[str, bytes], findings: lis
 
 def tracked_and_untracked_files() -> list[Path]:
     try:
-        out = subprocess.run(["git", "ls-files", "-co", "--exclude-standard", "-z"], cwd=ROOT,
-                             capture_output=True, check=True).stdout
+        out = subprocess.run(
+            ["git", "ls-files", "-co", "--exclude-standard", "-z"], cwd=ROOT, capture_output=True, check=True
+        ).stdout
         return [ROOT / p.decode() for p in out.split(b"\0") if p]
     except (OSError, subprocess.CalledProcessError):
         return [p for p in ROOT.rglob("*") if p.is_file() and not SKIP_DIRS & set(p.parts)]
@@ -90,21 +94,28 @@ def scan_history(secrets, findings) -> int:
     commits = revs.stdout.split()
     if not commits:
         return 0
-    log = subprocess.run(["git", "log", "--all", "-p", "--no-color", "--format=commit %H%n%B"],
-                         cwd=ROOT, capture_output=True, check=True).stdout
+    log = subprocess.run(
+        ["git", "log", "--all", "-p", "--no-color", "--format=commit %H%n%B"],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+    ).stdout
     # Only added lines matter for patterns; secret values are checked across everything.
     for name, val in secrets.items():
         if val in log:
             findings.append(f"git history: contains the value of {name}")
-    added = b"\n".join(line[1:] for line in log.splitlines() if line.startswith(b"+")
-                       and not line.startswith(b"+++"))
+    added = b"\n".join(
+        line[1:] for line in log.splitlines() if line.startswith(b"+") and not line.startswith(b"+++")
+    )
     scan_bytes(added, "git history (added lines)", {}, findings)
     return len(commits)
 
 
 def scan_docker(image: str, secrets, findings) -> None:
-    for args, label in ((["docker", "history", "--no-trunc", image], "docker history"),
-                        (["docker", "inspect", image], "docker inspect")):
+    for args, label in (
+        (["docker", "history", "--no-trunc", image], "docker history"),
+        (["docker", "inspect", image], "docker inspect"),
+    ):
         out = subprocess.run(args, capture_output=True, check=True).stdout
         scan_bytes(out, label, secrets, findings)
     with tempfile.TemporaryDirectory() as td:

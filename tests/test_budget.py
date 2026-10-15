@@ -37,11 +37,14 @@ async def test_global_cap_degrades_gracefully(make_client, mock_api, search_body
 async def test_demo_reserve_survives_adhoc_flood(make_client, mock_api, search_body):
     mock_api.get("/search").mock(return_value=httpx.Response(200, json=search_body))
     c = make_client(qloo_daily_live_cap=10, qloo_demo_reserve=4, qloo_client_hourly_cap=100)
-    flood = await asyncio.gather(*[
-        c.search_entities(f"flood{i}", RequestContext(client_id=f"c{i % 5}")) for i in range(30)])
+    flood = await asyncio.gather(
+        *[c.search_entities(f"flood{i}", RequestContext(client_id=f"c{i % 5}")) for i in range(30)]
+    )
     assert sum(r.served_from == "live" for r in flood) == 6  # 10 - 4 reserved
-    demo = [await c.search_entities(f"demo{i}", RequestContext(client_id="c_demo", priority="demo"))
-            for i in range(5)]
+    demo = [
+        await c.search_entities(f"demo{i}", RequestContext(client_id="c_demo", priority="demo"))
+        for i in range(5)
+    ]
     assert [r.served_from for r in demo] == ["live"] * 4 + ["degraded"]
 
 

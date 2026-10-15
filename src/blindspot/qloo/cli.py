@@ -18,9 +18,16 @@ def _print(obj) -> None:
 
 
 def _result(res) -> dict:
-    return {"served_from": res.served_from, "ok": res.ok, "status": res.status,
-            "reason": res.reason, "count": res.count, "latency_ms": res.latency_ms,
-            "call_id": res.call_id, "top": res.summary(10)}
+    return {
+        "served_from": res.served_from,
+        "ok": res.ok,
+        "status": res.status,
+        "reason": res.reason,
+        "count": res.count,
+        "latency_ms": res.latency_ms,
+        "call_id": res.call_id,
+        "top": res.summary(10),
+    }
 
 
 async def _main(args: argparse.Namespace) -> int:

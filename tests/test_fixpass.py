@@ -23,22 +23,29 @@ def C(cid="c_t", **kw):
 
 # ---------------------------------------------------------------- F1: ids, names, resolution
 def test_string_and_list_ids_are_equivalent():
-    a = InsightsQuery(**{"filter.type": "urn:entity:artist", "signal.interests.entities": f"{UUID1}, {UUID2}"})
+    a = InsightsQuery(
+        **{"filter.type": "urn:entity:artist", "signal.interests.entities": f"{UUID1}, {UUID2}"}
+    )
     b = InsightsQuery(**{"filter.type": "urn:entity:artist", "signal.interests.entities": [UUID1, UUID2]})
     assert a.to_params() == b.to_params()
 
 
 async def test_ids_pass_through(make_client, mock_api, insights_body):
     route = mock_api.get("/v2/insights").mock(return_value=httpx.Response(200, json=insights_body))
-    r = await make_client().insights({"filter.type": "urn:entity:artist", "signal.interests.entities": UUID1}, C())
+    r = await make_client().insights(
+        {"filter.type": "urn:entity:artist", "signal.interests.entities": UUID1}, C()
+    )
     assert r.outcome == "ok" and route.calls.last.request.url.params["signal.interests.entities"] == UUID1
 
 
 async def test_free_text_never_sent_as_id(make_client, mock_api):
     route = mock_api.route().mock(return_value=httpx.Response(200, json={}))
     c = make_client()
-    for p in ({"signal.interests.entities": "Radiohead"}, {"filter.tags": "restaurant"},
-              {"signal.demographics.audiences": "millennials"}):
+    for p in (
+        {"signal.interests.entities": "Radiohead"},
+        {"filter.tags": "restaurant"},
+        {"signal.demographics.audiences": "millennials"},
+    ):
         r = await c.insights({"filter.type": "urn:entity:artist", **p}, C(), strict=False)
         assert r.outcome == "resolution_failed" and r.served_from == "degraded"
     assert route.call_count == 0
@@ -47,31 +54,50 @@ async def test_free_text_never_sent_as_id(make_client, mock_api):
 async def test_names_resolve_to_ids(make_client, mock_api, search_body, insights_body):
     search_body["results"][0]["entity_id"] = UUID1
     s = mock_api.get("/search").mock(return_value=httpx.Response(200, json=search_body))
-    tags = mock_api.get("/v2/tags").mock(return_value=httpx.Response(
-        200, json={"results": {"tags": [{"id": "urn:tag:genre:music:example", "name": "x"}]}}))
+    tags = mock_api.get("/v2/tags").mock(
+        return_value=httpx.Response(
+            200, json={"results": {"tags": [{"id": "urn:tag:genre:music:example", "name": "x"}]}}
+        )
+    )
     ins = mock_api.get("/v2/insights").mock(return_value=httpx.Response(200, json=insights_body))
-    r = await make_client().insights({"filter.type": "urn:entity:artist"}, C(), strict=False, resolve={
-        "signal.interests.entities": [("Example Artist", "urn:entity:artist")], "signal.interests.tags": ["example"]})
+    r = await make_client().insights(
+        {"filter.type": "urn:entity:artist"},
+        C(),
+        strict=False,
+        resolve={
+            "signal.interests.entities": [("Example Artist", "urn:entity:artist")],
+            "signal.interests.tags": ["example"],
+        },
+    )
     assert r.outcome == "ok" and s.call_count == 1 and tags.call_count == 1
     sent = ins.calls.last.request.url.params
-    assert sent["signal.interests.entities"] == UUID1 and sent["signal.interests.tags"] == "urn:tag:genre:music:example"
+    assert (
+        sent["signal.interests.entities"] == UUID1
+        and sent["signal.interests.tags"] == "urn:tag:genre:music:example"
+    )
 
 
 async def test_unresolvable_name_makes_zero_insights_calls(make_client, mock_api):
     mock_api.get("/search").mock(return_value=httpx.Response(200, json={"results": []}))
     ins = mock_api.get("/v2/insights").mock(return_value=httpx.Response(200, json={}))
     c = make_client()
-    r = await c.insights({"filter.type": "urn:entity:artist"}, C(run_id="run_res"),
-                         resolve={"signal.interests.entities": ["Nobody At All"]})
+    r = await c.insights(
+        {"filter.type": "urn:entity:artist"},
+        C(run_id="run_res"),
+        resolve={"signal.interests.entities": ["Nobody At All"]},
+    )
     assert r.outcome == "resolution_failed" and ins.call_count == 0
     rows = c.calls.for_run("run_res")
     assert rows[-1]["outcome"] == "resolution_failed" and rows[0]["outcome"] == "empty"
 
 
 async def test_outcomes_empty_and_qloo_error(make_client, mock_api):
-    mock_api.get("/v2/insights").mock(side_effect=[
-        httpx.Response(200, json={"success": True, "results": {"entities": []}}),
-        httpx.Response(400, json={"error": {"message": "Bad Request", "reason": "x", "code": 400}})])
+    mock_api.get("/v2/insights").mock(
+        side_effect=[
+            httpx.Response(200, json={"success": True, "results": {"entities": []}}),
+            httpx.Response(400, json={"error": {"message": "Bad Request", "reason": "x", "code": 400}}),
+        ]
+    )
     c = make_client()
     assert (await c.insights(PLACE, C())).outcome == "empty"
     r = await c.insights({**PLACE, "take": 6}, C())
@@ -225,7 +251,9 @@ def test_empty_results_expire_after_an_hour(tmp_path):
 
 
 async def test_huge_body_rejected(make_client, ctx, mock_api):
-    mock_api.get("/search").mock(return_value=httpx.Response(200, content=b'{"results":[]}' + b" " * (5 << 20)))
+    mock_api.get("/search").mock(
+        return_value=httpx.Response(200, content=b'{"results":[]}' + b" " * (5 << 20))
+    )
     r = await make_client().search_entities("big", ctx)
     assert r.outcome == "qloo_error" and r.served_from == "degraded"
 
@@ -258,12 +286,14 @@ async def test_live_calls_by_purpose(make_client, mock_api, search_body):
 def test_migration_adds_columns_to_old_db(tmp_path):
     p = tmp_path / "old.sqlite"
     con = sqlite3.connect(p)
-    con.executescript("CREATE TABLE calls (id INTEGER PRIMARY KEY, run_id TEXT, client_id TEXT, ts REAL NOT NULL,"
-                      " endpoint TEXT NOT NULL, params_json TEXT NOT NULL, served_from TEXT NOT NULL, status INTEGER,"
-                      " latency_ms REAL, result_count INTEGER, error TEXT, cache_key TEXT);"
-                      "CREATE TABLE live_attempts (id INTEGER PRIMARY KEY, ts REAL NOT NULL, client_id TEXT NOT NULL,"
-                      " run_id TEXT NOT NULL, priority TEXT NOT NULL);"
-                      "INSERT INTO live_attempts(ts,client_id,run_id,priority) VALUES (1e12,'c','r','demo');")
+    con.executescript(
+        "CREATE TABLE calls (id INTEGER PRIMARY KEY, run_id TEXT, client_id TEXT, ts REAL NOT NULL,"
+        " endpoint TEXT NOT NULL, params_json TEXT NOT NULL, served_from TEXT NOT NULL, status INTEGER,"
+        " latency_ms REAL, result_count INTEGER, error TEXT, cache_key TEXT);"
+        "CREATE TABLE live_attempts (id INTEGER PRIMARY KEY, ts REAL NOT NULL, client_id TEXT NOT NULL,"
+        " run_id TEXT NOT NULL, priority TEXT NOT NULL);"
+        "INSERT INTO live_attempts(ts,client_id,run_id,priority) VALUES (1e12,'c','r','demo');"
+    )
     con.commit()
     con.close()
     db = Database(p)

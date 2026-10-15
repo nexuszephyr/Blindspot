@@ -46,8 +46,12 @@ CREATE INDEX IF NOT EXISTS attempts_ts ON live_attempts(ts);
 
 # Columns added after Phase 1 (audit fix pass); applied idempotently to existing databases.
 MIGRATIONS = {
-    "calls": {"outcome": "TEXT", "purpose": "TEXT DEFAULT 'app'", "coalesced": "INTEGER DEFAULT 0",
-              "unverified_params": "TEXT"},
+    "calls": {
+        "outcome": "TEXT",
+        "purpose": "TEXT DEFAULT 'app'",
+        "coalesced": "INTEGER DEFAULT 0",
+        "unverified_params": "TEXT",
+    },
     "live_attempts": {"purpose": "TEXT DEFAULT 'app'"},
 }
 INDEXES = """
@@ -79,8 +83,7 @@ class Database:
                     if col not in have:
                         self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
             self.conn.executescript(INDEXES)
-            self.conn.execute("DELETE FROM calls WHERE ts < ?",
-                              (time.time() - CALLS_RETENTION_DAYS * 86400,))
+            self.conn.execute("DELETE FROM calls WHERE ts < ?", (time.time() - CALLS_RETENTION_DAYS * 86400,))
 
     def execute(self, sql: str, params: tuple | list = ()) -> sqlite3.Cursor:
         with self.lock:

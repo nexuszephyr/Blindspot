@@ -22,8 +22,10 @@ async def main() -> int:
         r = await client.search_entities("Radiohead", c, types=["urn:entity:artist"], take=3)
         rec.add(record_row("smoke", "search Radiohead", r))
         if r.status == 401 or (r.reason and "API key" in r.reason):
-            print("\nAUTH FAILED (401). Check that QLOO_API_KEY in .env is the hackathon key and that "
-                  "QLOO_BASE_URL is https://hackathon.api.qloo.com (staging/production keys differ).")
+            print(
+                "\nAUTH FAILED (401). Check that QLOO_API_KEY in .env is the hackathon key and that "
+                "QLOO_BASE_URL is https://hackathon.api.qloo.com (staging/production keys differ)."
+            )
             return 2
         if not r.ok:
             print(f"\nsearch failed: {r.reason}")
@@ -32,9 +34,18 @@ async def main() -> int:
         eid = r.entities[0].entity_id if r.entities else None
         if eid:
             rec.add(record_row("smoke", "entities by id", await client.get_entities([eid], c)))
-            rec.add(record_row("smoke", "insights artist<-entity", await client.insights(
-                {"filter.type": "urn:entity:artist", "signal.interests.entities": [eid], "take": 3}, c)))
-        print(f"\nlive calls used by smoke: {live_used(client) - before}; lifetime total: {live_used(client)}")
+            rec.add(
+                record_row(
+                    "smoke",
+                    "insights artist<-entity",
+                    await client.insights(
+                        {"filter.type": "urn:entity:artist", "signal.interests.entities": [eid], "take": 3}, c
+                    ),
+                )
+            )
+        print(
+            f"\nlive calls used by smoke: {live_used(client) - before}; lifetime total: {live_used(client)}"
+        )
         print(f"rows: {rec.path}")
         return 0
     finally:

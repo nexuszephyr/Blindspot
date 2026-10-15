@@ -106,8 +106,11 @@ class BudgetManager:
             }
             if client_id:
                 used = self._n("client_id = ? AND ts > ?", (client_id, now - HOUR))
-                out["client_hourly"] = {"cap": c.client_hourly, "used": used,
-                                        "remaining": max(0, c.client_hourly - used)}
+                out["client_hourly"] = {
+                    "cap": c.client_hourly,
+                    "used": used,
+                    "remaining": max(0, c.client_hourly - used),
+                }
             if run_id:
                 used = self._n("run_id = ?", (run_id,))
                 out["run"] = {"cap": c.run, "used": used, "remaining": max(0, c.run - used)}

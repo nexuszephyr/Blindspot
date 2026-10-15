@@ -18,8 +18,11 @@ def _ctx(request: Request, *, qloo: bool) -> RequestContext:
     s = request.app.state.settings
     ip = client_ip(request, s.trusted_proxy_hops)
     # every web request gets an overall deadline: judges never wait on Qloo retries
-    return RequestContext(client_id=hash_client_ip(ip, s.ip_hash_salt.get_secret_value()),
-                          qloo_enabled=qloo, deadline=time.monotonic() + s.request_deadline_s)
+    return RequestContext(
+        client_id=hash_client_ip(ip, s.ip_hash_salt.get_secret_value()),
+        qloo_enabled=qloo,
+        deadline=time.monotonic() + s.request_deadline_s,
+    )
 
 
 @router.api_route("/healthz", methods=["GET", "HEAD"])

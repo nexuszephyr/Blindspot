@@ -38,7 +38,9 @@ async def main() -> int:
             print(f"{q['label']:22} {res.served_from:9} n={res.count:<3} {res.reason or ''}")
     finally:
         await client.aclose()
-    print(f"\n{dict(seen)}; live calls used: {live_used(client) - start}; lifetime total: {live_used(client)}")
+    print(
+        f"\n{dict(seen)}; live calls used: {live_used(client) - start}; lifetime total: {live_used(client)}"
+    )
     return 0 if not seen.get("degraded") else 1
 
 

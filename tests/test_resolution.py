@@ -10,8 +10,15 @@ from blindspot.qloo.snapshot import Snapshot, build_snapshot
 
 def _snapshot_for(params, body, path="/search"):
     norm = normalize_params(params)
-    entry = {"key": cache_key("GET", path, norm), "method": "GET", "path": path, "params": norm,
-             "status": 200, "fetched_at": 1.0, "body": body}
+    entry = {
+        "key": cache_key("GET", path, norm),
+        "method": "GET",
+        "path": path,
+        "params": norm,
+        "status": 200,
+        "fetched_at": 1.0,
+        "body": body,
+    }
     return Snapshot({entry["key"]: build_snapshot([entry], "t")["entries"][0]})
 
 
@@ -62,7 +69,8 @@ async def test_per_request_kill_switch_is_isolated(make_client, mock_api, search
     off = RequestContext(client_id="c_off", qloo_enabled=False)
     on = RequestContext(client_id="c_on")
     r_off, r_on, r_off2 = await asyncio.gather(
-        c.search_entities("x", off), c.search_entities("x", on), c.search_entities("y", off))
+        c.search_entities("x", off), c.search_entities("x", on), c.search_entities("y", off)
+    )
     assert r_off.served_from == "disabled" and not r_off.entities
     assert r_off2.served_from == "disabled"
     assert r_on.served_from == "live" and r_on.entities
@@ -84,8 +92,9 @@ async def test_identical_concurrent_requests_share_one_call(make_client, mock_ap
 
     route = mock_api.get("/search").mock(side_effect=slow)
     c = make_client()
-    results = await asyncio.gather(*[
-        c.search_entities("same", RequestContext(client_id=f"c{i}")) for i in range(10)])
+    results = await asyncio.gather(
+        *[c.search_entities("same", RequestContext(client_id=f"c{i}")) for i in range(10)]
+    )
     assert route.call_count == 1
     assert all(r.served_from == "live" and r.ok for r in results)
 
@@ -106,7 +115,9 @@ async def test_take_is_clamped(make_client, ctx, mock_api, search_body):
     assert route.calls.last.request.url.params["take"] == "50"
 
 
-async def test_record_mode_saves_raw_bodies_without_headers(make_client, ctx, mock_api, search_body, tmp_path):
+async def test_record_mode_saves_raw_bodies_without_headers(
+    make_client, ctx, mock_api, search_body, tmp_path
+):
     mock_api.get("/search").mock(return_value=httpx.Response(200, json=search_body))
     c = make_client(qloo_mode="record")
     await c.search_entities("x", ctx)

@@ -39,8 +39,18 @@ def main() -> int:
         if a.synthetic:
             fx = "search_synthetic.json" if q["path"] == "/search" else "insights_synthetic.json"
             body = json.loads((ROOT / "tests" / "fixtures" / fx).read_text(encoding="utf-8"))
-            entries.append({"key": key, "label": q["label"], "method": "GET", "path": q["path"],
-                            "params": norm, "status": 200, "fetched_at": 0.0, "body": body})
+            entries.append(
+                {
+                    "key": key,
+                    "label": q["label"],
+                    "method": "GET",
+                    "path": q["path"],
+                    "params": norm,
+                    "status": 200,
+                    "fetched_at": 0.0,
+                    "body": body,
+                }
+            )
             continue
         hit = client.cache.entries([key])
         if hit:

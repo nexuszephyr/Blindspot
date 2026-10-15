@@ -23,12 +23,20 @@ def test_parse_is_tolerant():
     assert extract_items({"weird": 1}) == []
     assert extract_items(None) == []
     e = Entity.parse({"id": "x", "name": "n", "types": "urn:entity:brand", "location": "nowhere", "query": 3})
-    assert e.entity_id == "x" and e.types == ["urn:entity:brand"] and e.location is None and e.affinity is None
+    assert (
+        e.entity_id == "x" and e.types == ["urn:entity:brand"] and e.location is None and e.affinity is None
+    )
 
 
 def test_insights_query_aliases_and_extras():
-    q = InsightsQuery(**{"filter.type": "urn:entity:artist", "signal.interests.entities": ["a", "b"],
-                         "bias.trends": "high", "filter.geocode.country_code": "IN"})
+    q = InsightsQuery(
+        **{
+            "filter.type": "urn:entity:artist",
+            "signal.interests.entities": ["a", "b"],
+            "bias.trends": "high",
+            "filter.geocode.country_code": "IN",
+        }
+    )
     p = q.to_params()
     assert p["filter.type"] == "urn:entity:artist" and p["signal.interests.entities"] == ["a", "b"]
     assert p["filter.geocode.country_code"] == "IN"
@@ -42,8 +50,15 @@ def test_minimize_drops_verbose_fields(insights_body):
 
 
 def test_seed_empty_cache_from_snapshot(tmp_path, make_client, search_body):
-    entry = {"key": cache_key("GET", "/search", {"query": "x"}), "method": "GET", "path": "/search",
-             "params": {"query": "x"}, "status": 200, "fetched_at": 5.0, "body": search_body}
+    entry = {
+        "key": cache_key("GET", "/search", {"query": "x"}),
+        "method": "GET",
+        "path": "/search",
+        "params": {"query": "x"},
+        "status": 200,
+        "fetched_at": 5.0,
+        "body": search_body,
+    }
     p = tmp_path / "snap.json"
     p.write_text(json.dumps(build_snapshot([entry], "demo")), encoding="utf-8")
     snap = Snapshot.load(p)

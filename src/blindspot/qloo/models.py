@@ -16,18 +16,37 @@ from .params import split_list
 ServedFrom = Literal["live", "cache", "snapshot", "disabled", "degraded"]
 
 # Insights filter.type: the official hackathon list (CLAUDE.md). It is `video_game`, not `videogame`.
-INSIGHTS_TYPES = frozenset({
-    "urn:entity:artist", "urn:entity:book", "urn:entity:brand", "urn:entity:destination",
-    "urn:entity:movie", "urn:entity:person", "urn:entity:place", "urn:entity:podcast",
-    "urn:entity:tv_show", "urn:entity:video_game",
-})
+INSIGHTS_TYPES = frozenset(
+    {
+        "urn:entity:artist",
+        "urn:entity:book",
+        "urn:entity:brand",
+        "urn:entity:destination",
+        "urn:entity:movie",
+        "urn:entity:person",
+        "urn:entity:place",
+        "urn:entity:podcast",
+        "urn:entity:tv_show",
+        "urn:entity:video_game",
+    }
+)
 # /search has its OWN `types` list (docs.qloo.com get-search). Spellings here are UNVERIFIED (doc)
 # until recon E1 records which ones the hackathon host accepts.
-SEARCH_TYPES = frozenset({
-    "urn:entity:artist", "urn:entity:book", "urn:entity:brand", "urn:entity:locality",
-    "urn:entity:movie", "urn:entity:person", "urn:entity:place", "urn:entity:podcast",
-    "urn:entity:tv_show", "urn:entity:videogame", "urn:entity:video_game",
-})
+SEARCH_TYPES = frozenset(
+    {
+        "urn:entity:artist",
+        "urn:entity:book",
+        "urn:entity:brand",
+        "urn:entity:locality",
+        "urn:entity:movie",
+        "urn:entity:person",
+        "urn:entity:place",
+        "urn:entity:podcast",
+        "urn:entity:tv_show",
+        "urn:entity:videogame",
+        "urn:entity:video_game",
+    }
+)
 Outcome = Literal["ok", "empty", "qloo_error", "resolution_failed", "invalid", "disabled", "not_live"]
 
 
@@ -74,8 +93,9 @@ class Entity(BaseModel):
         try:
             return cls(**data, raw=d)
         except Exception:  # never let one odd row break a response
-            return cls(entity_id=str(d.get("entity_id") or d.get("id") or ""),
-                       name=str(d.get("name") or ""), raw=d)
+            return cls(
+                entity_id=str(d.get("entity_id") or d.get("id") or ""), name=str(d.get("name") or ""), raw=d
+            )
 
     @property
     def affinity(self) -> float | None:
@@ -141,8 +161,15 @@ class InsightsQuery(BaseModel):
             raise ValueError(f"unsupported filter.type {v!r}{hint}; valid: {sorted(INSIGHTS_TYPES)}")
         return v
 
-    @field_validator("signal_interests_entities", "signal_interests_tags", "signal_demographics_audiences",
-                     "filter_tags", "filter_results_entities", "filter_exclude_entities", mode="before")
+    @field_validator(
+        "signal_interests_entities",
+        "signal_interests_tags",
+        "signal_demographics_audiences",
+        "filter_tags",
+        "filter_results_entities",
+        "filter_exclude_entities",
+        mode="before",
+    )
     @classmethod
     def _listify_ids(cls, v: Any) -> list[str] | None:
         # 'a,b' and ['a','b'] mean the same thing (audit F1); id *shape* is checked in params.check_ids
@@ -180,7 +207,12 @@ class QlooResult(BaseModel):
 
     def summary(self, n: int = 5) -> list[dict[str, Any]]:
         return [
-            {"entity_id": e.entity_id, "name": e.name, "type": e.kind,
-             "popularity": e.popularity, "affinity": e.affinity}
+            {
+                "entity_id": e.entity_id,
+                "name": e.name,
+                "type": e.kind,
+                "popularity": e.popularity,
+                "affinity": e.affinity,
+            }
             for e in self.entities[:n]
         ]

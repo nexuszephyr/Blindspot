@@ -13,16 +13,20 @@ async def test_key_never_leaks(make_client, ctx, mock_api, search_body, caplog, 
     install_log_redaction()
     caplog.set_level(logging.DEBUG)
     # A hostile/buggy upstream that echoes the key back in an error body.
-    mock_api.get("/search").mock(side_effect=[
-        httpx.Response(400, json={"message": f"bad key {FAKE_KEY}"}),
-        httpx.Response(200, json=search_body),
-    ])
+    mock_api.get("/search").mock(
+        side_effect=[
+            httpx.Response(400, json={"message": f"bad key {FAKE_KEY}"}),
+            httpx.Response(200, json=search_body),
+        ]
+    )
     mock_api.get("/v2/insights").mock(return_value=httpx.Response(401, text=f"X-Api-Key: {FAKE_KEY}"))
     c = make_client(qloo_mode="record")
 
     r1 = await c.search_entities("x", ctx)
     r2 = await c.search_entities("y", ctx)
-    r3 = await c.insights({"filter.type": "urn:entity:movie", "signal.interests.tags": ["urn:tag:genre:x"]}, ctx, strict=False)
+    r3 = await c.insights(
+        {"filter.type": "urn:entity:movie", "signal.interests.tags": ["urn:tag:genre:x"]}, ctx, strict=False
+    )
     assert r3.status == 401, r3.reason  # the 401 path must really run (audit F3)
     logging.getLogger("blindspot.test").warning("leak attempt %s", FAKE_KEY)
 

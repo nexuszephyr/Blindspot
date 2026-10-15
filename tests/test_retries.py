@@ -4,10 +4,12 @@ from blindspot.qloo.breaker import CircuitBreaker
 
 
 async def test_retry_on_429_honours_retry_after(make_client, ctx, mock_api, search_body, sleeps):
-    route = mock_api.get("/search").mock(side_effect=[
-        httpx.Response(429, headers={"Retry-After": "3"}, json={"message": "slow down"}),
-        httpx.Response(200, json=search_body),
-    ])
+    route = mock_api.get("/search").mock(
+        side_effect=[
+            httpx.Response(429, headers={"Retry-After": "3"}, json={"message": "slow down"}),
+            httpx.Response(200, json=search_body),
+        ]
+    )
     res = await make_client().search_entities("x", ctx)
     assert res.served_from == "live" and res.ok
     assert route.call_count == 2
@@ -15,11 +17,13 @@ async def test_retry_on_429_honours_retry_after(make_client, ctx, mock_api, sear
 
 
 async def test_retry_on_5xx_and_timeout(make_client, ctx, mock_api, search_body, sleeps):
-    route = mock_api.get("/search").mock(side_effect=[
-        httpx.Response(503, text="unavailable"),
-        httpx.ReadTimeout("slow"),
-        httpx.Response(200, json=search_body),
-    ])
+    route = mock_api.get("/search").mock(
+        side_effect=[
+            httpx.Response(503, text="unavailable"),
+            httpx.ReadTimeout("slow"),
+            httpx.Response(200, json=search_body),
+        ]
+    )
     res = await make_client().search_entities("x", ctx)
     assert res.ok and route.call_count == 3 and len(sleeps) == 2
 
@@ -34,7 +38,9 @@ async def test_gives_up_after_max_attempts(make_client, ctx, mock_api):
 
 async def test_no_retry_on_400(make_client, ctx, mock_api):
     route = mock_api.get("/v2/insights").mock(
-        return_value=httpx.Response(400, json={"error": {"message": "at least one valid signal or filter is required"}})
+        return_value=httpx.Response(
+            400, json={"error": {"message": "at least one valid signal or filter is required"}}
+        )
     )
     res = await make_client().insights({"filter.type": "urn:entity:movie"}, ctx)
     assert route.call_count == 1
@@ -43,7 +49,9 @@ async def test_no_retry_on_400(make_client, ctx, mock_api):
 
 
 async def test_401_is_auth_error_without_retry(make_client, ctx, mock_api):
-    route = mock_api.get("/search").mock(return_value=httpx.Response(401, json={"message": "No API key found"}))
+    route = mock_api.get("/search").mock(
+        return_value=httpx.Response(401, json={"message": "No API key found"})
+    )
     res = await make_client().search_entities("x", ctx)
     assert route.call_count == 1
     assert res.served_from == "degraded" and "API key" in res.reason
@@ -92,7 +100,19 @@ def test_breaker_half_open_allows_one_probe():
 
 async def test_observed_error_envelope_is_surfaced(make_client, ctx, mock_api):
     # Envelope shape recorded from hackathon.api.qloo.com (a request without a key).
-    mock_api.get("/v2/insights").mock(return_value=httpx.Response(
-        400, json={"error": {"reason": "at least one valid signal or filter is required", "message": "Bad Request", "code": 400}}))
+    mock_api.get("/v2/insights").mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "error": {
+                    "reason": "at least one valid signal or filter is required",
+                    "message": "Bad Request",
+                    "code": 400,
+                }
+            },
+        )
+    )
     res = await make_client().insights({"filter.type": "urn:entity:movie", "take": 2}, ctx)
-    assert res.reason == "Qloo rejected the query: Bad Request: at least one valid signal or filter is required"
+    assert (
+        res.reason == "Qloo rejected the query: Bad Request: at least one valid signal or filter is required"
+    )

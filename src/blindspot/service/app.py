@@ -27,29 +27,45 @@ def create_app(settings: Settings | None = None, client: QlooClient | None = Non
     async def lifespan(app: FastAPI):
         c = app.state.client
         c.startup()
-        log.info("blindspot started: mode=%s snapshot_entries=%d cache_entries=%d",
-                 c.mode, len(c.snapshot.entries), c.cache.size())
+        log.info(
+            "blindspot started: mode=%s snapshot_entries=%d cache_entries=%d",
+            c.mode,
+            len(c.snapshot.entries),
+            c.cache.size(),
+        )
         yield
         await c.aclose()
 
-    app = FastAPI(title="Blindspot", version="0.1.0", lifespan=lifespan,
-                  docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(
+        title="Blindspot", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None
+    )
     app.state.settings = settings
     app.state.client = client or QlooClient(settings)
     limiter = SlidingWindowLimiter(settings.http_rate_per_minute, 60.0)
 
     if settings.origins:
-        app.add_middleware(CORSMiddleware, allow_origins=settings.origins,
-                           allow_methods=["GET"], allow_headers=[], allow_credentials=False)
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.origins,
+            allow_methods=["GET"],
+            allow_headers=[],
+            allow_credentials=False,
+        )
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
         if request.url.path.startswith("/api/"):
             ok, retry = limiter.hit(client_ip(request, settings.trusted_proxy_hops))
             if not ok:
-                resp = JSONResponse({"ok": False, "served_from": "degraded",
-                                     "reason": "too many requests from your address; slow down"},
-                                    status_code=429, headers={"Retry-After": str(int(retry) + 1)})
+                resp = JSONResponse(
+                    {
+                        "ok": False,
+                        "served_from": "degraded",
+                        "reason": "too many requests from your address; slow down",
+                    },
+                    status_code=429,
+                    headers={"Retry-After": str(int(retry) + 1)},
+                )
                 resp.headers.update(SECURITY_HEADERS)
                 return resp
         try:
@@ -63,8 +79,7 @@ def create_app(settings: Settings | None = None, client: QlooClient | None = Non
     @app.exception_handler(RequestValidationError)
     async def _bad_input(request: Request, exc: RequestValidationError):
         fields = [".".join(str(p) for p in e.get("loc", [])[1:]) for e in exc.errors()]
-        return JSONResponse({"ok": False, "reason": "invalid input", "fields": fields},
-                            status_code=422)
+        return JSONResponse({"ok": False, "reason": "invalid input", "fields": fields}, status_code=422)
 
     app.include_router(router)
     return app

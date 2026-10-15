@@ -1,10 +1,10 @@
 """Cross-platform task runner (the Makefile just calls this, so Windows works without make).
 
-    python scripts/dev.py setup    # create .venv and install locked dependencies
-    python scripts/dev.py demo     # run the service on http://127.0.0.1:8000 (replay mode if no key)
-    python scripts/dev.py test     # offline test suite
-    python scripts/dev.py check    # ruff + tests + secret scan
-    python scripts/dev.py audit    # pip-audit against the lockfile
+python scripts/dev.py setup    # create .venv and install locked dependencies
+python scripts/dev.py demo     # run the service on http://127.0.0.1:8000 (replay mode if no key)
+python scripts/dev.py test     # offline test suite
+python scripts/dev.py check    # ruff + tests + secret scan
+python scripts/dev.py audit    # pip-audit against the lockfile
 """
 
 from __future__ import annotations
@@ -38,8 +38,11 @@ def setup() -> int:
 
 
 def ensure_setup() -> int:
-    if not VPY.exists() or subprocess.call([str(VPY), "-c", "import blindspot, fastapi"], cwd=ROOT,
-                                           stderr=subprocess.DEVNULL) != 0:
+    if (
+        not VPY.exists()
+        or subprocess.call([str(VPY), "-c", "import blindspot, fastapi"], cwd=ROOT, stderr=subprocess.DEVNULL)
+        != 0
+    ):
         return setup()
     return 0
 
@@ -50,13 +53,29 @@ def demo() -> int:
     env = dict(os.environ)
     port = env.get("PORT", "8000")
     has_key = bool(env.get("QLOO_API_KEY")) or _env_file_has_key()
-    print("\nBlindspot demo", "(live: key found)" if has_key else
-          "(replay mode: no QLOO_API_KEY, serving cache/snapshot only; nothing calls Qloo)")
+    print(
+        "\nBlindspot demo",
+        "(live: key found)"
+        if has_key
+        else "(replay mode: no QLOO_API_KEY, serving cache/snapshot only; nothing calls Qloo)",
+    )
     print(f"  health:  http://127.0.0.1:{port}/healthz")
     print(f"  status:  http://127.0.0.1:{port}/api/qloo/status")
     print(f"  search:  http://127.0.0.1:{port}/api/qloo/search?q=Radiohead\n")
-    return run(VPY, "-m", "uvicorn", "blindspot.service.app:main_app", "--factory",
-               "--host", env.get("HOST", "127.0.0.1"), "--port", port, "--no-proxy-headers", "--no-server-header", env=env)
+    return run(
+        VPY,
+        "-m",
+        "uvicorn",
+        "blindspot.service.app:main_app",
+        "--factory",
+        "--host",
+        env.get("HOST", "127.0.0.1"),
+        "--port",
+        port,
+        "--no-proxy-headers",
+        "--no-server-header",
+        env=env,
+    )
 
 
 def _env_file_has_key() -> bool:
@@ -75,7 +94,11 @@ def test() -> int:
 
 
 def lint() -> int:
-    return ensure_setup() or run(VPY, "-m", "ruff", "check", ".")
+    return (
+        ensure_setup()
+        or run(VPY, "-m", "ruff", "check", ".")
+        or run(VPY, "-m", "ruff", "format", "--check", ".")
+    )
 
 
 def scan() -> int:
@@ -83,7 +106,9 @@ def scan() -> int:
 
 
 def audit() -> int:
-    return ensure_setup() or run(VPY, "-m", "pip_audit", "-r", "requirements.lock", "--progress-spinner", "off")
+    return ensure_setup() or run(
+        VPY, "-m", "pip_audit", "-r", "requirements.lock", "--progress-spinner", "off"
+    )
 
 
 def check() -> int:

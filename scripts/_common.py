@@ -86,14 +86,23 @@ class Recorder:
         with self.path.open("a", encoding="utf-8") as f:
             f.write(redact(json.dumps(row, ensure_ascii=False, default=str)) + "\n")
         top = ", ".join(str(t.get("name")) for t in row.get("top", [])[:3])
-        print(f"[{row['exp']}] {row['label']}: {row['served_from']} {row['status']} "
-              f"n={row['count']} {(row.get('reason') or '')[:80]} | {top[:90]}")
+        print(
+            f"[{row['exp']}] {row['label']}: {row['served_from']} {row['status']} "
+            f"n={row['count']} {(row.get('reason') or '')[:80]} | {top[:90]}"
+        )
         return row
 
 
-async def raw_probe(client: QlooClient, c: RequestContext, method: str, path: str,
-                    params: dict[str, Any] | None = None, *, api_key: str | None = None,
-                    send_key: bool = True) -> dict[str, Any]:
+async def raw_probe(
+    client: QlooClient,
+    c: RequestContext,
+    method: str,
+    path: str,
+    params: dict[str, Any] | None = None,
+    *,
+    api_key: str | None = None,
+    send_key: bool = True,
+) -> dict[str, Any]:
     """Deliberate bad requests for E9 (bad paths, POST, wrong key). Bypasses the endpoint
     allow-list but still reserves budget, honours the breaker and is written to the call log."""
     client.budget.reserve(c)
@@ -110,8 +119,15 @@ async def raw_probe(client: QlooClient, c: RequestContext, method: str, path: st
         except httpx.HTTPError as exc:
             status, text, rh = None, f"transport error: {type(exc).__name__}", {}
     latency = (time.perf_counter() - t0) * 1000
-    client.calls.record(c, f"{method} {path}", params or {}, "live", status=status,
-                        latency_ms=latency, error=None if status and status < 400 else text[:300])
+    client.calls.record(
+        c,
+        f"{method} {path}",
+        params or {},
+        "live",
+        status=status,
+        latency_ms=latency,
+        error=None if status and status < 400 else text[:300],
+    )
     try:
         body: Any = json.loads(text)
     except ValueError:
