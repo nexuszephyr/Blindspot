@@ -40,7 +40,7 @@ jobs:
       - name: Skip until the Python project is pushed
         if: hashFiles('pyproject.toml') == ''
         run: echo "No pyproject.toml yet; skipping Python jobs."
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: hashFiles('pyproject.toml') != ''
         with:
           python-version: "3.11"
@@ -72,7 +72,7 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: hashFiles('pyproject.toml') != ''
         with:
           python-version: "3.11"
