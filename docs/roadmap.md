@@ -4,7 +4,8 @@ Submission target: **2026-10-28** (Devpost closes 2026-10-30; the last two days 
 Each phase has a GitHub milestone. Status is updated at the end of each phase.
 Goals, deliverables, exit criteria and risks per phase are in
 [architecture.md, Section 19](architecture.md#19-phase-plan-what-each-phase-must-achieve); this file
-tracks schedule and status.
+tracks schedule and status. Every task is a GitHub issue; [issues-guide.md](issues-guide.md) says
+which to work on next and what blocks what.
 
 | Phase | Milestone due | Goal | Status |
 |---|---|---|---|

@@ -5,6 +5,7 @@ Start with [architecture.md](architecture.md), then the report for the current p
 | Doc | What it's for |
 |---|---|
 | [architecture.md](architecture.md) | System design, components, request path, audit pipeline, data and run modes |
+| [issues-guide.md](issues-guide.md) | Which GitHub issue to work on next, dependencies, critical path, day-by-day plan |
 | [roadmap.md](roadmap.md) | Phases, milestones, status, cut order |
 | [references.md](references.md) | Hackathon, Qloo docs, prior work, research, tooling |
 | [glossary.md](glossary.md) | Project terms |
