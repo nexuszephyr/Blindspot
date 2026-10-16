@@ -2,7 +2,7 @@
 
 Every planned task from now to submission is a GitHub issue. This guide says which to pick up first, what blocks what, and what can run in parallel. It's generated from the same data used to create the issues, so numbers match. GitHub also shows each issue's **Blocked by** and **Blocking** links in its sidebar.
 
-- **62 issues**, **82 dependency links**, 9 milestones
+- **63 issues**, **85 dependency links**, 9 milestones
 - Phase scope and exit criteria: [architecture.md, Section 19](architecture.md#19-phase-plan-what-each-phase-must-achieve)
 - Schedule and status: [roadmap.md](roadmap.md)
 
@@ -16,6 +16,7 @@ Every planned task from now to submission is a GitHub issue. This guide says whi
 | `critical-path` / ⭐ | Zero slack: on a longest dependency chain, so a delay here delays submission day |
 | `size:S` / `size:M` / `size:L` | Up to about 2 hours / half a day / a day |
 | `needs-user` | Only the maintainer can do it |
+| `decision` | A choice is needed before dependent work starts |
 | `stretch`, `deferred` | Backlog; not planned for the hackathon unless time is left |
 | `phase-N`, `ui`, `llm`, `qloo-api`, `security`, `judge-experience`, `docs` | Area |
 
@@ -26,11 +27,12 @@ Every planned task from now to submission is a GitHub issue. This guide says whi
 | [#8](https://github.com/nexuszephyr/Blindspot/issues/8) | Deploy the hosted demo on Render (gate 11) | Maintainer |
 | [#9](https://github.com/nexuszephyr/Blindspot/issues/9) | Run the Docker image secret scan (gates 9 and 10) | Maintainer |
 | [#10](https://github.com/nexuszephyr/Blindspot/issues/10) | Ask Qloo on Discord about the snapshot, quota and `videogame` | Maintainer |
-| [#11](https://github.com/nexuszephyr/Blindspot/issues/11) | Choose target models and provide their API keys on the host | Maintainer |
+| [#11](https://github.com/nexuszephyr/Blindspot/issues/11) | Choose target models and put their API keys on the host | Maintainer |
 | [#12](https://github.com/nexuszephyr/Blindspot/issues/12) | Parameter promotion with recorded evidence | Claude Code / dev |
 | [#17](https://github.com/nexuszephyr/Blindspot/issues/17) | Promote the audit's black-box and fake-Qloo tests into the permanent suite | Claude Code / dev |
+| [#71](https://github.com/nexuszephyr/Blindspot/issues/71) | Decide how a keyless local clone gets data (D7) | Maintainer |
 
-Do [#8](https://github.com/nexuszephyr/Blindspot/issues/8) (Render) and [#11](https://github.com/nexuszephyr/Blindspot/issues/11) (target models and keys) first: hosting problems need time to surface, and Phase 3 can't start without target models. On the code side, start [#12](https://github.com/nexuszephyr/Blindspot/issues/12) and [#17](https://github.com/nexuszephyr/Blindspot/issues/17) in parallel.
+Do [#8](https://github.com/nexuszephyr/Blindspot/issues/8) (Render), [#11](https://github.com/nexuszephyr/Blindspot/issues/11) (target models and keys) and [#71](https://github.com/nexuszephyr/Blindspot/issues/71) (no-key data decision) first: hosting problems need time to surface, Phase 3 can't start without target models, and the snapshot work waits on the decision. On the code side, start [#12](https://github.com/nexuszephyr/Blindspot/issues/12) and [#17](https://github.com/nexuszephyr/Blindspot/issues/17) in parallel.
 
 ## Critical path
 
@@ -124,13 +126,13 @@ If more than one person (or Claude Code session) is working, split like this. Ea
 | A: Core pipeline | Phase 2 → 3 → 4 → 5 critical path | nothing; this is the critical path |
 | B: Hardening and API | [#17](https://github.com/nexuszephyr/Blindspot/issues/17), [#24](https://github.com/nexuszephyr/Blindspot/issues/24), [#25](https://github.com/nexuszephyr/Blindspot/issues/25), [#19](https://github.com/nexuszephyr/Blindspot/issues/19), [#28](https://github.com/nexuszephyr/Blindspot/issues/28), [#38](https://github.com/nexuszephyr/Blindspot/issues/38) | [#13](https://github.com/nexuszephyr/Blindspot/issues/13), [#18](https://github.com/nexuszephyr/Blindspot/issues/18) |
 | C: UI | [#47](https://github.com/nexuszephyr/Blindspot/issues/47) on mock data, then the rest of Phase 6 | [#25](https://github.com/nexuszephyr/Blindspot/issues/25) to start; [#39](https://github.com/nexuszephyr/Blindspot/issues/39) for real data |
-| D: Maintainer | [#8](https://github.com/nexuszephyr/Blindspot/issues/8), [#9](https://github.com/nexuszephyr/Blindspot/issues/9), [#10](https://github.com/nexuszephyr/Blindspot/issues/10), [#11](https://github.com/nexuszephyr/Blindspot/issues/11), [#20](https://github.com/nexuszephyr/Blindspot/issues/20), [#22](https://github.com/nexuszephyr/Blindspot/issues/22), [#65](https://github.com/nexuszephyr/Blindspot/issues/65), [#66](https://github.com/nexuszephyr/Blindspot/issues/66) | [#21](https://github.com/nexuszephyr/Blindspot/issues/21) and [#19](https://github.com/nexuszephyr/Blindspot/issues/19) for U6 and U5 |
+| D: Maintainer | [#8](https://github.com/nexuszephyr/Blindspot/issues/8), [#9](https://github.com/nexuszephyr/Blindspot/issues/9), [#10](https://github.com/nexuszephyr/Blindspot/issues/10), [#11](https://github.com/nexuszephyr/Blindspot/issues/11), [#71](https://github.com/nexuszephyr/Blindspot/issues/71), [#20](https://github.com/nexuszephyr/Blindspot/issues/20), [#22](https://github.com/nexuszephyr/Blindspot/issues/22), [#65](https://github.com/nexuszephyr/Blindspot/issues/65), [#66](https://github.com/nexuszephyr/Blindspot/issues/66) | [#21](https://github.com/nexuszephyr/Blindspot/issues/21) for [#22](https://github.com/nexuszephyr/Blindspot/issues/22); [#19](https://github.com/nexuszephyr/Blindspot/issues/19) and [#8](https://github.com/nexuszephyr/Blindspot/issues/8) for [#20](https://github.com/nexuszephyr/Blindspot/issues/20) |
 
 ## Day-by-day plan
 
 | Date | Aim |
 |---|---|
-| Oct 16 (Fri) | Maintainer: [#8](https://github.com/nexuszephyr/Blindspot/issues/8), [#11](https://github.com/nexuszephyr/Blindspot/issues/11), [#9](https://github.com/nexuszephyr/Blindspot/issues/9), [#10](https://github.com/nexuszephyr/Blindspot/issues/10). Code: [#12](https://github.com/nexuszephyr/Blindspot/issues/12), [#17](https://github.com/nexuszephyr/Blindspot/issues/17) |
+| Oct 16 (Fri) | Maintainer: [#8](https://github.com/nexuszephyr/Blindspot/issues/8), [#11](https://github.com/nexuszephyr/Blindspot/issues/11), [#71](https://github.com/nexuszephyr/Blindspot/issues/71), [#9](https://github.com/nexuszephyr/Blindspot/issues/9), [#10](https://github.com/nexuszephyr/Blindspot/issues/10). Code: [#12](https://github.com/nexuszephyr/Blindspot/issues/12), [#17](https://github.com/nexuszephyr/Blindspot/issues/17) |
 | Oct 17 (Sat) | [#13](https://github.com/nexuszephyr/Blindspot/issues/13) → [#14](https://github.com/nexuszephyr/Blindspot/issues/14) → [#15](https://github.com/nexuszephyr/Blindspot/issues/15) → [#16](https://github.com/nexuszephyr/Blindspot/issues/16); start [#18](https://github.com/nexuszephyr/Blindspot/issues/18) |
 | Oct 18 (Sun) | [#18](https://github.com/nexuszephyr/Blindspot/issues/18), [#21](https://github.com/nexuszephyr/Blindspot/issues/21), [#23](https://github.com/nexuszephyr/Blindspot/issues/23); side: [#24](https://github.com/nexuszephyr/Blindspot/issues/24), [#25](https://github.com/nexuszephyr/Blindspot/issues/25), [#19](https://github.com/nexuszephyr/Blindspot/issues/19); maintainer reviews [#22](https://github.com/nexuszephyr/Blindspot/issues/22) |
 | Oct 19 (Mon) | [#27](https://github.com/nexuszephyr/Blindspot/issues/27), [#29](https://github.com/nexuszephyr/Blindspot/issues/29), [#30](https://github.com/nexuszephyr/Blindspot/issues/30); UI track starts [#47](https://github.com/nexuszephyr/Blindspot/issues/47) |
@@ -158,21 +160,26 @@ Only you can do these: accounts, dashboards, decisions. Start U1 to U4 today; th
 | 1 | [#8](https://github.com/nexuszephyr/Blindspot/issues/8) | `U1` | Deploy the hosted demo on Render (gate 11) | nothing | S | P0 |
 | 2 | [#9](https://github.com/nexuszephyr/Blindspot/issues/9) | `U2` | Run the Docker image secret scan (gates 9 and 10) | nothing | S | P1 |
 | 3 | [#10](https://github.com/nexuszephyr/Blindspot/issues/10) | `U3` | Ask Qloo on Discord about the snapshot, quota and `videogame` | nothing | S | P1 |
-| 4 | [#11](https://github.com/nexuszephyr/Blindspot/issues/11) | `U4` | Choose target models and provide their API keys on the host | nothing | S | P0 |
-| 5 | [#20](https://github.com/nexuszephyr/Blindspot/issues/20) | `U5` | Pick private storage for the real demo snapshot | [#19](https://github.com/nexuszephyr/Blindspot/issues/19) | S | P1 |
-| 6 | [#22](https://github.com/nexuszephyr/Blindspot/issues/22) | `U6` | Review seed matches and the plausibility sample | [#21](https://github.com/nexuszephyr/Blindspot/issues/21) | S | P1 |
+| 4 | [#11](https://github.com/nexuszephyr/Blindspot/issues/11) | `U4` | Choose target models and put their API keys on the host | nothing | S | P0 |
+| 5 | [#71](https://github.com/nexuszephyr/Blindspot/issues/71) | `U7` | Decide how a keyless local clone gets data (D7) | nothing | S | P0 |
+| 6 | [#20](https://github.com/nexuszephyr/Blindspot/issues/20) | `U5` | Upload the real demo snapshot as a Render secret file | [#19](https://github.com/nexuszephyr/Blindspot/issues/19), [#8](https://github.com/nexuszephyr/Blindspot/issues/8) | S | P1 |
+| 7 | [#22](https://github.com/nexuszephyr/Blindspot/issues/22) | `U6` | Review seed matches and the plausibility sample | [#15](https://github.com/nexuszephyr/Blindspot/issues/15), [#21](https://github.com/nexuszephyr/Blindspot/issues/21) | S | P1 |
 
 ```mermaid
 flowchart LR
     U1["#8 Deploy the hosted demo on Render (ga…"]
     U2["#9 Run the Docker image secret scan (ga…"]
     U3["#10 Ask Qloo on Discord about the snapsh…"]
-    U4["#11 Choose target models and provide the…"]
-    U5["#20 Pick private storage for the real de…"]
+    U4["#11 Choose target models and put their A…"]
+    U5["#20 Upload the real demo snapshot as a R…"]
     U6["#22 Review seed matches and the plausibi…"]
+    U7["#71 Decide how a keyless local clone get…"]
+    P2_5(["#15 (P2-5)"])
     P2_12(["#19 (P2-12)"])
     P2_8(["#21 (P2-8)"])
     P2_12 --> U5
+    U1 --> U5
+    P2_5 --> U6
     P2_8 --> U6
 ```
 
@@ -190,7 +197,7 @@ Build the exam and a validated Qloo answer key. Due 2026-10-18.
 | 6 | [#15](https://github.com/nexuszephyr/Blindspot/issues/15) ⭐ | `P2-5` | Resolve and lock seed, tag and audience IDs | [#14](https://github.com/nexuszephyr/Blindspot/issues/14) | S | P0 |
 | 7 | [#16](https://github.com/nexuszephyr/Blindspot/issues/16) ⭐ | `P2-6` | Scenario schema and deterministic generator | [#14](https://github.com/nexuszephyr/Blindspot/issues/14), [#15](https://github.com/nexuszephyr/Blindspot/issues/15) | M | P0 |
 | 8 | [#18](https://github.com/nexuszephyr/Blindspot/issues/18) ⭐ | `P2-7` | Ground-truth builder, `entity_index` and `get_answer_key()` | [#16](https://github.com/nexuszephyr/Blindspot/issues/16), [#17](https://github.com/nexuszephyr/Blindspot/issues/17) | L | P0 |
-| 9 | [#19](https://github.com/nexuszephyr/Blindspot/issues/19) | `P2-12` | Synthetic public snapshot and private real snapshot loader | [#18](https://github.com/nexuszephyr/Blindspot/issues/18) | M | P0 |
+| 9 | [#19](https://github.com/nexuszephyr/Blindspot/issues/19) | `P2-12` | No-key data path and private real snapshot | [#18](https://github.com/nexuszephyr/Blindspot/issues/18), [#71](https://github.com/nexuszephyr/Blindspot/issues/71) | M | P0 |
 | 10 | [#21](https://github.com/nexuszephyr/Blindspot/issues/21) ⭐ | `P2-8` | Validity suite V1 to V9 and cell dispositions | [#18](https://github.com/nexuszephyr/Blindspot/issues/18) | M | P0 |
 | 11 | [#25](https://github.com/nexuszephyr/Blindspot/issues/25) | `P2-11` | Scenario and ground-truth API routes and CLI | [#18](https://github.com/nexuszephyr/Blindspot/issues/18) | S | P1 |
 | 12 | [#23](https://github.com/nexuszephyr/Blindspot/issues/23) ⭐ | `P2-9` | Metrics design note | [#21](https://github.com/nexuszephyr/Blindspot/issues/21) | S | P0 |
@@ -205,12 +212,13 @@ flowchart LR
     P2_6["#16 Scenario schema and deterministic ge…"]
     P2_1["#17 Promote the audit's black-box and fa…"]
     P2_7["#18 Ground-truth builder, entity_index a…"]
-    P2_12["#19 Synthetic public snapshot and privat…"]
+    P2_12["#19 No-key data path and private real sn…"]
     P2_8["#21 Validity suite V1 to V9 and cell dis…"]
     P2_9["#23 Metrics design note"]
     P2_10["#24 Coverage probe for any location and…"]
     P2_11["#25 Scenario and ground-truth API routes…"]
     P2_13["#26 Report, docs and JUDGES.md update"]
+    U7(["#71 (U7)"])
     P2_2 --> P2_3
     P2_3 --> P2_4
     P2_4 --> P2_5
@@ -219,6 +227,7 @@ flowchart LR
     P2_6 --> P2_7
     P2_1 --> P2_7
     P2_7 --> P2_12
+    U7 --> P2_12
     P2_7 --> P2_8
     P2_8 --> P2_9
     P2_3 --> P2_10
@@ -289,7 +298,7 @@ The agent that finds and confirms blindspots. Due 2026-10-22.
 | 3 | [#37](https://github.com/nexuszephyr/Blindspot/issues/37) ⭐ | `P4-3` | Bootstrap confirmation of blindspots | [#36](https://github.com/nexuszephyr/Blindspot/issues/36) | M | P0 |
 | 4 | [#38](https://github.com/nexuszephyr/Blindspot/issues/38) ⭐ | `P4-4` | Budgets for calls, tokens and time with clean stops | [#36](https://github.com/nexuszephyr/Blindspot/issues/36) | S | P0 |
 | 5 | [#39](https://github.com/nexuszephyr/Blindspot/issues/39) ⭐ | `P4-5` | Audit API routes, event stream and receipts | [#37](https://github.com/nexuszephyr/Blindspot/issues/37), [#38](https://github.com/nexuszephyr/Blindspot/issues/38) | M | P0 |
-| 6 | [#40](https://github.com/nexuszephyr/Blindspot/issues/40) | `P4-6` | Plain-language explanations of results | [#37](https://github.com/nexuszephyr/Blindspot/issues/37) | S | P1 |
+| 6 | [#40](https://github.com/nexuszephyr/Blindspot/issues/40) | `P4-6` | Explanations from computed numbers and Qloo explainability | [#37](https://github.com/nexuszephyr/Blindspot/issues/37) | S | P1 |
 | 7 | [#41](https://github.com/nexuszephyr/Blindspot/issues/41) | `P4-7` | Report with audits of two models | [#39](https://github.com/nexuszephyr/Blindspot/issues/39), [#40](https://github.com/nexuszephyr/Blindspot/issues/40) | S | P1 |
 
 ```mermaid
@@ -299,7 +308,7 @@ flowchart LR
     P4_3["#37 Bootstrap confirmation of blindspots"]
     P4_4["#38 Budgets for calls, tokens and time w…"]
     P4_5["#39 Audit API routes, event stream and r…"]
-    P4_6["#40 Plain-language explanations of results"]
+    P4_6["#40 Explanations from computed numbers a…"]
     P4_7["#41 Report with audits of two models"]
     P3_7(["#33 (P3-7)"])
     P3_7 --> P4_1

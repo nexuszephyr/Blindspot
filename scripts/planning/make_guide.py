@@ -167,6 +167,7 @@ w(
 )
 w("| `size:S` / `size:M` / `size:L` | Up to about 2 hours / half a day / a day |")
 w("| `needs-user` | Only the maintainer can do it |")
+w("| `decision` | A choice is needed before dependent work starts |")
 w("| `stretch`, `deferred` | Backlog; not planned for the hackathon unless time is left |")
 w("| `phase-N`, `ui`, `llm`, `qloo-api`, `security`, `judge-experience`, `docs` | Area |\n")
 
@@ -177,8 +178,9 @@ for k in sorted(ready, key=lambda k: num[k]):
     w(f"| {ref(k)} | {short(by[k]['title'])} | {who} |")
 w("")
 w(
-    f"Do {ref('U1')} (Render) and {ref('U4')} (target models and keys) first: hosting problems need time to surface, "
-    f"and Phase 3 can't start without target models. On the code side, start {ref('P2-2')} and {ref('P2-1')} in parallel.\n"
+    f"Do {ref('U1')} (Render), {ref('U4')} (target models and keys) and {ref('U7')} (no-key data decision) first: "
+    f"hosting problems need time to surface, Phase 3 can't start without target models, and the snapshot work "
+    f"waits on the decision. On the code side, start {ref('P2-2')} and {ref('P2-1')} in parallel.\n"
 )
 
 w("## Critical path\n")
@@ -222,7 +224,7 @@ w(
     f"| C: UI | {ref('P6-1')} on mock data, then the rest of Phase 6 | {ref('P2-11')} to start; {ref('P4-5')} for real data |"
 )
 w(
-    f"| D: Maintainer | {', '.join(ref(k) for k in ['U1', 'U2', 'U3', 'U4', 'U5', 'U6'])}, {ref('S1')}, {ref('S2')} | {ref('P2-8')} and {ref('P2-12')} for U6 and U5 |"
+    f"| D: Maintainer | {', '.join(ref(k) for k in ['U1', 'U2', 'U3', 'U4', 'U7', 'U5', 'U6'])}, {ref('S1')}, {ref('S2')} | {ref('P2-8')} for {ref('U6')}; {ref('P2-12')} and {ref('U1')} for {ref('U5')} |"
 )
 w("")
 
@@ -231,7 +233,7 @@ w("| Date | Aim |\n|---|---|")
 plan = [
     (
         "Oct 16 (Fri)",
-        f"Maintainer: {ref('U1')}, {ref('U4')}, {ref('U2')}, {ref('U3')}. Code: {ref('P2-2')}, {ref('P2-1')}",
+        f"Maintainer: {ref('U1')}, {ref('U4')}, {ref('U7')}, {ref('U2')}, {ref('U3')}. Code: {ref('P2-2')}, {ref('P2-1')}",
     ),
     ("Oct 17 (Sat)", f"{ref('P2-3')} → {ref('P2-4')} → {ref('P2-5')} → {ref('P2-6')}; start {ref('P2-7')}"),
     (
