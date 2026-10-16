@@ -132,3 +132,32 @@ Not run yet:
 - Path 2 with a **real** key: no key was available. A fake key degrades correctly to "Qloo rejected the server's API key".
 - The owner deploy steps.
 - macOS: no Mac was available. CI includes `macos-latest`, but the repo hasn't been pushed yet.
+
+---
+
+## Developer commands (moved here from the pre-import README)
+
+With a key in `.env`, these scripts make live calls. All of them share the client's budget, cache and call log, so a rerun of cached queries is free.
+
+```bash
+python scripts/smoke.py                 # about 4 live calls
+python scripts/recon.py                 # E1-E11, about 200 live calls cold (cap: --max-calls 250)
+python scripts/coverage_matrix.py       # about 96 live calls (cap: --max-calls 150)
+python scripts/warm_cache.py            # fill the cache from config/demo_queries.json
+python scripts/export_snapshot.py       # cache -> data/snapshot/snapshot.json (private, never commit)
+python scripts/export_snapshot.py --synthetic   # synthetic snapshot for offline dev (no Qloo data)
+```
+
+CLI, no service needed:
+
+```bash
+python -m blindspot.qloo.cli budget     # remaining budgets, cache size, breaker state
+python -m blindspot.qloo.cli search "Burna Boy" --types urn:entity:artist
+python -m blindspot.qloo.cli calls --last 10
+```
+
+Windows without `make`: `python scripts/dev.py setup|demo|test|lint|check|audit`.
+
+Cities, domains and demo queries are data in `config/`. Steps only the owner can do are in [NEEDS_FROM_USER.md](NEEDS_FROM_USER.md).
+
+**Data note:** no Qloo response data is committed, because Qloo's hackathon guide says not to store it in a public repository. Test fixtures are synthetic. The cache, recordings and snapshots live in `data/`, which is gitignored.
