@@ -1,4 +1,5 @@
 """Create labels, milestones, issues and dependency links. Idempotent by title."""
+
 import importlib.util
 import json
 import subprocess
@@ -16,8 +17,9 @@ def api(method, path, payload=None, ok_fail=False):
     cmd = ["gh", "api", "-X", method, f"{REPO}{path}", "-H", "Accept: application/vnd.github+json"]
     if payload is not None:
         cmd += ["--input", "-"]
-    r = subprocess.run(cmd, input=json.dumps(payload) if payload is not None else None,
-                       capture_output=True, text=True)
+    r = subprocess.run(
+        cmd, input=json.dumps(payload) if payload is not None else None, capture_output=True, text=True
+    )
     if r.returncode != 0:
         if ok_fail:
             return None
@@ -86,15 +88,18 @@ def body_for(i):
         lines += [f"- #{num[d]} {by[d]['title']}" for d in i["deps"]]
     if i["refs"]:
         lines += ["", "## References"] + [f"- {r}" for r in i["refs"]]
-    lines += ["", "---", "Order and dependencies for every issue: `docs/issues-guide.md`. "
-              "Follow `AGENTS.md`; work on a branch and open a PR that says `Closes #<this issue>`."]
+    lines += [
+        "",
+        "---",
+        "Order and dependencies for every issue: `docs/issues-guide.md`. "
+        "Follow `AGENTS.md`; work on a branch and open a PR that says `Closes #<this issue>`.",
+    ]
     return "\n".join(lines)
 
 
 for k in order:
     i = by[k]
-    payload = {"title": i["title"], "body": body_for(i), "labels": i["labels"],
-               "milestone": ms[i["ms"]]}
+    payload = {"title": i["title"], "body": body_for(i), "labels": i["labels"], "milestone": ms[i["ms"]]}
     if i["title"] in issues:
         ex = issues[i["title"]]
         api("PATCH", f"/issues/{ex['number']}", payload)
@@ -112,7 +117,10 @@ for k in order:
     for d in by[k]["deps"]:
         if iid[d] in have:
             continue
-        if api("POST", f"/issues/{num[k]}/dependencies/blocked_by", {"issue_id": iid[d]}, ok_fail=True) is None:
+        if (
+            api("POST", f"/issues/{num[k]}/dependencies/blocked_by", {"issue_id": iid[d]}, ok_fail=True)
+            is None
+        ):
             print(f"link failed {k} <- {d}")
         else:
             links += 1
