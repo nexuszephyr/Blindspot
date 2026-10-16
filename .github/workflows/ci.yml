@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# No Qloo key is stored in GitHub. Live tests never run here.
+env:
+  QLOO_MODE: replay
+  QLOO_ENABLED: "false"
+  PYTHONUTF8: "1"
+
+jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Project secret scanner
+        if: hashFiles('scripts/scan_secrets.py') != ''
+        run: python scripts/scan_secrets.py
+
+  test:
+    name: Lint, tests, audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip until the Python project is pushed
+        if: hashFiles('pyproject.toml') == ''
+        run: echo "No pyproject.toml yet; skipping Python jobs."
+      - uses: actions/setup-python@v5
+        if: hashFiles('pyproject.toml') != ''
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        if: hashFiles('pyproject.toml') != ''
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f uv.lock ]; then
+            pip install uv && uv sync --all-extras && echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          else
+            pip install -e ".[dev]" || pip install -e .
+          fi
+          pip install ruff pip-audit
+      - name: Ruff
+        if: hashFiles('pyproject.toml') != ''
+        run: ruff check .
+      - name: Offline tests
+        if: hashFiles('pyproject.toml') != ''
+        run: python -m pytest -q -m "not live"
+      - name: Dependency audit (warn only)
+        if: hashFiles('pyproject.toml') != ''
+        continue-on-error: true
+        run: pip-audit
+
+  fresh-clone-demo:
+    name: Fresh clone, no key, demo smoke
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        if: hashFiles('pyproject.toml') != ''
+        with:
+          python-version: "3.11"
+      - name: Install without a key
+        if: hashFiles('pyproject.toml') != ''
+        run: pip install -e .
+      # TODO: point this at the real entry point once the code is on main
+      # (expected: blindspot.service.app:app). Make it blocking after it passes once.
+      - name: Start in replay mode and hit /healthz
+        if: hashFiles('pyproject.toml') != ''
+        continue-on-error: true
+        run: |
+          test ! -f .env
+          python -m uvicorn blindspot.service.app:app --port 8000 &
+          for i in $(seq 1 30); do curl -fsS localhost:8000/healthz && exit 0; sleep 1; done
+          exit 1
+
+  docker:
+    name: Docker build and image secret scan
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        if: hashFiles('Dockerfile') != ''
+        run: docker build -t blindspot:ci .
+      - name: Check image for .env and key-shaped values
+        if: hashFiles('Dockerfile') != ''
+        run: |
+          docker history --no-trunc blindspot:ci > history.txt
+          ! grep -qi "QLOO_API_KEY=[A-Za-z0-9]" history.txt
+          ! docker run --rm --entrypoint sh blindspot:ci -c 'test -f .env || test -f /app/.env'

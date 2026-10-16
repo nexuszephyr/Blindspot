@@ -1,0 +1,36 @@
+name: Task
+description: A unit of planned work, usually one section of a phase prompt
+labels: [task]
+body:
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options: [phase-1, phase-2, phase-3, phase-4, phase-5, phase-6, phase-7, submission]
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What this task delivers and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable conditions, copied from the phase exit gate where possible.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+  - type: input
+    id: budget
+    attributes:
+      label: Expected live Qloo calls
+      placeholder: "0"
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes and links

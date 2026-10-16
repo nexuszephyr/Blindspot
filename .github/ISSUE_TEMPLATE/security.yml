@@ -1,0 +1,23 @@
+name: Security hardening
+description: A non-sensitive security improvement. Report real vulnerabilities privately instead.
+labels: [security]
+body:
+  - type: markdown
+    attributes:
+      value: "**Don't describe an exploitable vulnerability or paste a secret here.** Use private reporting from the Security tab."
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk
+      description: What could go wrong and who it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Proposed fix
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options: [Low, Medium, High]
