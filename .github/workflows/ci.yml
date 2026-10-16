@@ -23,12 +23,11 @@ jobs:
     name: Secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Gitleaks (full history)
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source=/repo --redact --verbose
       - name: Project secret scanner
         if: hashFiles('scripts/scan_secrets.py') != ''
         run: python scripts/scan_secrets.py
@@ -37,11 +36,11 @@ jobs:
     name: Lint, tests, audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Skip until the Python project is pushed
         if: hashFiles('pyproject.toml') == ''
         run: echo "No pyproject.toml yet; skipping Python jobs."
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: hashFiles('pyproject.toml') != ''
         with:
           python-version: "3.11"
@@ -72,8 +71,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         if: hashFiles('pyproject.toml') != ''
         with:
           python-version: "3.11"
@@ -96,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build
         if: hashFiles('Dockerfile') != ''
         run: docker build -t blindspot:ci .
