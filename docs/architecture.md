@@ -176,18 +176,20 @@ Existing after Phase 1 unless marked **Planned**. Verify paths against the code;
 blindspot/
 ├── AGENTS.md  CLAUDE.md  README.md  LICENSE  SECURITY.md  CONTRIBUTING.md
 ├── config/                    # data, never code
-│   ├── cities.yaml            # id, display name, Qloo location string, tier
-│   ├── domains.yaml           # id, filter.type, take, query shape, allowed probes
+│   ├── cities.yaml            # id, display_name, location (Qloo string), country, script_note, tier
+│   ├── domains.yaml           # id, filter_type, take, phrasing, location_param, params, tag_query
+│   ├── demo_queries.json      # query list for warm_cache.py / export_snapshot.py (no Qloo data)
 │   ├── personas.yaml          # Planned (Phase 2)
 │   ├── probe_types.yaml       # Planned (Phase 2)
 │   └── resolved_ids.lock.json # Planned (Phase 2): IDs + our query text only
 ├── src/blindspot/
 │   ├── config.py              # settings from env
+│   ├── catalog.py             # loads and validates config/ (City, Domain)
 │   ├── qloo/                  # the only way to reach Qloo
 │   │   ├── client.py  models.py  params.py  errors.py
-│   │   ├── cache.py   calllog.py budget.py  breaker.py  ratelimit.py
-│   │   ├── context.py snapshot.py cli.py
-│   ├── service/               # FastAPI app, routes, security middleware
+│   │   ├── cache.py   db.py      calllog.py budget.py  breaker.py  ratelimit.py
+│   │   ├── context.py redact.py  snapshot.py cli.py
+│   ├── service/               # app.py (main_app factory), routes.py, security.py
 │   ├── scenarios/             # Planned (Phase 2)
 │   ├── groundtruth/           # Planned (Phase 2)
 │   ├── targets/               # Planned (Phase 3)
@@ -196,10 +198,12 @@ blindspot/
 │   ├── auditor/               # Planned (Phase 4)
 │   └── fix/                   # Planned (Phase 5)
 ├── web/                       # Planned (Phase 6)
-├── scripts/                   # smoke, recon, coverage, warm_cache, export_snapshot, scan_secrets, promote_param
+├── scripts/                   # dev (task runner), _common, smoke, recon, coverage_matrix, warm_cache,
+│                              # export_snapshot, scan_secrets; promote_param is Planned (Phase 2)
 ├── tests/                     # offline by default; fixtures tiny and synthetic or trimmed
 ├── data/                      # gitignored: cache, raw recordings, private snapshot
-├── docs/                      # this file, ADRs, phase reports, JUDGES.md
+├── docs/                      # this file, ADRs, JUDGES.md, qloo_api_reality.md, coverage_matrix.md,
+│                              # phase1_report.md, phase1_audit.md, decisions.md, NEEDS_FROM_USER.md
 ├── Dockerfile  docker-compose.yml  Makefile  render.yaml
 └── .github/                   # CI, CodeQL, templates, Dependabot
 ```
@@ -242,7 +246,7 @@ Phase 1, built and audited. All Qloo access goes through it.
 | Auth | `X-Api-Key` header from server env only. Masked everywhere. |
 | Parameters | Per-`filter.type` allowlist; strict mode raises `QlooParamError` before any call. |
 | Name resolution | Entity, tag and audience names resolved to IDs first; free text never sent as an ID. |
-| Outcome types | `ok`, `empty` (200, no entities), `resolution_failed` (no ID, no insights call), `qloo_error`. |
+| Outcome types | `ok`, `empty` (200, no entities), `resolution_failed` (no ID, no insights call), `qloo_error`, `invalid` (refused locally), `disabled`, `not_live` (replay, budget, breaker, deadline). |
 | Cache | SQLite, key = sha256(method, path, sorted normalized params); TTL; bypass flag. |
 | Budgets | Global daily, per-client hourly, per-run, plus a reserved demo slice. |
 | Rate limit | Token bucket at `QLOO_RPS` (4, below Qloo's 5 rps limit). |
@@ -537,7 +541,8 @@ All routes are deadline-bound, budget-guarded, labeled with `served_from`, and n
 | `GET /api/audits/{id}/export` | 5 | Prompt + MCP config |
 | `GET /api/leaderboard` | 7 | Precomputed model comparison |
 
-Response envelope for Qloo-derived data:
+Response envelope for Qloo-derived data (planned with the Phase 2 routes; Phase 1's `/api/qloo/search`
+returns `served_from`, `ok`, `reason`, `run_id`, `call_id`, `fetched_at` and `results`):
 
 ```json
 {
@@ -699,6 +704,11 @@ flowchart TD
     Key -- "no" --> Replay["Replay only<br/>misses return degraded"]
 ```
 
+**Status (Phase 1).** The diagram above is the Phase 2 design. Today the service seeds an empty cache
+from one snapshot file at `QLOO_SNAPSHOT_PATH` (on Render, a Secret File); there is no `SNAPSHOT_URL`
+download and no bundled synthetic snapshot yet, so a fresh no-key clone answers `degraded` for
+anything uncached. `scripts/export_snapshot.py --synthetic` builds a synthetic one for offline development.
+
 What's in git and what isn't: see [ADR 0002](adr/0002-no-real-qloo-data-in-git.md).
 
 ---
@@ -722,7 +732,7 @@ What's in git and what isn't: see [ADR 0002](adr/0002-no-real-qloo-data-in-git.m
 
 ## 17. Observability
 
-- **Call log** for every Qloo call (purpose: `app`, `recon`, `coverage`, `audit`), queryable by run.
+- **Call log** for every Qloo call (purpose: `app`, `audit`, `recon`, `coverage`, `smoke`, `script`), queryable by run.
 - **Audit events** streamed to the UI and stored for replay.
 - **`/api/qloo/status`** for budgets, breaker and snapshot state, with no secrets.
 - **Structured logs** with redaction; request id and client hash on each line.

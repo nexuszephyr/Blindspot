@@ -1,0 +1,15 @@
+{
+  "_about": "Phase 1 demo query set (about 10) used to exercise warm_cache.py / export_snapshot.py. Queries only, no Qloo data. Phase 2 replaces it with the real demo set.",
+  "queries": [
+    {"label": "search-radiohead", "path": "/search", "params": {"query": "Radiohead", "take": 5}},
+    {"label": "search-burna-boy", "path": "/search", "params": {"query": "Burna Boy", "take": 5}},
+    {"label": "search-ar-rahman", "path": "/search", "params": {"query": "A. R. Rahman", "take": 5}},
+    {"label": "search-nike", "path": "/search", "params": {"query": "Nike", "take": 5}},
+    {"label": "places-bengaluru", "path": "/v2/insights", "params": {"filter.type": "urn:entity:place", "filter.location.query": "Bengaluru", "filter.tags": "urn:tag:genre:place:restaurant", "take": 10}},
+    {"label": "places-lagos", "path": "/v2/insights", "params": {"filter.type": "urn:entity:place", "filter.location.query": "Lagos", "filter.tags": "urn:tag:genre:place:restaurant", "take": 10}},
+    {"label": "places-tokyo", "path": "/v2/insights", "params": {"filter.type": "urn:entity:place", "filter.location.query": "Tokyo", "filter.tags": "urn:tag:genre:place:restaurant", "take": 10}},
+    {"label": "places-sao-paulo", "path": "/v2/insights", "params": {"filter.type": "urn:entity:place", "filter.location.query": "São Paulo", "filter.tags": "urn:tag:genre:place:restaurant", "take": 10}},
+    {"label": "places-berlin", "path": "/v2/insights", "params": {"filter.type": "urn:entity:place", "filter.location.query": "Berlin", "filter.tags": "urn:tag:genre:place:restaurant", "take": 10}},
+    {"label": "places-new-york", "path": "/v2/insights", "params": {"filter.type": "urn:entity:place", "filter.location.query": "New York", "filter.tags": "urn:tag:genre:place:restaurant", "take": 10}}
+  ]
+}

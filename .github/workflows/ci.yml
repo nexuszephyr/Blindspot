@@ -66,7 +66,9 @@ jobs:
           pip install ruff pip-audit
       - name: Ruff
         if: hashFiles('pyproject.toml') != ''
-        run: ruff check .
+        run: |
+          ruff check .
+          ruff format --check .
       - name: Offline tests
         if: hashFiles('pyproject.toml') != ''
         run: python -m pytest -q -m "not live"
@@ -88,16 +90,14 @@ jobs:
       - name: Install without a key
         if: hashFiles('pyproject.toml') != ''
         run: pip install -e .
-      # TODO: point this at the real entry point once the code is on main
-      # (expected: blindspot.service.app:app). Make it blocking after it passes once.
-      - name: Start in replay mode and hit /healthz
+      - name: Start in replay mode and hit /healthz and /api/qloo/status
         if: hashFiles('pyproject.toml') != ''
-        continue-on-error: true
         run: |
           test ! -f .env
-          python -m uvicorn blindspot.service.app:app --port 8000 &
-          for i in $(seq 1 30); do curl -fsS localhost:8000/healthz && exit 0; sleep 1; done
-          exit 1
+          python -m uvicorn blindspot.service.app:main_app --factory --port 8000 &
+          for i in $(seq 1 30); do curl -fsS localhost:8000/healthz && break; sleep 1; done
+          curl -fsS localhost:8000/healthz | grep -q '"mode":"replay"'
+          curl -fsS localhost:8000/api/qloo/status | grep -q '"key_configured":false'
 
   docker:
     name: Docker build and image secret scan

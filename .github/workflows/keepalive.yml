@@ -1,0 +1,16 @@
+# Keeps the free Render instance warm during judging. Does nothing unless the repository
+# variable BLINDSPOT_URL is set (Settings -> Secrets and variables -> Actions -> Variables).
+# GitHub may delay scheduled runs; an external pinger (e.g. a 5-minute HEAD /healthz monitor)
+# is a more reliable complement.
+name: keepalive
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+permissions: {}
+jobs:
+  ping:
+    if: ${{ vars.BLINDSPOT_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS --max-time 90 --retry 2 "${{ vars.BLINDSPOT_URL }}/healthz"

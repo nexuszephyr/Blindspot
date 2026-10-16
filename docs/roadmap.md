@@ -23,7 +23,8 @@ tracks schedule and status.
 Qloo client with typed models, param guard, cache, call log, retries, rate limit, budgets at three
 scopes, circuit breaker, per-request kill switch, request deadline, replay mode. FastAPI skeleton.
 Recon E1 to E11 and a 6-city × 4-domain coverage matrix. Offline test suite with mutation checks.
-Open: Docker image scan, Render deploy, public repo push.
+Code imported to https://github.com/nexuszephyr/Blindspot (PR `chore/import-phase1`; F8 closed).
+Open: Docker image scan, Render deploy, making the repo public.
 
 ### Phase 2: Answer key
 Parameter promotion with evidence. Experiments E12 to E15 (result depth, taste-signal pairing for

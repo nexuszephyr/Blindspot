@@ -62,6 +62,7 @@ Sources: the official hackathon developer guide and live checks in `docs/qloo_ap
 | Fact | Status |
 |---|---|
 | Base URL is only `https://hackathon.api.qloo.com`; staging and production return 401 with a hackathon key | Official |
+| The base URL alone is not an endpoint: always append a path (`GET /` returns API info, not data) | Official + VERIFIED |
 | Auth is the `X-Api-Key` header only; never a query parameter or Bearer token | Official |
 | `/v2/insights` is GET with a query string; never POST with a JSON body | Official |
 | Do not use `/recommendations` or `/recs` (legacy, unsupported) | Official |
@@ -69,10 +70,13 @@ Sources: the official hackathon developer guide and live checks in `docs/qloo_ap
 | Tag and audience parameters need real IDs or URNs, never free text | Official |
 | **Unknown or invalid parameters are silently ignored** (200 with empty or unchanged results) | Official + VERIFIED |
 | `/search` has its own `types` list, different from insights `filter.type` | Official |
+| Unsupported `filter.type` returns 400 `{"errors": [...]}` on the hackathon host (the guide says 403) | VERIFIED |
+| Music is `urn:entity:artist`; food and drink venues are `place` or `brand` | Official |
+| The hackathon environment may lack data for some entities or regions; check coverage before relying on a cell | Official |
 | Errors come as `{"error": ...}` or `{"errors": [...]}`; handle both | VERIFIED |
 | Live API accepts `urn:entity:videogame` (200) and rejects `urn:entity:video_game` (400); the guide says the opposite | VERIFIED, [ADR 0003](docs/adr/0003-videogame-entity-type.md) |
 | Quota 10,000 calls/month, max 5 rps; keep `QLOO_RPS` ≤ 4 | VERIFIED |
-| Places get affinity scores only with a taste signal (entity, tag or audience); artists, film/TV, brands always have scores | VERIFIED (E11) |
+| Places get affinity scores only when a signal is added to the location (entity, tag, audience, even an age bracket, which adds scores without changing results); artists, film/TV, brands always have scores | VERIFIED (E11) |
 | Age and gender don't change dining results; use audience IDs for dining | VERIFIED |
 | `bias.trends` changes dining results only | VERIFIED |
 | For places use the location **filter**; the location signal timed out for restaurants in 4 of 6 cities | VERIFIED |
@@ -88,12 +92,15 @@ Sources: the official hackathon developer guide and live checks in `docs/qloo_ap
 ## 4. Repo map
 
 ```text
-config/               data: cities, domains, personas, probe types, resolved ID lock
+config/               data: cities.yaml, domains.yaml, demo_queries.json
+                      (personas, probe types, resolved ID lock: Phase 2)
 src/blindspot/
   config.py           settings from env (never repr in logs)
-  qloo/               the only Qloo access: client, params allowlist, cache, call log,
-                      budget, breaker, ratelimit, context, snapshot, cli
-  service/            FastAPI app, routes, security middleware
+  catalog.py          loads and validates config/ (cities, domains)
+  qloo/               the only Qloo access: client, models, params (allowlist + id checks),
+                      errors, cache, db, calllog, budget, breaker, ratelimit, context,
+                      redact, snapshot, cli
+  service/            app.py (main_app factory), routes.py, security.py
   scenarios/          (Phase 2) scenario engine
   groundtruth/        (Phase 2) answer key, entity_index, get_answer_key()
   targets/            (Phase 3) target-model adapters
@@ -102,7 +109,8 @@ src/blindspot/
   auditor/            (Phase 4) the agent
   fix/                (Phase 5) Qloo-grounded re-run and export
 web/                  (Phase 6) UI
-scripts/              smoke, recon, coverage, warm_cache, export_snapshot, scan_secrets, promote_param
+scripts/              dev (task runner), _common, smoke, recon, coverage_matrix, warm_cache,
+                      export_snapshot, scan_secrets (promote_param, resolve_seeds: Phase 2)
 tests/                offline by default
 data/                 gitignored: cache, recordings, private snapshot
 docs/                 architecture, ADRs, phase reports, JUDGES.md, references
@@ -187,11 +195,14 @@ coverage probe for it, record the verdict, and add it to the demo tier only if i
 
 **Add a persona.** Add it to `config/personas.yaml` with a neutral descriptor, age band, verified
 audience IDs (required for dining), interest tags and seed entity names; run
-`scripts/resolve_seeds.py`; review anything flagged ambiguous in `docs/seed_review.md`.
+`scripts/resolve_seeds.py`; review anything flagged ambiguous in `docs/seed_review.md`. (Personas and
+both files arrive in Phase 2.)
 
-**Use a new Qloo parameter.** Run `scripts/promote_param.py <filter.type> <param> <value>`. If it
-changes results it becomes VERIFIED with an evidence row in `docs/param_evidence.md`; otherwise it's
-marked INEFFECTIVE and the design must not depend on it.
+**Use a new Qloo parameter.** Run `scripts/promote_param.py <filter.type> <param> <value>` (Phase 2;
+until it exists, measure with `assert_param_effective` from a recon-style script). If it changes
+results it becomes VERIFIED: add it to `VERIFIED_INSIGHTS` in `src/blindspot/qloo/params.py` with
+evidence in `docs/qloo_api_reality.md` (Phase 2: `docs/param_evidence.md`). Otherwise it's
+INEFFECTIVE and the design must not depend on it.
 
 **Add an API route.** Put it in `src/blindspot/service/`, take a `RequestContext`, apply the deadline
 and budgets, return the envelope with `served_from`, escape external text, add black-box tests, and

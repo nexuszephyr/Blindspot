@@ -131,7 +131,7 @@ Blindspot runs three ways. Judges don't need a Qloo key.
 | Mode | You need | You get |
 |---|---|---|
 | **Hosted demo** | A browser | Real Qloo data, nothing to install |
-| **Local, no key** | Python 3.11+ | Synthetic sample data, fully offline |
+| **Local, no key** | Python 3.11+ | Replay mode, fully offline: cached data only (see below) |
 | **Local, own key** | Python 3.11+ and a Qloo hackathon key | Live Qloo data |
 
 ### Local, no key
@@ -143,8 +143,18 @@ make setup
 make demo
 ```
 
-Then open `http://localhost:8000/healthz`. Everything is served from a bundled **synthetic** snapshot,
-and every response says so with `synthetic: true`.
+Then open `http://localhost:8000/healthz`. With no key the service runs in **replay mode**: it never
+calls Qloo and serves only cached or snapshot data. A fresh clone has neither yet, so searches answer
+`served_from: "degraded"` with a pointer to the hosted demo. The bundled synthetic snapshot
+([ADR 0002](docs/adr/0002-no-real-qloo-data-in-git.md)) lands in Phase 2. Until then you can generate
+one for offline development (synthetic data, clearly labelled, no Qloo data):
+
+```bash
+python scripts/export_snapshot.py --synthetic
+QLOO_SNAPSHOT_PATH=data/snapshot/synthetic.json make demo
+```
+
+Port 8000 busy? `PORT=8010 make demo`.
 
 ### Local, with your own Qloo key
 
@@ -159,10 +169,17 @@ Hackathon keys only work against `https://hackathon.api.qloo.com`. Never commit 
 ### Without `make` (Windows)
 
 ```bash
+python scripts/dev.py setup     # creates .venv and installs the locked dependencies
+python scripts/dev.py demo      # same as `make demo`
+```
+
+By hand, the equivalent is:
+
+```bash
 python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
-pip install -e ".[dev]"
-python -m uvicorn blindspot.service.app:app --port 8000
+pip install -r requirements-dev.lock && pip install --no-deps -e .
+python -m uvicorn blindspot.service.app:main_app --factory --port 8000
 ```
 
 Exact commands for every platform, with expected timings, are in `docs/JUDGES.md`.
@@ -176,7 +193,8 @@ docker compose up --build
 ## Configuration
 
 Set in `.env` locally, or in the host's environment settings. The key never goes in the repo.
-`.env.example` is the source of truth; this table summarizes it.
+`.env.example` lists the common settings; [`src/blindspot/config.py`](src/blindspot/config.py) holds
+every setting and its default. This table summarizes both.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -185,29 +203,42 @@ Set in `.env` locally, or in the host's environment settings. The key never goes
 | `QLOO_MODE` | `live` | `live`, `record` (live + save raw responses) or `replay` (offline) |
 | `QLOO_ENABLED` | `true` | Operations master switch |
 | `QLOO_RPS` | `4` | Requests per second (Qloo's limit is 5) |
+| `QLOO_MAX_LIVE_CALLS` | `600` | Lifetime live-call cap for this deployment's database |
 | `QLOO_DAILY_LIVE_CAP` | `500` | Global daily live-call cap |
 | `QLOO_CLIENT_HOURLY_CAP` | `60` | Per-visitor hourly cap |
 | `QLOO_RUN_CAP` | `150` | Per-audit cap |
 | `QLOO_DEMO_RESERVE` | `100` | Calls reserved for the demo, so floods can't starve it |
 | `QLOO_CACHE_PATH` | `data/qloo_cache.sqlite` | Cache and call log |
-| `QLOO_CACHE_TTL_DAYS` | `7` | Cache lifetime |
+| `QLOO_CACHE_TTL_DAYS` | `7` | Cache lifetime (empty results expire after 1 hour) |
+| `QLOO_SNAPSHOT_PATH` | `data/snapshot/snapshot.json` | Snapshot that seeds an empty cache at startup (Render: a Secret File). Not in `.env.example` |
 | `REQUEST_DEADLINE_S` | `8` | Maximum time any web request may take |
 | `IP_HASH_SALT` | empty | Salt for hashing visitor IPs (raw IPs are never stored) |
 | `ALLOWED_ORIGINS` | empty | CORS allowlist |
-| `SNAPSHOT_URL`, `SNAPSHOT_TOKEN` | empty | Private real-data snapshot for the hosted demo (Phase 2) |
+| `TRUSTED_PROXY_HOPS` | `0` | Proxies whose `X-Forwarded-For` is trusted (Render: `1`). Not in `.env.example` |
+| `HTTP_RATE_PER_MINUTE` | `30` | Per-IP request limit on `/api/*`. Not in `.env.example` |
+
+Planned for Phase 2: `SNAPSHOT_URL` and `SNAPSHOT_TOKEN` for a private real-data snapshot
+([ADR 0002](docs/adr/0002-no-real-qloo-data-in-git.md)). They don't exist yet.
 
 ## API
 
-Every response that contains Qloo-derived data says where it came from:
+Every response that contains Qloo-derived data says where it came from. Today (Phase 1),
+`/api/qloo/search` returns:
 
 ```json
 {
-  "data": {},
   "served_from": "cache",
-  "synthetic": false,
-  "degraded_reason": null
+  "ok": true,
+  "reason": null,
+  "run_id": "run_…",
+  "call_id": 12,
+  "fetched_at": 1760500000.0,
+  "results": []
 }
 ```
+
+The planned envelope (`data`, `synthetic`, `degraded_reason`; see
+[architecture, Section 12](docs/architecture.md#12-service-api)) arrives with the Phase 2 routes.
 
 `served_from` is one of `live`, `cache`, `snapshot`, `disabled` or `degraded`. Blindspot never passes
 cached or sample data off as live.
@@ -222,13 +253,14 @@ cached or sample data off as live.
 | `POST /api/audits`, `GET /api/audits/{id}` | Phase 4 | Run and read an audit |
 | `POST /api/audits/{id}/fix` | Phase 5 | Run the Qloo-grounded fix |
 
-Interactive API docs are at `/docs` when the service is running. Full list:
+There is no `/docs` page: the OpenAPI UI is switched off to keep the public surface small
+([decisions D19](docs/decisions.md)). Full list:
 [architecture, Section 12](docs/architecture.md#12-service-api).
 
 ## Project structure
 
 ```text
-config/            cities, domains, personas, probe types (data, not code)
+config/            cities, domains, demo queries (data, not code); personas, probe types in Phase 2
 src/blindspot/
   qloo/            the only path to Qloo: client, params, cache, budgets, breaker, call log
   service/         FastAPI app
@@ -249,6 +281,7 @@ docs/              architecture, ADRs, references, reports
 
 ```bash
 make test                       # offline tests: no key, no network
+make check                      # ruff check + ruff format --check + tests + secret scan
 ruff check .                    # lint
 python scripts/scan_secrets.py  # run before every commit
 make docker-scan                # build the image and scan it for secrets
@@ -271,8 +304,11 @@ Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). AI coding agents: [AGENTS.md](
 | [References](docs/references.md) | Sources, with what to use and what to avoid |
 | [Decision records](docs/adr/) | Why metrics are rank-based, why no real Qloo data is committed, and more |
 | [Glossary](docs/glossary.md) | Project terms |
-| `docs/JUDGES.md` | How to run the demo, step by step |
-| `docs/qloo_api_reality.md` | What the Qloo API actually does, verified with recorded responses |
+| [JUDGES.md](docs/JUDGES.md) | How to run the demo, step by step, plus developer commands |
+| [Qloo API reality](docs/qloo_api_reality.md) | What the Qloo API actually does, verified with recorded responses |
+| [Coverage matrix](docs/coverage_matrix.md) | 6 cities × 4 domains × probe types, with the recommended set |
+| [Phase 1 report](docs/phase1_report.md) and [audit](docs/phase1_audit.md) | Gates, live calls, findings and fixes |
+| [Decisions](docs/decisions.md) | Small design decisions (ADRs cover the big ones) |
 
 ## Security and privacy
 

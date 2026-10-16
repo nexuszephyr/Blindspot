@@ -1,0 +1,57 @@
+"""Client identification, per-IP HTTP rate limiting and security headers."""
+
+from __future__ import annotations
+
+import threading
+import time
+from collections import deque
+
+from starlette.requests import Request
+
+
+def client_ip(request: Request, trusted_hops: int) -> str:
+    """Requester IP. X-Forwarded-For is trusted only for the configured number of proxy hops
+    (the host's own load balancer appends the real client IP as the right-most entry)."""
+    peer = request.client.host if request.client else "unknown"
+    if trusted_hops <= 0:
+        return peer
+    xff = request.headers.get("x-forwarded-for", "")
+    hops = [h.strip() for h in xff.split(",") if h.strip()]
+    if len(hops) >= trusted_hops:
+        return hops[-trusted_hops]
+    return peer
+
+
+class SlidingWindowLimiter:
+    """In-memory per-key limiter (single process). Enough for one free-tier instance."""
+
+    def __init__(self, limit: int, window_s: float = 60.0, clock=time.monotonic, max_keys: int = 50_000):
+        self.limit = limit
+        self.window = window_s
+        self.clock = clock
+        self.max_keys = max_keys
+        self._hits: dict[str, deque[float]] = {}
+        self._lock = threading.Lock()
+
+    def hit(self, key: str) -> tuple[bool, float]:
+        """Record a hit. Returns (allowed, retry_after_seconds)."""
+        now = self.clock()
+        with self._lock:
+            if len(self._hits) > self.max_keys:  # crude memory guard under abuse
+                self._hits.clear()
+            q = self._hits.setdefault(key, deque())
+            while q and now - q[0] > self.window:
+                q.popleft()
+            if len(q) >= self.limit:
+                return False, max(0.0, self.window - (now - q[0]))
+            q.append(now)
+            return True, 0.0
+
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "Cache-Control": "no-store",
+}
