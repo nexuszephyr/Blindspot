@@ -1,6 +1,6 @@
 # Running Blindspot (for judges)
 
-> `<repo-url>` below is a placeholder until the public repository exists (see `docs/NEEDS_FROM_USER.md`).
+> Repository: https://github.com/nexuszephyr/Blindspot
 
 There are three ways to run it. The first needs no setup at all.
 
@@ -17,7 +17,7 @@ URL: **pending (not deployed yet)**. Open `<URL>/healthz` first. If the server w
 ## 2. Local with your own key
 
 ```bash
-git clone <repo-url> blindspot
+git clone https://github.com/nexuszephyr/Blindspot.git blindspot
 cd blindspot
 cp .env.example .env        # then edit .env and set QLOO_API_KEY=<your key>
 make demo                   # Windows: mingw32-make demo, or: python scripts/dev.py demo
@@ -28,7 +28,7 @@ Then open http://127.0.0.1:8000/api/qloo/status. It should show `"mode": "live"`
 ## 3. Local with no key
 
 ```bash
-git clone <repo-url> blindspot
+git clone https://github.com/nexuszephyr/Blindspot.git blindspot
 cd blindspot
 make demo                   # Windows: mingw32-make demo, or: python scripts/dev.py demo
 ```
@@ -95,8 +95,8 @@ The hosted server protects a shared Qloo quota. Limits are per visitor per hour 
 
 Status: **PENDING USER ACTION.** No deploy CLI was authenticated during Phase 1.
 
-1. Push the repo to a **public** GitHub repository:
-   `git remote add origin https://github.com/<you>/blindspot.git && git push -u origin main`
+1. The code is on GitHub at https://github.com/nexuszephyr/Blindspot (private until the maintainer makes it public). Render needs
+   access to it: connect your GitHub account in Render and grant it this repository.
 2. In Render: **New → Blueprint**, pick the repo, and Render reads `render.yaml` (a free web service, Docker, region `virginia`, health check `/healthz`).
 3. When it asks for env vars, set **`QLOO_API_KEY`** to the hackathon key. Leave `ALLOWED_ORIGINS` empty until the UI exists. `IP_HASH_SALT` is generated for you. The rest come from `render.yaml`.
 4. Optional, but recommended once Phase 2 has a demo set:

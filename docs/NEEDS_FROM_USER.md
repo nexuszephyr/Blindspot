@@ -2,12 +2,9 @@
 
 These steps need your accounts. Nothing here is automated, and no step needs the key to appear in a file, chat or command line.
 
-- [ ] **1. Create the public GitHub repo and push.**
-  ```bash
-  git remote add origin https://github.com/<you>/blindspot.git
-  git push -u origin main
-  ```
-  Then replace `<repo-url>` in `docs/JUDGES.md` and `README.md` with the real URL.
+- [ ] **1. Merge the import PR, then make the repo public.** The code is pushed to https://github.com/nexuszephyr/Blindspot on branch
+  `chore/import-phase1`; this step is done once you merge that PR. The `<repo-url>` placeholders are
+  replaced (F8 closed). Making the repository public is your call (CodeQL starts once it is).
 
 - [ ] **2. Deploy on Render (one step).** In Render, choose **New → Blueprint** and pick the repo. Render reads `render.yaml`: a free web service, Docker, region `virginia`, health check `/healthz`.
   - When it asks, set these environment variables in the Render dashboard:

@@ -282,3 +282,5 @@ Found during the fix pass and fixed:
 ### Gates after the fix pass
 
 Gates 1–8, 12 and 13 now PASS. Gate 9 (Docker image scan) and gate 10 (Docker commands) are PENDING-USER: Docker Desktop is off. Gate 11 (hosted) is PENDING-USER. Details are in [phase1_report.md](phase1_report.md).
+
+Addendum (GitHub import, 2026-10-16): **F8 closed.** The repository is https://github.com/nexuszephyr/Blindspot; every `<repo-url>` placeholder in the live docs is replaced. The mentions above are kept as the audit record.
