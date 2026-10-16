@@ -33,8 +33,17 @@ jobs:
         run: python scripts/scan_secrets.py
 
   test:
-    name: Lint, tests, audit
-    runs-on: ubuntu-latest
+    # Windows is included because the maintainer develops there and Phase 1 hit
+    # Windows-only bugs (console encoding on Japanese text).
+    name: Lint, tests, audit (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v5
       - name: Skip until the Python project is pushed
@@ -50,7 +59,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f uv.lock ]; then
-            pip install uv && uv sync --all-extras && echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+            pip install uv && (uv pip install --system -e ".[dev]" || uv pip install --system -e .)
           else
             pip install -e ".[dev]" || pip install -e .
           fi
