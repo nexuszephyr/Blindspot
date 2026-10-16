@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import respx
 
-from blindspot.config import settings_for_tests
+from blindspot.config import Settings, settings_for_tests
 from blindspot.qloo.client import QlooClient
 from blindspot.qloo.context import RequestContext
 from blindspot.qloo.snapshot import Snapshot
@@ -16,6 +16,13 @@ FAKE_KEY = "test-key-ZX81-do-not-leak-7f3a9c"
 
 def load_fixture(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_env(monkeypatch):
+    # CI sets QLOO_MODE=replay / QLOO_ENABLED=false globally; tests must not inherit any setting.
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
 
 
 @pytest.fixture
