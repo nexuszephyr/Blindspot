@@ -231,6 +231,7 @@ checkpointed; check `python -m blindspot.qloo.cli budget` first.
 | Retries outliving the request | Judge waits 45 to 60 s | Respect the per-request deadline |
 | Global kill switch | One viewer disables Qloo for everyone | Per-request flag in `RequestContext` |
 | Ephemeral disk on Render | Cache lost on restart | Seed from the snapshot at startup |
+| Render proxy chain | Client → Cloudflare → Render proxy → app (VERIFIED via `Server: cloudflare`, `CF-RAY`). With `TRUSTED_PROXY_HOPS=1` identity followed the edge node, not the client | `TRUSTED_PROXY_HOPS=2` on Render (#80); a test reads the value from `render.yaml` |
 | Redeploy on Render | Budget counters (SQLite on the ephemeral disk) reset to zero on every redeploy until durable counters land (#20) | Keep hosted daily caps low (decisions D33); don't count on the hosted lifetime cap |
 | Windows console encoding | Crash on non-Latin text | UTF-8-safe output |
 | Hub entities | Inflated overlap | Inverse-frequency down-weighting |

@@ -20,8 +20,11 @@ services:
         value: live
       - key: QLOO_ENABLED
         value: "true"
+      # Two trusted hops: Cloudflare edge -> Render proxy -> app (VERIFIED #80: responses carry
+      # Server: cloudflare, CF-RAY, x-render-origin-server). With 1 the app read the varying edge
+      # address, so every request looked like a new client and forged entries were never tested.
       - key: TRUSTED_PROXY_HOPS
-        value: "1"
+        value: "2"
       # Hosted caps share the key's 10,000/month quota with local Phase 2-7 work (decisions D33).
       # Web traffic is ad-hoc priority, so it gets at most DAILY - RESERVE = 100 live calls/day.
       # Counters reset on every redeploy (SQLite on an ephemeral disk) until #20.

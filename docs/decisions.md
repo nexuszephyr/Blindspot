@@ -60,6 +60,8 @@ Ad-hoc traffic may use only `daily − QLOO_DEMO_RESERVE`, even when the reserve
 
 **D17. Client identity is `HMAC-SHA256(IP_HASH_SALT, ip)`, truncated.** Raw IPs are never stored. `X-Forwarded-For` is trusted only for `TRUSTED_PROXY_HOPS` hops (0 locally, 1 on Render, still to be verified after deploy). `/status` returns the caller's hashed id, so proxy handling can be checked without exposing IPs.
 
+*Update 2026-10-17 (#80):* on Render the chain is client → Cloudflare → Render proxy → app (VERIFIED: every response carries `Server: cloudflare`, `CF-RAY` and `x-render-origin-server`; the host resolves to `*.origin.onrender.com`), so `TRUSTED_PROXY_HOPS=2`. With `1` the app hashed the Cloudflare edge address, which varies per request: a client could change identity by letting requests land on different edge nodes, and the per-IP limit never accumulated. Forged `X-Forwarded-For` values are appended to, not replaced (Render community reports; consistent with the probe), so the client's own entry is never read at hops=2. The `cf-connecting-ip` header is UNVERIFIED on Render and not used.
+
 **D18. Per-IP HTTP rate limit:** 30 requests per minute on `/api/*`, in memory, for one instance. Health checks are never limited.
 
 **D19. A small attack surface:** JSON only, no OpenAPI or Swagger UI, `CSP default-src 'none'`, `nosniff`, `X-Frame-Options DENY`, `no-store`. CORS stays closed unless `ALLOWED_ORIGINS` is set, and then only GET is allowed.
