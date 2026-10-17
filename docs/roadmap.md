@@ -25,7 +25,8 @@ Qloo client with typed models, param guard, cache, call log, retries, rate limit
 scopes, circuit breaker, per-request kill switch, request deadline, replay mode. FastAPI skeleton.
 Recon E1 to E11 and a 6-city × 4-domain coverage matrix. Offline test suite with mutation checks.
 Code imported to https://github.com/nexuszephyr/Blindspot (PR `chore/import-phase1`; F8 closed).
-Open: Docker image scan, Render deploy, making the repo public.
+Hosted demo live on Render since 2026-10-16 (https://blindspot-tva4.onrender.com, #8).
+Open: Docker image scan (#9), external keep-alive monitor and cold-start measurement, making the repo public.
 
 ### Phase 2: Answer key
 Parameter promotion with evidence. Experiments E12 to E15 (result depth, taste-signal pairing for

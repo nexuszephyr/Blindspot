@@ -6,7 +6,9 @@ These steps need your accounts. Nothing here is automated, and no step needs the
   `chore/import-phase1`; this step is done once you merge that PR. The `<repo-url>` placeholders are
   replaced (F8 closed). Making the repository public is your call (CodeQL starts once it is).
 
-- [ ] **2. Deploy on Render (one step).** In Render, choose **New → Blueprint** and pick the repo. Render reads `render.yaml`: a free web service, Docker, region `virginia`, health check `/healthz`.
+- [x] **2. Deploy on Render (one step).** Done 2026-10-16: https://blindspot-tva4.onrender.com, `BLINDSPOT_URL` set.
+  Still open: a 5-minute external `HEAD /healthz` monitor (UptimeRobot or similar), because GitHub's scheduled keepalive runs 2 to 4.5 hours apart; and the cold-start measurement (2026-10-18).
+  Original steps, kept for a redeploy: In Render, choose **New → Blueprint** and pick the repo. Render reads `render.yaml`: a free web service, Docker, region `virginia`, health check `/healthz`.
   - When it asks, set these environment variables in the Render dashboard:
 
     | Variable | Value |

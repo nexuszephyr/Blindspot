@@ -6,13 +6,18 @@ There are three ways to run it. The first needs no setup at all.
 
 | Path | You need | First run | What you get |
 |---|---|---|---|
-| 1. Hosted demo | A browser | Up to about 60 s if the free server was asleep, then instant | Everything, with live Qloo data |
+| 1. Hosted demo | A browser | Up to about a minute if the free server was asleep, then instant | Everything, with live Qloo data within daily limits |
 | 2. Local, your own Qloo key | Python 3.11+, git, a hackathon key | About 80 s (dependency install), then about 3 s | Everything, live, on your quota |
 | 3. Local, no key | Python 3.11+, git | About 80 s, then about 3 s | Runs offline; anything not cached comes back `degraded` |
 
 ## 1. Hosted demo
 
-URL: **pending (not deployed yet)**. Open `<URL>/healthz` first. If the server was asleep, give it up to a minute.
+URL: **https://blindspot-tva4.onrender.com**. Open [https://blindspot-tva4.onrender.com/healthz](https://blindspot-tva4.onrender.com/healthz) first. If the server was asleep, give it up to a minute.
+
+The hosted daily live-call caps are deliberately low (150 a day, 100 of them for ad-hoc queries), because the
+key's 10,000-calls/month quota is shared with development ([decisions D33](decisions.md)). When a cap is hit,
+a query answers `served_from: "degraded"` with a `reason` that names the limit; the app keeps working and
+cached answers still come back as `cache`.
 
 ## 2. Local with your own key
 
@@ -93,7 +98,10 @@ The hosted server protects a shared Qloo quota. Limits are per visitor per hour 
 
 ## Deploying the hosted demo (owner only)
 
-Status: **PENDING USER ACTION.** No deploy CLI was authenticated during Phase 1.
+Status: **DONE 2026-10-16** (#8). What was actually done:
+a Render Blueprint from `render.yaml` (free Docker web service, region `virginia`, health check `/healthz`,
+auto-deploy on every commit to `main`), `QLOO_API_KEY` set in the Render dashboard, and the GitHub repo variable
+`BLINDSPOT_URL` set for the keepalive workflow. The steps below are kept for a redeploy.
 
 1. The code is on GitHub at https://github.com/nexuszephyr/Blindspot (private until the maintainer makes it public). Render needs
    access to it: connect your GitHub account in Render and grant it this repository.
@@ -106,9 +114,29 @@ Status: **PENDING USER ACTION.** No deploy CLI was authenticated during Phase 1.
 5. Verify from a **different network** (for example a phone hotspot):
    - `curl https://<app>.onrender.com/healthz` returns `{"ok":true,"mode":"live"}`.
    - `curl https://<app>.onrender.com/api/qloo/status` shows `"key_configured": true` and no key or salt.
-   - Its `your_client_id` differs between the phone and the laptop, and doesn't change when you add `-H "X-Forwarded-For: 1.2.3.4"`. That last check confirms `TRUSTED_PROXY_HOPS=1` is right for Render.
+   - Its `your_client_id` differs between the phone and the laptop, and doesn't change when you add `-H "X-Forwarded-For: 1.2.3.4"` or between repeated requests. Render sits behind Cloudflare, so `TRUSTED_PROXY_HOPS=2` (#80).
+   - Or run all checks at once: `python scripts/verify_deploy.py https://<app>.onrender.com` (about 1 live Qloo call).
 6. Measure the cold start: leave the app idle for at least 20 minutes, then run `curl -o /dev/null -w "%{time_total}\n" https://<app>.onrender.com/healthz`.
-7. Keep it warm during judging: in GitHub, go to **Settings → Secrets and variables → Actions → Variables** and set `BLINDSPOT_URL=https://<app>.onrender.com`. That turns on `.github/workflows/keepalive.yml`. Add a 5-minute external `HEAD /healthz` monitor too.
+7. Keep it warm during judging: in GitHub, go to **Settings → Secrets and variables → Actions → Variables** and set `BLINDSPOT_URL=https://<app>.onrender.com`. That turns on `.github/workflows/keepalive.yml`, but GitHub runs scheduled workflows **best-effort**: observed gaps of 2 to 4.5 hours between runs, while the free instance sleeps after about 15 minutes. The real keep-alive is an external 5-minute `HEAD /healthz` monitor (for example UptimeRobot).
+
+### Hosted verification log (2026-10-17)
+
+`python scripts/verify_deploy.py https://blindspot-tva4.onrender.com` from the maintainer's network:
+
+| Check | Result |
+|---|---|
+| `/healthz` 200, `ok`, `mode: live` | PASS (821 ms warm) |
+| `/api/qloo/status`: key configured, breaker closed | PASS |
+| `/api/qloo/status` caps match `render.yaml` | PASS (daily 150, hourly 30, run 150, reserve 50) |
+| `/api/qloo/status` leaks nothing (key shapes, paths, hostnames, raw IPs) | PASS |
+| search: `live` then `cache` | PASS (5 results both times; 1 live Qloo call) |
+| forged `X-Forwarded-For` ignored | **FAIL**: identity followed the Cloudflare edge address, see #80; passes once `TRUSTED_PROXY_HOPS=2` is deployed |
+| unknown route: JSON 404, no traceback | PASS |
+| oversized `q` (10 KB): 4xx not 500 | PASS (422) |
+| keepalive workflow, manual run | PASS, [run 39057710749](https://github.com/nexuszephyr/Blindspot/actions/runs/39057710749) |
+| keepalive scheduled runs | best-effort: 9 runs in 28 hours, 2 to 4.5 hours apart |
+| cold start after 20+ min idle | pending, measuring 2026-10-18 from a phone on mobile data |
+| disk | ephemeral: budget counters reset to 0 on the #79 redeploy (D33) |
 
 ---
 
@@ -128,7 +156,6 @@ Every command above was run in a fresh clone that had no `.env`:
 | `docker compose up --build` | Windows 11 | failed here only because port 8000 was taken by another app on the dev machine; the line above is the documented workaround |
 
 Not run yet:
-- Path 1: there's no hosted URL yet.
 - Path 2 with a **real** key: no key was available. A fake key degrades correctly to "Qloo rejected the server's API key".
 - The owner deploy steps.
 - macOS: no Mac was available. CI includes `macos-latest`, but the repo hasn't been pushed yet.
