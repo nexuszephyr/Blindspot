@@ -55,7 +55,10 @@ class CallLog:
                 ",".join(unverified_params) if unverified_params else None,
             ),
         )
-        return int(cur.lastrowid or 0)
+        row_id = int(cur.lastrowid or 0)
+        if row_id % 1000 == 0:  # long-lived hosts (keepalive) never restart to prune (#78)
+            self.db.prune_calls()
+        return row_id
 
     @staticmethod
     def _rows(rows) -> list[dict[str, Any]]:

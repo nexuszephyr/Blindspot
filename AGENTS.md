@@ -134,6 +134,8 @@ What each phase builds, what you may touch, and what to watch. Full detail: arch
 | 6 UI | Start, Blind Map, Truth Table, Truth Receipts, kill switch, before/after | Hide `served_from` or the synthetic label | Mobile width; cold-start state |
 | 7 Ship | Precompute demo, hardening, user test, write-up | Big refactors | Every JUDGES.md command still runs |
 
+Every task is a GitHub issue with acceptance criteria and "blocked by" links; pick work with
+[docs/issues-guide.md](docs/issues-guide.md) and don't start an issue whose blockers are still open.
 Each phase has a prompt file (`PHASE<N>.md`) and a report (`docs/phase<N>_report.md`). Read the
 previous report before starting a phase; it overrides the plan where they conflict.
 
@@ -229,6 +231,7 @@ checkpointed; check `python -m blindspot.qloo.cli budget` first.
 | Retries outliving the request | Judge waits 45 to 60 s | Respect the per-request deadline |
 | Global kill switch | One viewer disables Qloo for everyone | Per-request flag in `RequestContext` |
 | Ephemeral disk on Render | Cache lost on restart | Seed from the snapshot at startup |
+| Redeploy on Render | Budget counters (SQLite on the ephemeral disk) reset to zero on every redeploy until durable counters land (#20) | Keep hosted daily caps low (decisions D33); don't count on the hosted lifetime cap |
 | Windows console encoding | Crash on non-Latin text | UTF-8-safe output |
 | Hub entities | Inflated overlap | Inverse-frequency down-weighting |
 | Committing a real snapshot | Possible terms breach | Synthetic public snapshot; private real one via `SNAPSHOT_URL` |

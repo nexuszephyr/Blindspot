@@ -83,7 +83,11 @@ class Database:
                     if col not in have:
                         self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
             self.conn.executescript(INDEXES)
-            self.conn.execute("DELETE FROM calls WHERE ts < ?", (time.time() - CALLS_RETENTION_DAYS * 86400,))
+        self.prune_calls()
+
+    def prune_calls(self) -> None:
+        """Drop call-log rows past retention (at startup, and every 1000th row while running)."""
+        self.execute("DELETE FROM calls WHERE ts < ?", (time.time() - CALLS_RETENTION_DAYS * 86400,))
 
     def execute(self, sql: str, params: tuple | list = ()) -> sqlite3.Cursor:
         with self.lock:

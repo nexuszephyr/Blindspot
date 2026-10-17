@@ -14,7 +14,7 @@ These steps need your accounts. Nothing here is automated, and no step needs the
     | `QLOO_API_KEY` | your hackathon key (secret) |
     | `ALLOWED_ORIGINS` | empty for now (the UI comes in Phase 2) |
 
-  - Already set by `render.yaml`, so leave them unless you want to change them: `IP_HASH_SALT` (generated), `QLOO_BASE_URL`, `QLOO_MODE=live`, `QLOO_ENABLED=true`, `TRUSTED_PROXY_HOPS=1`, `QLOO_RPS=4`, `REQUEST_DEADLINE_S=8`, `QLOO_DAILY_LIVE_CAP=500`, `QLOO_CLIENT_HOURLY_CAP=30`, `QLOO_RUN_CAP=150`, `QLOO_DEMO_RESERVE=100`, `QLOO_MAX_LIVE_CALLS=100000`, `QLOO_SNAPSHOT_PATH=/etc/secrets/snapshot.json`.
+  - Already set by `render.yaml`, so leave them unless you want to change them: `IP_HASH_SALT` (generated), `QLOO_BASE_URL`, `QLOO_MODE=live`, `QLOO_ENABLED=true`, `TRUSTED_PROXY_HOPS=1`, `QLOO_RPS=4`, `REQUEST_DEADLINE_S=8`, `QLOO_DAILY_LIVE_CAP=150`, `QLOO_CLIENT_HOURLY_CAP=30`, `QLOO_RUN_CAP=150`, `QLOO_DEMO_RESERVE=50`, `QLOO_MAX_LIVE_CALLS=100000`, `QLOO_SNAPSHOT_PATH=/etc/secrets/snapshot.json`.
   - Then follow the checks in `docs/JUDGES.md` → "Deploying the hosted demo": `/healthz` from a phone hotspot, `/status` showing no secrets, the `X-Forwarded-For` check, and the cold-start timing.
   - Keep it warm: set the GitHub repo variable `BLINDSPOT_URL`, and add a 5-minute `HEAD /healthz` monitor.
 

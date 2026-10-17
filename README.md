@@ -204,10 +204,10 @@ every setting and its default. This table summarizes both.
 | `QLOO_ENABLED` | `true` | Operations master switch |
 | `QLOO_RPS` | `4` | Requests per second (Qloo's limit is 5) |
 | `QLOO_MAX_LIVE_CALLS` | `600` | Lifetime live-call cap for this deployment's database |
-| `QLOO_DAILY_LIVE_CAP` | `500` | Global daily live-call cap |
+| `QLOO_DAILY_LIVE_CAP` | `500` | Global daily live-call cap (hosted demo: `150`, [decisions D33](docs/decisions.md)) |
 | `QLOO_CLIENT_HOURLY_CAP` | `60` | Per-visitor hourly cap |
 | `QLOO_RUN_CAP` | `150` | Per-audit cap |
-| `QLOO_DEMO_RESERVE` | `100` | Calls reserved for the demo, so floods can't starve it |
+| `QLOO_DEMO_RESERVE` | `100` | Calls reserved for the demo, so floods can't starve it (hosted demo: `50`) |
 | `QLOO_CACHE_PATH` | `data/qloo_cache.sqlite` | Cache and call log |
 | `QLOO_CACHE_TTL_DAYS` | `7` | Cache lifetime (empty results expire after 1 hour) |
 | `QLOO_SNAPSHOT_PATH` | `data/snapshot/snapshot.json` | Snapshot that seeds an empty cache at startup (Render: a Secret File). Not in `.env.example` |

@@ -410,7 +410,8 @@ class QlooClient:
         last: QlooError | None = None
         counted_429 = False
         for attempt in range(1, self.s.qloo_max_attempts + 1):
-            if not self.breaker.allow():
+            allowed, probe = self.breaker.allow()
+            if not allowed:
                 raise BreakerOpen(
                     f"Qloo is rate-limiting; pausing live calls for {self.breaker.retry_in():.0f}s"
                 )
@@ -419,29 +420,38 @@ class QlooClient:
                 if rem is not None and rem <= 0.05:
                     raise last or DeadlineExceeded("request deadline reached")
                 await (self.bucket.acquire() if rem is None else asyncio.wait_for(self.bucket.acquire(), rem))
-                self.budget.reserve(ctx)  # after the wait, so a deadline miss costs no budget
             except TimeoutError as exc:
-                self.breaker.record_failure_other()
+                self.breaker.record_failure_other(probe)
                 raise DeadlineExceeded("request deadline reached waiting for the rate limiter") from exc
-            except QlooError:
-                self.breaker.record_failure_other()
+            except (QlooError, asyncio.CancelledError):  # cancelled waiting: free the probe slot (#78)
+                self.breaker.record_failure_other(probe)
                 raise
-            rem = ctx.remaining()
-            per_try = self.s.qloo_timeout_s if rem is None else max(0.1, min(self.s.qloo_timeout_s, rem))
             retry_after: float | None = None
             try:
                 async with self.sem:
+                    # Only after a connection slot is ours: a request cancelled while waiting is not
+                    # charged, and its timeout is measured from now, not from before the wait (#78).
+                    rem = ctx.remaining()
+                    if rem is not None and rem <= 0.05:
+                        raise last or DeadlineExceeded("request deadline reached waiting for a connection")
+                    self.budget.reserve(ctx)
+                    per_try = (
+                        self.s.qloo_timeout_s if rem is None else max(0.1, min(self.s.qloo_timeout_s, rem))
+                    )
                     resp = await self._client().get(
                         endpoint, params=norm, timeout=httpx.Timeout(per_try, connect=min(5.0, per_try))
                     )
             except (httpx.TimeoutException, httpx.TransportError) as exc:
-                self.breaker.record_failure_other()
+                self.breaker.record_failure_other(probe)
                 last = QlooServerError(f"network error: {type(exc).__name__}")
+            except (QlooError, asyncio.CancelledError):
+                self.breaker.record_failure_other(probe)
+                raise
             else:
                 st = resp.status_code
                 headers = {k: v for k, v in resp.headers.items() if RATE_HEADER_RE.search(k)}
                 if 200 <= st < 300:
-                    self.breaker.record_success()
+                    self.breaker.record_success(probe)
                     if len(resp.content) > MAX_BODY_BYTES:  # audit F10
                         raise QlooServerError(
                             f"Qloo response too large ({len(resp.content)} bytes)", status=st
@@ -455,10 +465,10 @@ class QlooClient:
                 if st == 429:
                     retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
                     if not counted_429:  # one rate-limited request counts once toward the breaker (F11)
-                        self.breaker.record_429(retry_after)
+                        self.breaker.record_429(retry_after, probe)
                         counted_429 = True
                     else:
-                        self.breaker.record_failure_other()
+                        self.breaker.record_failure_other(probe)
                     last = QlooRateLimited(
                         msg or "rate limited", retry_after=retry_after, status=st, body=ebody
                     )
@@ -466,10 +476,10 @@ class QlooClient:
                         last.headers = headers
                         raise last
                 elif st >= 500:
-                    self.breaker.record_failure_other()
+                    self.breaker.record_failure_other(probe)
                     last = QlooServerError(msg or "server error", status=st, body=ebody)
                 else:
-                    self.breaker.record_failure_other()
+                    self.breaker.record_failure_other(probe)
                     err = (QlooAuthError if st == 401 else QlooBadRequest)(
                         msg or "rejected", status=st, body=ebody
                     )
