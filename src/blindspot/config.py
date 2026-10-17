@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     http_rate_per_minute: int = 30
     # Overall deadline for one web request (resolution + retries + backoff + Qloo calls).
     request_deadline_s: float = 8.0
+    # TEMPORARY (#80 diagnosis): expose proxy header NAMES/counts on /api/qloo/status. Off by default.
+    debug_proxy_headers: bool = False
     config_dir: Path = Path("config")
 
     @field_validator("qloo_base_url")

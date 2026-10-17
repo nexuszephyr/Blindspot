@@ -32,7 +32,33 @@ async def healthz(request: Request):
 
 @router.get("/api/qloo/status")
 async def status(request: Request):
-    return request.app.state.client.status(_ctx(request, qloo=True))
+    out = request.app.state.client.status(_ctx(request, qloo=True))
+    if request.app.state.settings.debug_proxy_headers:  # names, counts and shapes only, never values
+        h = request.headers
+        xff = [x.strip() for x in h.get("x-forwarded-for", "").split(",") if x.strip()]
+        out["proxy_headers"] = {
+            "x_forwarded_for_entries": len(xff),
+            "x_forwarded_for_private": [x.startswith(("10.", "172.", "192.168.", "127.", "fd")) for x in xff],
+            "present": sorted(
+                n
+                for n in (
+                    "cf-connecting-ip",
+                    "true-client-ip",
+                    "x-real-ip",
+                    "forwarded",
+                    "x-forwarded-proto",
+                    "x-forwarded-host",
+                    "cdn-loop",
+                    "via",
+                    "rndr-id",
+                    "cf-ray",
+                    "x-render-origin-server",
+                )
+                if n in h
+            ),
+            "peer_private": client_ip(request, 0).startswith(("10.", "172.", "192.168.", "127.")),
+        }
+    return out
 
 
 @router.get("/api/qloo/search")
