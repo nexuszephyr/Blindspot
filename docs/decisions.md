@@ -118,3 +118,15 @@ Ad-hoc traffic may use only `daily − QLOO_DEMO_RESERVE`, even when the reserve
 - The CLI installs log redaction.
 - `--no-server-header` is set.
 - `ruff format` is enforced by `make check`.
+
+**D33. Hosted live-call caps: 150/day with a 50 reserve (#78, 2026-10-17).** The hosted demo shares the key's 10,000-calls/month quota with local Phase 2-7 work. The quota window started at first use on 2026-10-15 (`x-month-ratelimit-reset` read 30 days) and covers the whole hackathon to 2026-10-30. Worst case, with every cap hit every day:
+
+| Item | Calls |
+|---|---|
+| Already used (audit, recon, coverage, deploy check) | about 290 |
+| Planned local Phase 2-7 work | 2,000 to 3,000 |
+| Hosted, 2026-10-17 to 10-30 (14 days × 150; web traffic alone is ad-hoc, so at most 100/day) | 2,100 |
+| Redeploys: counters reset each time, so each one can add another 150 that day (assume 20 before 10-30) | 3,000 |
+| **Worst-case total** | **about 8,400 of 10,000** |
+
+The old setting (500/day, 400 ad-hoc) allowed about 12,000 a month on its own. Budget counters live in SQLite on Render's ephemeral disk, so they reset on every redeploy until durable counters land (#20). Revisit in #57/#58: once the demo is precomputed, most judge traffic is served from the snapshot and the cap can be set from measured use.

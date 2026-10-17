@@ -91,10 +91,10 @@ def test_breaker_half_open_allows_one_probe():
     now = [0.0]
     b = CircuitBreaker(1, 10, clock=lambda: now[0])
     b.record_429()
-    assert not b.allow()
+    assert b.allow() == (False, False)
     now[0] = 11
-    assert b.allow() and not b.allow()  # only one probe in flight
-    b.record_429()  # probe failed -> open again
+    assert b.allow() == (True, True) and b.allow() == (False, False)  # only one probe in flight
+    b.record_429(probe=True)  # probe failed -> open again
     assert b.state == "open"
 
 

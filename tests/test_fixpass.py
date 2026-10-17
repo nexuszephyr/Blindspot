@@ -303,3 +303,22 @@ def test_migration_adds_columns_to_old_db(tmp_path):
     cols = {r[1] for r in db.query("PRAGMA table_info(calls)")}
     assert {"outcome", "purpose", "coalesced", "unverified_params"} <= cols
     assert db.query("SELECT purpose FROM live_attempts")[0][0] == "app"
+
+
+def test_call_log_prunes_old_rows_while_running(tmp_path):
+    # #78: retention used to run only at startup; a long-lived instance kept every row
+    from blindspot.qloo.calllog import CallLog
+    from blindspot.qloo.db import CALLS_RETENTION_DAYS
+
+    db = Database(tmp_path / "c.sqlite")
+    old = time.time() - (CALLS_RETENTION_DAYS + 1) * 86400
+    db.execute(
+        "INSERT INTO calls(id,ts,endpoint,params_json,served_from) VALUES (998,?,'/search','{}','live')",
+        (old,),
+    )
+    log = CallLog(db)
+    assert log.record(C(), "/search", {}, "cache") == 999
+    assert db.query("SELECT COUNT(*) n FROM calls WHERE ts < ?", (old + 1,))[0]["n"] == 1  # not yet
+    assert log.record(C(), "/search", {}, "cache") == 1000  # every 1000th row prunes
+    assert db.query("SELECT COUNT(*) n FROM calls WHERE ts < ?", (old + 1,))[0]["n"] == 0
+    assert db.query("SELECT COUNT(*) n FROM calls")[0]["n"] == 2

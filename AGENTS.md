@@ -229,6 +229,7 @@ checkpointed; check `python -m blindspot.qloo.cli budget` first.
 | Retries outliving the request | Judge waits 45 to 60 s | Respect the per-request deadline |
 | Global kill switch | One viewer disables Qloo for everyone | Per-request flag in `RequestContext` |
 | Ephemeral disk on Render | Cache lost on restart | Seed from the snapshot at startup |
+| Redeploy on Render | Budget counters (SQLite on the ephemeral disk) reset to zero on every redeploy until durable counters land (#20) | Keep hosted daily caps low (decisions D33); don't count on the hosted lifetime cap |
 | Windows console encoding | Crash on non-Latin text | UTF-8-safe output |
 | Hub entities | Inflated overlap | Inverse-frequency down-weighting |
 | Committing a real snapshot | Possible terms breach | Synthetic public snapshot; private real one via `SNAPSHOT_URL` |
