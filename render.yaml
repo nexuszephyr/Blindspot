@@ -22,14 +22,18 @@ services:
         value: "true"
       - key: TRUSTED_PROXY_HOPS
         value: "1"
+      # Hosted caps share the key's 10,000/month quota with local Phase 2-7 work (decisions D33).
+      # Web traffic is ad-hoc priority, so it gets at most DAILY - RESERVE = 100 live calls/day.
+      # Counters reset on every redeploy (SQLite on an ephemeral disk) until #20.
+      # Revisit in #57/#58 once the demo is precomputed and mostly snapshot-served.
       - key: QLOO_DAILY_LIVE_CAP
-        value: "500"
+        value: "150"
       - key: QLOO_CLIENT_HOURLY_CAP
         value: "30"
       - key: QLOO_RUN_CAP
         value: "150"
       - key: QLOO_DEMO_RESERVE
-        value: "100"
+        value: "50"
       - key: QLOO_MAX_LIVE_CALLS
         value: "100000"
       - key: QLOO_RPS
