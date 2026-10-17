@@ -10,8 +10,9 @@ from starlette.requests import Request
 
 
 def client_ip(request: Request, trusted_hops: int) -> str:
-    """Requester IP. X-Forwarded-For is trusted only for the configured number of proxy hops
-    (the host's own load balancer appends the real client IP as the right-most entry)."""
+    """Requester IP. X-Forwarded-For is trusted only for the configured number of proxy hops;
+    each trusted proxy appends the address it saw, so the client is `trusted_hops` from the right.
+    Render sits behind Cloudflare, so it needs 2 (#80). Too few entries -> the peer address."""
     peer = request.client.host if request.client else "unknown"
     if trusted_hops <= 0:
         return peer
