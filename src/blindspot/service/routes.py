@@ -33,12 +33,26 @@ async def healthz(request: Request):
 @router.get("/api/qloo/status")
 async def status(request: Request):
     out = request.app.state.client.status(_ctx(request, qloo=True))
-    if request.app.state.settings.debug_proxy_headers:  # names, counts and shapes only, never values
+    if (
+        request.app.state.settings.debug_proxy_headers
+    ):  # names, counts, shapes and salted hashes; never values
         h = request.headers
         xff = [x.strip() for x in h.get("x-forwarded-for", "").split(",") if x.strip()]
+        salt = request.app.state.settings.ip_hash_salt.get_secret_value()
+
+        def hashed(value: str) -> str:  # same HMAC and salt as client ids, 8 chars: enough to see what varies
+            return hash_client_ip(value, salt)[2:10]
+
         out["proxy_headers"] = {
             "x_forwarded_for_entries": len(xff),
             "x_forwarded_for_private": [x.startswith(("10.", "172.", "192.168.", "127.", "fd")) for x in xff],
+            "x_forwarded_for_hashes": [hashed(x) for x in xff],
+            "peer_hash": hashed(client_ip(request, 0)),
+            **{
+                n.replace("-", "_") + "_hash": hashed(h[n])
+                for n in ("cf-connecting-ip", "true-client-ip")
+                if n in h
+            },
             "present": sorted(
                 n
                 for n in (
