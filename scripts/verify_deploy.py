@@ -149,14 +149,21 @@ def verify(base: str, client: httpx.Client, query: str, caps: dict[str, int] | N
         )
     )
 
-    a = client.get(f"{base}/api/qloo/status").json().get("your_client_id")
-    b = (
-        client.get(f"{base}/api/qloo/status", headers={"X-Forwarded-For": "1.2.3.4"})
-        .json()
-        .get("your_client_id")
-    )
+    # Identity must be stable across requests AND ignore forged entries (#80). One pair can pass by
+    # chance when the identity varies per request, so sample. Ids are compared in memory only.
+    def ident(headers=None):
+        return client.get(f"{base}/api/qloo/status", headers=headers).json().get("your_client_id")
+
+    plain = {ident() for _ in range(4)} - {None}
+    forged = {ident({"X-Forwarded-For": v}) for v in ("1.2.3.4", "5.6.7.8", "1.2.3.4, 9.9.9.9")} - {None}
+    stable, ignores = len(plain) == 1, bool(plain) and forged == plain
     rows.append(
-        ("forged X-Forwarded-For ignored", bool(a) and a == b, "same" if a and a == b else "different")
+        (
+            "client identity stable, forged X-Forwarded-For ignored",
+            stable and ignores,
+            f"stable: {'yes' if stable else 'no'} ({len(plain)} id(s) in 4 plain requests); "
+            f"follows forged value: {'no' if ignores else 'yes'} ({len(forged)} id(s) in 3 forged requests)",
+        )
     )
 
     r = client.get(f"{base}/no-such-route")

@@ -78,10 +78,11 @@ Ad-hoc traffic may use only `daily − QLOO_DEMO_RESERVE`, even when the reserve
 - Why Virginia rather than Singapore: `hackathon.api.qloo.com` resolves to AWS us-east-1 ranges (VERIFIED by DNS). A TCP connect from the dev machine takes about 250 ms. One audit run will make many Qloo calls but only a few browser requests, so putting the server next to Qloo cuts total latency, even for viewers in India (about 250 ms RTT to the server, paid per page rather than per Qloo call).
 
 **Deployed 2026-10-16 (#8): https://blindspot-tva4.onrender.com.** Observed, not assumed:
-- The Blueprint flow worked from `render.yaml` with no edits: free Docker web service, region `virginia`, health check `/healthz`. Only `QLOO_API_KEY` was set by hand in the dashboard.
+- The Blueprint flow worked from `render.yaml` with no edits: free Docker web service, health check `/healthz`. Only `QLOO_API_KEY` was set by hand in the dashboard.
+- Region: `render.yaml` requests `virginia`, but the service's origin hostname is `gcp-us-west1-1.origin.onrender.com` (Oregon). Which one the instance actually runs in is UNVERIFIED until read from the Render dashboard (#8 review); TCP timings from Mumbai (about 50 ms) only reach Cloudflare's local edge and can't settle it. If it is Oregon, the "next to Qloo's us-east-1" rationale above does not hold and the region should be corrected in the dashboard.
 - Auto-deploy: every commit to `main` redeploys, and `render.yaml` env changes are applied on that deploy (the #79 cap change showed up in `/api/qloo/status` without a manual Blueprint sync).
 - The disk is ephemeral: the budget counters read 0 after the #79 redeploy (D33).
-- The service sits behind Cloudflare (`Server: cloudflare`, `CF-RAY`), so `TRUSTED_PROXY_HOPS=2` (#80, D17).
+- The service sits behind Cloudflare (`Server: cloudflare`, `CF-RAY`). `TRUSTED_PROXY_HOPS=2` (#81) removed forged-value influence but the identity still varies between plain requests (2026-10-19), so the chain has more than two hops; #80 stays open (D17).
 - Cold start: pending, measured 2026-10-18 from a phone on mobile data after 20+ minutes idle. Render's own dashboard banner says a free instance can delay requests by 50 seconds or more after idle (UNVERIFIED until measured).
 - Still UNVERIFIED: the spin-down delay (about 15 minutes per Render's docs), the Secret File mount path (#20), and the 750-hour monthly allowance.
 

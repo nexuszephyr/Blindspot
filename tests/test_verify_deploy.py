@@ -31,13 +31,25 @@ STATUS = {
 }
 
 
-def mock(router, *, status=STATUS, search=("live", "cache"), xff_id=None, unknown=None, oversized=None):
+def mock(
+    router,
+    *,
+    status=STATUS,
+    search=("live", "cache"),
+    xff_id=None,
+    unstable=False,
+    unknown=None,
+    oversized=None,
+):
     router.get(f"{BASE}/healthz").mock(return_value=httpx.Response(200, json={"ok": True, "mode": "live"}))
+    counter = iter(range(10_000))
 
     def status_resp(request):
         body = dict(status)
         if xff_id and "x-forwarded-for" in request.headers:
             body["your_client_id"] = xff_id
+        if unstable:  # #80: identity followed the edge node, so it changed on every request
+            body["your_client_id"] = f"c_{next(counter):020d}"
         return httpx.Response(200, json=body)
 
     router.get(f"{BASE}/api/qloo/status").mock(side_effect=status_resp)
@@ -88,7 +100,16 @@ def test_status_leak_detected(leak):
 
 
 def test_spoofed_xff_changing_identity_fails():
-    assert run(xff_id="c_ffffffffffffffffffff")["forged X-Forwarded-For ignored"] is False
+    assert (
+        run(xff_id="c_ffffffffffffffffffff")["client identity stable, forged X-Forwarded-For ignored"]
+        is False
+    )
+
+
+def test_unstable_identity_without_any_header_fails():
+    """Regression for #80: before TRUSTED_PROXY_HOPS=2 the id varied per request with no header at all,
+    and a single-pair check could pass by chance."""
+    assert run(unstable=True)["client identity stable, forged X-Forwarded-For ignored"] is False
 
 
 def test_second_search_must_be_cache():
@@ -109,7 +130,7 @@ def test_output_has_no_values(capsys):
         mock(router)
         rc = V["report"](V["verify"](BASE, c, "q", CAPS))
     out = capsys.readouterr().out
-    assert rc == 0 and "c_0123456789abcdef0123" not in out and "1.2.3.4" not in out
+    assert rc == 0 and "c_0123456789abcdef0123" not in out and "1.2.3.4" not in out and "5.6.7.8" not in out
     assert "x" not in out.split("detail", 1)[1].split()
 
 

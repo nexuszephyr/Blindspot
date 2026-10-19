@@ -16,7 +16,7 @@ Updated 2026-10-15, after the audit fix pass. The original audit is [phase1_audi
 | 8 | 50 concurrent requests, cap respected | PASS | `test_fifty_concurrent_requests_respect_cap` and `test_fifty_concurrent_429_none_hang` (p95 < 8.5 s) |
 | 9 | Secret-free tree, history, image | PARTIAL | Tree and 12 commits are clean with the real key loaded. **Image: PENDING-USER** (Docker Desktop off) |
 | 10 | JUDGES.md commands executed | PARTIAL | Python and make paths were re-run from a fresh clone. Docker paths are PENDING-USER. Repo URL is real (https://github.com/nexuszephyr/Blindspot); F8 closed |
-| 11 | Hosted skeleton | PASS | https://blindspot-tva4.onrender.com live since 2026-10-16: `/healthz` 200 `mode: live`, `/status` shows no secrets, search `live` then `cache`, 7/8 `verify_deploy.py` checks on 2026-10-17 (the 8th, client identity, is fixed in #80). Keepalive run 39057710749 green. Log in [JUDGES.md](JUDGES.md) |
+| 11 | Hosted skeleton | PASS | https://blindspot-tva4.onrender.com live since 2026-10-16: `/healthz` 200 `mode: live`, `/status` shows no secrets, search `live` then `cache`, 7/8 `verify_deploy.py` checks on 2026-10-19 (the 8th, stable client identity, is still open in #80: it affects per-client rate limits, not the demo itself). Keepalive run 39057710749 green. Log in [JUDGES.md](JUDGES.md) |
 | 12 | MIT license, gitignore | PASS | unchanged |
 | 13 | Live calls under budget | PASS | 285 this pass (budget 300); breakdown below |
 
