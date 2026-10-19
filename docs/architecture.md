@@ -199,7 +199,7 @@ blindspot/
 │   └── fix/                   # Planned (Phase 5)
 ├── web/                       # Planned (Phase 6)
 ├── scripts/                   # dev (task runner), _common, smoke, recon, coverage_matrix, warm_cache,
-│                              # export_snapshot, scan_secrets; promote_param is Planned (Phase 2)
+│                              # export_snapshot, scan_secrets, promote_param
 ├── tests/                     # offline by default; fixtures tiny and synthetic or trimmed
 ├── data/                      # gitignored: cache, raw recordings, private snapshot
 ├── docs/                      # this file, ADRs, JUDGES.md, qloo_api_reality.md, coverage_matrix.md,

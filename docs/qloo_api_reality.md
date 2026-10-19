@@ -110,6 +110,7 @@ Sources:
 | Artist `bias.trends=off` or `high`: no change | VERIFIED (no effect) |
 | Place `bias.trends=high` replaces the whole set (Jaccard 0.0) and **adds affinity**; `off` matches the baseline | VERIFIED |
 | Coverage freshness probe: `bias.trends=high` changes dining in every city (overlap with core 0.0) and **does not change** music, film or brands (overlap 1.0) | VERIFIED |
+| `filter.popularity.max=0.5` changes place, movie and brand results too (Jaccard 0.0 to 0.25, 2 cities each) | VERIFIED ([param_evidence.md](param_evidence.md)) |
 
 ## E7. Candidate scoring (`filter.results.entities`)
 
@@ -117,6 +118,7 @@ Sources:
 |---|---|
 | With an **entity signal**, 10 candidates returned 9 scored, sorted results, all from the candidate list | VERIFIED |
 | With a **location signal only**, sending 5, 25 or 51 candidates returned **1** result each time | VERIFIED |
+| With an entity signal, place, movie and brand also score candidates: 10 candidates from each city's standard query returned 6 to 10 scored results (2 cities each, [param_evidence.md](param_evidence.md)) | VERIFIED |
 | Maximum candidate count | UNVERIFIED (51 was accepted; the output cap is `take` ≤ 50) |
 
 Implication: scoring an agent's own recommendations needs a taste signal (entity, tag or audience) together with the location. Location alone ranks almost nothing.
@@ -159,15 +161,18 @@ Each domain was tested with signal combinations in one rich and one focus city (
 
 ## Parameters VERIFIED as effective
 
-The strict guard (`src/blindspot/qloo/params.py`) only allows these, per type:
+The strict guard (`src/blindspot/qloo/params.py`) only allows these, per type. Evidence for each
+promotion since Phase 1, with method and thresholds: [param_evidence.md](param_evidence.md).
 
 | Type | Parameters |
 |---|---|
-| artist | entities, tags, `signal.location.query`, age, gender, audiences, `filter.popularity.max`, `filter.results.entities`, `feature.explainability` |
-| movie, brand | entities, tags, `signal.location.query`, age, audiences |
-| place | `filter.location.query`, `filter.tags`, `signal.location.query`, entities, tags, audiences, `bias.trends`, `feature.explainability` |
+| artist | entities, tags, `signal.location.query`, age, gender, audiences, `filter.popularity.max`, `filter.results.entities`, `filter.exclude.entities`, `feature.explainability` |
+| movie, brand | entities, tags, `signal.location.query`, age, audiences, `filter.popularity.max`, `filter.results.entities`, `filter.exclude.entities` |
+| place | `filter.location.query`, `filter.tags`, `signal.location.query` (**DISCOURAGED**: timed out in 4 of 6 cities, E4), entities, tags, audiences, `bias.trends`, `filter.popularity.max`, `filter.results.entities`, `filter.exclude.entities`, `feature.explainability` |
 | other types | `signal.interests.entities` |
 
 All types also accept `filter.type`, `take`, `page` and `offset`.
 
-Deliberately not allowlisted: age and gender on places, and `bias.trends` / `filter.popularity.min` on artists. Each was accepted but had no measured effect.
+Deliberately not allowlisted (accepted but no measured effect; listed under "Do not retry" in
+`params.py`): age and gender on places, and `bias.trends` on artists, movies and brands.
+`filter.popularity.min` on artists was inconclusive (the seed's neighbours were already popular).

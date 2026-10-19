@@ -20,6 +20,12 @@ the answer key wrong without any error, which would corrupt every score.
 - New query shapes need a promotion step first. That's deliberate friction.
 - Scenario design can't depend on INEFFECTIVE parameters (for example age/gender for dining).
 
+## Update 2026-10-20 (#12)
+The promotion tool exists: `scripts/promote_param.py`. VERIFIED parameters are added to `PROMOTED`
+in `params.py` (merged into the allowlist at import, each entry citing its evidence row id), and
+INEFFECTIVE ones to a commented do-not-retry list. The tool only adds entries; removing one needs the
+maintainer. Method, thresholds and every run are in `docs/param_evidence.md`.
+
 ## Alternatives considered
 - Trust the docs: the docs were already wrong once (ADR 0003).
 - Detect only empty results: an ignored parameter often returns non-empty, unchanged results.
