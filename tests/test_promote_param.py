@@ -47,6 +47,10 @@ def _handler(request):
     if "filter.exclude.entities" in q:
         gone = set(q["filter.exclude.entities"].split(","))
         return httpx.Response(200, json=_body([i for i in range(20) if _id(i) not in gone][:10]))
+    if "filter.results.entities" in q:
+        return httpx.Response(
+            200, json=_body([int(x[-12:]) for x in q["filter.results.entities"].split(",")])
+        )
     if "bias.trends" in q:
         return httpx.Response(200, json=_body(range(10)))  # silently ignored
     return httpx.Response(200, json=_body(range(10)))
@@ -114,6 +118,11 @@ def test_measure_errors_and_guards():
     assert other["effect"] == "error" and "filter.bogus" in other["reason"]
     leak = m("filter.exclude.entities", _res(range(10)), _res(range(1, 11)), [_id(1)])
     assert leak["effect"] == "small" and leak["hits"] == "1/1"
+    pool = [_id(11), _id(12)]
+    outside = m("filter.results.entities", _res(range(10)), _res([11, 12, 99]), pool)
+    assert outside["effect"] == "small" and outside["reason"] == "returned ids outside the candidate pool"
+    assert m("filter.results.entities", _res(range(10)), _res([11, 12]), pool)["effect"] == "changed"
+    assert outside["latency_ms"] is None  # cache hit: no latency measured, shown as "-"
     assert P.rank_shift([_id(1)], [_id(2)]) is None
 
 
@@ -145,7 +154,7 @@ async def test_rerun_is_all_cache_hits_and_adds_no_row(make_client, mock_api, fi
     calls = route.call_count
     second = await _run(c, "movie", "filter.popularity.max", "0.5")
     assert route.call_count == calls and second["live_calls"] == 0
-    assert second["row"] == "unchanged" and len(_rows(ev)) == 1
+    assert second["row"].endswith("unchanged") and len(_rows(ev)) == 1
     assert all(cell["served_from"] == "cache/cache" for cell in second["cells"])
 
 
@@ -168,6 +177,41 @@ async def test_no_names_or_result_ids_in_evidence(make_client, mock_api, files):
     text = ev.read_text(encoding="utf-8")
     assert "Secret Qloo Name" not in text and "00000000-0000-4000-8000" not in text
     assert "@std:3" in text
+
+
+async def test_entity_ids_in_inputs_are_labelled(make_client, mock_api, files):
+    ev, _ = files
+    mock_api.get("/v2/insights").mock(side_effect=_handler)
+    seed = "12345678-9ABC-4DEF-8123-456789ABCDEF"  # synthetic
+    await _run(
+        make_client(),
+        "movie",
+        "filter.popularity.max",
+        "0.5",
+        "--baseline",
+        f"signal.interests.entities={seed}",
+    )
+    await _run(make_client(), "movie", "filter.exclude.entities", seed)
+    text = ev.read_text(encoding="utf-8")
+    assert not P.UUID.search(text)
+    assert text.count(P.label(seed)) == 2 and P.label(seed).startswith("entity#")
+    assert P.label("urn:tag:genre:x") == "urn:tag:genre:x"
+
+
+async def test_verdict_flip_appends_a_row_and_warns(make_client, mock_api, files, tmp_path):
+    ev, _ = files
+    route = mock_api.get("/v2/insights").mock(side_effect=_handler)
+    first = await _run(make_client(), "movie", "filter.popularity.max", "0.5")
+    assert first["verdict"] == "VERIFIED" and "warning" not in first
+    route.mock(return_value=httpx.Response(200, json=_body(range(10))))  # Qloo now ignores it
+    fresh = make_client(qloo_cache_path=tmp_path / "fresh.sqlite")
+    second = await _run(fresh, "movie", "filter.popularity.max", "0.5")
+    assert second["verdict"] == "INEFFECTIVE" and second["row"] == first["row"] + ".2"
+    assert "VERIFIED→INEFFECTIVE" in second["warning"] and "PROMOTED" in second["warning"]
+    rows = _rows(ev)
+    assert len(rows) == 2 and "**VERIFIED**" in rows[0] and "**INEFFECTIVE**" in rows[1]
+    third = await _run(fresh, "movie", "filter.popularity.max", "0.5")
+    assert third["row"].endswith("unchanged") and len(_rows(ev)) == 2 and "warning" not in third
 
 
 async def test_dry_run_makes_no_calls_and_writes_nothing(make_client, mock_api, files):

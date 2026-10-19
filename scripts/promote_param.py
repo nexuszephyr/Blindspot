@@ -53,8 +53,17 @@ JACCARD_CHANGED = 0.9  # set changed: Jaccard <= this
 RANK_SHIFT_CHANGED = 1.0  # order changed: mean absolute rank shift over the shared items >= this
 
 STD = re.compile(r"^@std:(\d+)$")
+UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 PROMOTED_END = "    # end PROMOTED"
 NO_RETRY_END = "# end do-not-retry"
+
+
+def label(value: Any) -> str:
+    """Entity ids are Qloo response data: write a stable hash label. Tag and audience URNs stay."""
+    return ",".join(
+        f"entity#{hashlib.sha256(v.encode()).hexdigest()[:6]}" if UUID.fullmatch(v) else v
+        for v in split_list(value)
+    )
 
 
 def rank_shift(a: list[str], b: list[str]) -> float | None:
@@ -75,7 +84,7 @@ def measure(param: str, base, var, token_ids: list[str] | None) -> dict[str, Any
         "scores": "→".join(
             "yes" if any(e.affinity is not None for e in r.entities) else "no" for r in (base, var)
         ),
-        "latency_ms": round(var.latency_ms or 0),
+        "latency_ms": None if var.served_from in ("cache", "snapshot") else round(var.latency_ms or 0),
         "jaccard": None,
         "shift": None,
         "hits": None,
@@ -96,6 +105,8 @@ def measure(param: str, base, var, token_ids: list[str] | None) -> dict[str, Any
         return {**cell, "effect": "identical", "reason": ""}
     if param == "filter.exclude.entities" and set(token_ids or []) & set(ids_v):
         return {**cell, "effect": "small", "reason": "excluded ids still returned"}
+    if param == "filter.results.entities" and not set(ids_v) <= set(token_ids or []):
+        return {**cell, "effect": "small", "reason": "returned ids outside the candidate pool"}
     big = eff["jaccard"] <= JACCARD_CHANGED or (shift is not None and shift >= RANK_SHIFT_CHANGED)
     return {
         **cell,
@@ -134,20 +145,19 @@ def evidence_id(a: argparse.Namespace, ftype: str, cities: list[str]) -> str:
     return "ev_" + hashlib.sha256(json.dumps(key).encode()).hexdigest()[:8]
 
 
-def write_row(ev: str, cells_row: list[str], verdict_: str) -> str:
-    """Append the row, or replace the row with the same id if its verdict changed. Never duplicates."""
+def write_row(ev: str, cells_row: list[str], verdict_: str) -> tuple[str, str | None]:
+    """Append a row; never rewrite one. If the latest row for these args has the same verdict, add
+    nothing. A different verdict gets a new dated row `<ev>.N` and the old evidence stays.
+    Returns (row id, previous verdict or None)."""
     lines = EVIDENCE.read_text(encoding="utf-8").splitlines()
-    row = "| " + " | ".join(c.replace("|", "/") for c in [ev, *cells_row]) + " |"
-    for i, line in enumerate(lines):
-        if line.startswith(f"| {ev} |"):
-            if f"| {verdict_} |" in line:
-                return "unchanged"
-            lines[i] = row
-            break
-    else:
-        lines.append(row)
+    prior = [x for x in lines if x.startswith((f"| {ev} |", f"| {ev}."))]
+    old = re.search(r"\| \*\*(\w+)\*\* \|", prior[-1])[1] if prior else None
+    if old == verdict_:
+        return prior[-1].split(" | ")[0].removeprefix("| "), old
+    row_id = f"{ev}.{len(prior) + 1}" if prior else ev
+    lines.append("| " + " | ".join(c.replace("|", "/") for c in [row_id, *cells_row]) + " |")
     EVIDENCE.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-    return "written"
+    return row_id, old
 
 
 def apply(ftype: str, param: str, value: str, verdict_: str, ev: str) -> str:
@@ -242,9 +252,9 @@ async def run(a: argparse.Namespace, client: QlooClient) -> dict[str, Any]:
     def col(key):
         return ", ".join("-" if x[key] is None else str(x[key]) for x in cells)
 
-    shown_value = value if isinstance(value, str) else ",".join(value)
+    shown_value = value if isinstance(value, str) and STD.match(value) else label(value)
     base_desc = f"std({domain.id})" if domain else "filter.type+take"
-    base_desc += "".join(f" + {k}={','.join(split_list(v))}" for k, v in overrides.items())
+    base_desc += "".join(f" + {k}={label(v)}" for k, v in overrides.items())
     notes = "; ".join(
         x
         for x in [
@@ -269,9 +279,14 @@ async def run(a: argparse.Namespace, client: QlooClient) -> dict[str, Any]:
         str(out["live_calls"]),
         notes,
     ]
-    out["row"] = write_row(ev, row, f"**{v}**")
+    row_id, old = write_row(ev, row, v)
+    out["row"] = row_id if old != v else f"{row_id} unchanged"
+    if old and old != v:
+        out["warning"] = f"WARNING: verdict changed {old}→{v}; earlier row kept, new row {row_id}"
+        if f'("{ftype}", "{a.param}",' in PARAMS_PY.read_text(encoding="utf-8"):
+            out["warning"] += f"; {a.param} is in PROMOTED for {ftype}: ask the maintainer"
     if a.apply:
-        out["apply"] = apply(ftype, a.param, shown_value, v, ev)
+        out["apply"] = apply(ftype, a.param, shown_value, v, row_id)
     return out
 
 
@@ -309,6 +324,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"{out['id']}: {out['verdict']} {out['reason']} | row {out['row']} | live calls {out['live_calls']}"
     )
+    if "warning" in out:
+        print(out["warning"])
     if "apply" in out:
         print(f"apply: {out['apply']}")
     return 0

@@ -27,6 +27,13 @@ python scripts/promote_param.py <filter.type> <param> <value> [--baseline k=v ..
   `/v2/tags`). Names are never sent as free text and never written here.
 - **Every call** goes through `QlooClient` (cache, budgets, breaker, call log) with purpose `recon`.
   Re-running the same arguments is all cache hits within the cache TTL and adds no row.
+- **`bias.trends` rows for movie and brand** extend the baseline with
+  `signal.demographics.age=35_and_younger` only so both queries are the cached Phase 1 coverage
+  freshness pair (0 live calls). Baseline and variant carry the same age, so the verdict is about
+  `bias.trends`, not age.
+- **Rows are never rewritten.** If a re-run gives a different verdict, a new dated row `<id>.2`
+  (`.3`, …) is appended, the earlier one stays, and the script prints a warning (noting when the
+  parameter is already in `PROMOTED`).
 - `--dry-run` uses a replay-mode client: it lists each planned request as cached or LIVE and never
   reaches the network.
 - `--apply` adds a VERIFIED parameter to `PROMOTED` in `params.py` (with this row's id) and an
@@ -48,12 +55,16 @@ Per city, comparing the baseline's ordered result ids with the variant's:
 | **INEFFECTIVE** | identical in at least 2 cities, including a tier-1 and a tier-2 city |
 | **INCONCLUSIVE** | any error, timeout or empty baseline; a change below the thresholds; or identical in too few cities. The reason is recorded |
 
-For `filter.exclude.entities`, a change only counts if none of the excluded ids come back.
+For `filter.exclude.entities`, a change only counts if none of the excluded ids come back. For
+`filter.results.entities`, it only counts if every returned id is from the candidate pool. The
+"variant ms" note is `-` when the variant came from the cache.
 
 ## What is not recorded
 
-No entity names, no result ids, no affinity values (D5, ADR 0002). Baseline columns show input ids
-only (seed entities, tags, audiences), as sent.
+No entity names, no result ids, no affinity values (D5, ADR 0002). Input values are labelled before
+they are written: an entity id (a seed from `--baseline` or `--resolve`) becomes `entity#<first 6 hex
+of its sha256>`, which is stable, so rows with the same seed stay comparable. Tag and audience URNs
+(`urn:tag:…`, `urn:audience:…`) are Qloo's vocabulary, not response data, and are kept as sent.
 
 ## Phase 1 evidence (cited, not re-run)
 
@@ -83,11 +94,11 @@ From the recon run of 2026-10-15 ([qloo_api_reality.md](qloo_api_reality.md) E3 
 | ev_a76125b5 | 2026-10-20 | place | `filter.popularity.max=0.5` | std(dining) | tokyo, bengaluru | 10→10, 10→10 | 0.0, 0.0 | -, - | no→no, no→no | cache/live, cache/live | **VERIFIED** | 2 | variant ms 2738, 519 |
 | ev_7106748a | 2026-10-20 | movie | `filter.popularity.max=0.5` | std(film_tv) | tokyo, bengaluru | 10→10, 10→10 | 0.25, 0.0 | 3.75, - | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | variant ms 1446, 390 |
 | ev_db9f8c70 | 2026-10-20 | brand | `filter.popularity.max=0.5` | std(brands) | tokyo, bengaluru | 10→10, 10→10 | 0.0, 0.0 | -, - | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | variant ms 1518, 416 |
-| ev_2e9b0769 | 2026-10-20 | movie | `bias.trends=high` | std(film_tv) + signal.demographics.age=35_and_younger | tokyo, bengaluru | 10→10, 10→10 | 1.0, 1.0 | 0.0, 0.0 | yes→yes, yes→yes | cache/cache, cache/cache | **INEFFECTIVE** | 0 | variant ms 0, 0 |
-| ev_7ab34baf | 2026-10-20 | brand | `bias.trends=high` | std(brands) + signal.demographics.age=35_and_younger | tokyo, bengaluru | 10→10, 10→10 | 1.0, 1.0 | 0.0, 0.0 | yes→yes, yes→yes | cache/cache, cache/cache | **INEFFECTIVE** | 0 | variant ms 0, 0 |
+| ev_2e9b0769 | 2026-10-20 | movie | `bias.trends=high` | std(film_tv) + signal.demographics.age=35_and_younger | tokyo, bengaluru | 10→10, 10→10 | 1.0, 1.0 | 0.0, 0.0 | yes→yes, yes→yes | cache/cache, cache/cache | **INEFFECTIVE** | 0 | variant ms -, - |
+| ev_7ab34baf | 2026-10-20 | brand | `bias.trends=high` | std(brands) + signal.demographics.age=35_and_younger | tokyo, bengaluru | 10→10, 10→10 | 1.0, 1.0 | 0.0, 0.0 | yes→yes, yes→yes | cache/cache, cache/cache | **INEFFECTIVE** | 0 | variant ms -, - |
 | ev_8d124bfb | 2026-10-20 | movie | `signal.demographics.audiences=urn:audience:global_issues:animal_issues` | std(film_tv) | tokyo, bengaluru | 10→10, 10→10 | 0.0, 0.25 | -, 3.0 | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | variant ms 2537, 1118 |
 | ev_6df30cce | 2026-10-20 | brand | `signal.demographics.audiences=urn:audience:global_issues:animal_issues` | std(brands) | tokyo, bengaluru | 10→10, 10→10 | 0.0, 0.111 | -, 3.5 | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | variant ms 1831, 2338 |
-| ev_0d51fb5f | 2026-10-20 | place | `filter.results.entities=@std:10` | std(dining) + signal.interests.entities=70CAE5BF-2F4C-445C-A3E5-4EDACFC3591C | tokyo, bengaluru | 10→10, 10→9 | 0.0, 0.0 | -, - | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | @std hits 10/10, 9/10; variant ms 2570, 656 |
-| ev_cb6ddf4d | 2026-10-20 | movie | `filter.results.entities=@std:10` | std(film_tv) + signal.interests.entities=70CAE5BF-2F4C-445C-A3E5-4EDACFC3591C | tokyo, bengaluru | 10→6, 10→10 | 0.0, 0.111 | -, 4.0 | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | @std hits 6/10, 10/10; variant ms 1449, 395 |
-| ev_b38f3365 | 2026-10-20 | brand | `filter.results.entities=@std:10` | std(brands) + signal.interests.entities=70CAE5BF-2F4C-445C-A3E5-4EDACFC3591C | tokyo, bengaluru | 10→10, 10→10 | 0.0, 0.053 | -, 0.0 | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | @std hits 10/10, 10/10; variant ms 1446, 311 |
-| ev_ed53c522 | 2026-10-20 | place | `signal.interests.tags=urn:tag:genre:place:restaurant:italian` | std(dining) | tokyo, bengaluru | 10→10, 10→10 | 0.053, 0.053 | 0.0, 5.0 | no→yes, no→yes | cache/cache, cache/cache | **VERIFIED** | 0 | variant ms 0, 0 |
+| ev_0d51fb5f | 2026-10-20 | place | `filter.results.entities=@std:10` | std(dining) + signal.interests.entities=entity#173f2c | tokyo, bengaluru | 10→10, 10→9 | 0.0, 0.0 | -, - | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | @std hits 10/10, 9/10; variant ms 2570, 656 |
+| ev_cb6ddf4d | 2026-10-20 | movie | `filter.results.entities=@std:10` | std(film_tv) + signal.interests.entities=entity#173f2c | tokyo, bengaluru | 10→6, 10→10 | 0.0, 0.111 | -, 4.0 | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | @std hits 6/10, 10/10; variant ms 1449, 395 |
+| ev_b38f3365 | 2026-10-20 | brand | `filter.results.entities=@std:10` | std(brands) + signal.interests.entities=entity#173f2c | tokyo, bengaluru | 10→10, 10→10 | 0.0, 0.053 | -, 0.0 | yes→yes, yes→yes | cache/live, cache/live | **VERIFIED** | 2 | @std hits 10/10, 10/10; variant ms 1446, 311 |
+| ev_ed53c522 | 2026-10-20 | place | `signal.interests.tags=urn:tag:genre:place:restaurant:italian` | std(dining) | tokyo, bengaluru | 10→10, 10→10 | 0.053, 0.053 | 0.0, 5.0 | no→yes, no→yes | cache/cache, cache/cache | **VERIFIED** | 0 | variant ms -, - |
