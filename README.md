@@ -216,7 +216,7 @@ every setting and its default. This table summarizes both.
 | `REQUEST_DEADLINE_S` | `8` | Maximum time any web request may take |
 | `IP_HASH_SALT` | empty | Salt for hashing visitor IPs (raw IPs are never stored) |
 | `ALLOWED_ORIGINS` | empty | CORS allowlist |
-| `TRUSTED_PROXY_HOPS` | `0` | Proxies whose `X-Forwarded-For` is trusted (Render: `1`). Not in `.env.example` |
+| `TRUSTED_PROXY_HOPS` | `0` | Proxies whose `X-Forwarded-For` is trusted (Render: `2`, Cloudflare + Render proxy). Not in `.env.example` |
 | `HTTP_RATE_PER_MINUTE` | `30` | Per-IP request limit on `/api/*`. Not in `.env.example` |
 
 Planned for Phase 2: `SNAPSHOT_URL` and `SNAPSHOT_TOKEN` for a private real-data snapshot
