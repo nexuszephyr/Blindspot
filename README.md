@@ -73,11 +73,15 @@ visible: flip the **Qloo kill switch** and every score grays out.
 
 ## Live demo
 
-> **Coming soon.** The hosted demo will be linked here once deployed.
-> Until then, run it locally in under five minutes with no API key: see [Quick start](#quick-start).
+**https://blindspot-tva4.onrender.com** ([health check](https://blindspot-tva4.onrender.com/healthz))
 
-The demo opens with **Roast an agent**: one click audits a preloaded model, and precomputed results
-load instantly.
+Right now the hosted service is the API foundation (`/healthz`, `/api/qloo/status`, `/api/qloo/search`),
+serving live Qloo data within daily limits; the web UI lands in Phase 6. It runs on a free instance, so
+the first load after a long idle period can take up to about a minute; after that it responds normally.
+No key needed.
+
+When the UI ships, the demo will open with **Roast an agent**: one click audits a preloaded model, and
+precomputed results load instantly.
 
 ## How it works
 

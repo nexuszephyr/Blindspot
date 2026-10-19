@@ -22,7 +22,7 @@ Each entry: decision, then reason. "Review first" marks the ones the project own
 
 **Open question for you:** is even a *minimal* snapshot (ids, names, scores for about 50 demo queries) allowed in the public repo so judges can run fully offline? Ask in Qloo's Discord #api-help. Until then the committed snapshot is **empty**, marked "needs terms check", and the no-snapshot fallback works: replay mode returns `served_from: degraded` with "use the hosted demo, or add your own QLOO_API_KEY".
 
-**D6. The real snapshot lives only in `data/snapshot/` locally, or as a host secret file.** On Render that's a Secret File `snapshot.json` mounted at `/etc/secrets/snapshot.json` (path UNVERIFIED until deploy), set via `QLOO_SNAPSHOT_PATH`. On startup the service seeds an empty cache from it, because free hosts have ephemeral disks. Snapshot-seeded rows don't expire and are always labelled `served_from: snapshot`, never `cache` or `live`.
+**D6. The real snapshot lives only in `data/snapshot/` locally, or as a host secret file.** On Render that's a Secret File `snapshot.json` mounted at `/etc/secrets/snapshot.json` (path still UNVERIFIED: no snapshot has been uploaded yet, #20), set via `QLOO_SNAPSHOT_PATH`. On startup the service seeds an empty cache from it, because free hosts have ephemeral disks. Snapshot-seeded rows don't expire and are always labelled `served_from: snapshot`, never `cache` or `live`.
 
 **D7 (review first). Local with no key can't be fully offline with real data.** Bundling real data would break D5. Proposal for Phase 2: a `remote` mode in which a local checkout with no key sends its Qloo lookups to the hosted demo's guarded API. The hosted server still enforces budgets, and nothing gets stored in git. Not built in Phase 1.
 
@@ -77,14 +77,16 @@ Ad-hoc traffic may use only `daily − QLOO_DEMO_RESERVE`, even when the reserve
 - Alternatives: Fly.io no longer offers a free tier to new organizations; Railway has trial credit only; Hugging Face Spaces (Docker) is the fallback if Render is unsuitable, since it sleeps only after 48 h idle. These are from my knowledge as of 2026 and UNVERIFIED.
 - Why Virginia rather than Singapore: `hackathon.api.qloo.com` resolves to AWS us-east-1 ranges (VERIFIED by DNS). A TCP connect from the dev machine takes about 250 ms. One audit run will make many Qloo calls but only a few browser requests, so putting the server next to Qloo cuts total latency, even for viewers in India (about 250 ms RTT to the server, paid per page rather than per Qloo call).
 
-**Render free-tier facts (UNVERIFIED until deploy):**
-- Instances spin down after about 15 minutes without inbound traffic; the first request after that takes roughly 30–60 s or more.
-- The filesystem is ephemeral (no persistent disk on free), which is why startup seeds the cache from the snapshot (D6).
-- 750 free instance hours per month covers one always-on service.
+**Deployed 2026-10-16 (#8): https://blindspot-tva4.onrender.com.** Observed, not assumed:
+- The Blueprint flow worked from `render.yaml` with no edits: free Docker web service, health check `/healthz`. Only `QLOO_API_KEY` was set by hand in the dashboard.
+- Region: **Virginia**, VERIFIED on the Render service page (2026-10-20), as `render.yaml` requests. The `gcp-us-west1-1.origin.onrender.com` hostname is Render's routing layer, not the instance location, so the "next to Qloo's us-east-1" rationale above holds.
+- Auto-deploy: every commit to `main` redeploys, and `render.yaml` env changes are applied on that deploy (the #79 cap change showed up in `/api/qloo/status` without a manual Blueprint sync).
+- The disk is ephemeral: the budget counters read 0 after the #79 redeploy (D33).
+- The service sits behind Cloudflare and two Render proxies; `TRUSTED_PROXY_HOPS=3` (#80, #84; verified chain in D17).
+- Cold start: about 60 s, measured 2026-10-19 from a phone on mobile data after 20+ minutes idle (manual count, approximate). That matches Render's own dashboard figure of "50 seconds or more" for a free instance after idle.
+- Still UNVERIFIED: the spin-down delay (about 15 minutes per Render's docs), the Secret File mount path (#20), and the 750-hour monthly allowance.
 
-**Mitigation for sleep:** `.github/workflows/keepalive.yml` pings `/healthz` every 10 minutes once the repo variable `BLINDSPOT_URL` is set. Add a 5-minute external `HEAD /healthz` monitor as well, because GitHub can delay scheduled runs.
-
-**Deploy status: PENDING USER ACTION.** No deploy CLI is installed or authenticated here, and I didn't create accounts or log in. Steps are in `docs/JUDGES.md` → "Deploying the hosted demo".
+**Keep-alive:** `.github/workflows/keepalive.yml` asks for a `/healthz` ping every 10 minutes, but GitHub runs scheduled workflows best-effort: 9 runs in 28 hours, 2 to 4.5 hours apart. It can't keep a free instance awake on its own. The real mitigation is the UptimeRobot HTTP(s) monitor on `/healthz` every 5 minutes, live since 2026-10-19 (status Up, responses 120 to 226 ms).
 
 ## Phase-1 call budget plan
 
