@@ -19,6 +19,8 @@ Recordings with ids stay in data/experiments_p2/ (gitignored): <exp>.json per ex
 summary.json with aggregates only. `--report` rewrites the generated block in
 docs/qloo_api_reality.md from summary.json without creating a client. `--dry-run` uses a
 replay-mode client and lists the planned live calls per experiment; it never reaches the network.
+The dry run counts cells; client retries on timeouts add live attempts (each retry is budgeted),
+and --max-calls counts attempts, so the cap holds.
 """
 
 from __future__ import annotations
