@@ -110,7 +110,7 @@ src/blindspot/
   fix/                (Phase 5) Qloo-grounded re-run and export
 web/                  (Phase 6) UI
 scripts/              dev (task runner), _common, smoke, recon, coverage_matrix, warm_cache,
-                      export_snapshot, scan_secrets (promote_param, resolve_seeds: Phase 2)
+                      export_snapshot, scan_secrets, promote_param (resolve_seeds: Phase 2)
 tests/                offline by default
 data/                 gitignored: cache, recordings, private snapshot
 docs/                 architecture, ADRs, phase reports, JUDGES.md, references
@@ -200,11 +200,13 @@ audience IDs (required for dining), interest tags and seed entity names; run
 `scripts/resolve_seeds.py`; review anything flagged ambiguous in `docs/seed_review.md`. (Personas and
 both files arrive in Phase 2.)
 
-**Use a new Qloo parameter.** Run `scripts/promote_param.py <filter.type> <param> <value>` (Phase 2;
-until it exists, measure with `assert_param_effective` from a recon-style script). If it changes
-results it becomes VERIFIED: add it to `VERIFIED_INSIGHTS` in `src/blindspot/qloo/params.py` with
-evidence in `docs/qloo_api_reality.md` (Phase 2: `docs/param_evidence.md`). Otherwise it's
-INEFFECTIVE and the design must not depend on it.
+**Use a new Qloo parameter.** Run `python scripts/promote_param.py <filter.type> <param> <value>
+--dry-run` to see which calls would be live, then run it without `--dry-run`. It compares the domain's
+standard query with and without the parameter in a tier-1 and a tier-2 city and writes one row to
+`docs/param_evidence.md` (method and thresholds are there). Add `--apply` to record the verdict:
+VERIFIED goes into `PROMOTED` in `src/blindspot/qloo/params.py`, INEFFECTIVE into its do-not-retry
+list, and the design must not depend on an INEFFECTIVE parameter. Use `@std:N` for entity-id values
+and `--resolve param=name` for names, never free text.
 
 **Add an API route.** Put it in `src/blindspot/service/`, take a `RequestContext`, apply the deadline
 and budgets, return the envelope with `served_from`, escape external text, add black-box tests, and

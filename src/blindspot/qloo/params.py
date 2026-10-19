@@ -2,7 +2,8 @@
 client checks params *before* sending.
 
 VERIFIED holds only parameters observed to work in recorded live responses; everything else is
-UNKNOWN. Promote a parameter here only with evidence (see docs/qloo_api_reality.md).
+UNKNOWN. Promote a parameter only with evidence: scripts/promote_param.py measures it, writes a row to
+docs/param_evidence.md and, with --apply, adds it to PROMOTED below.
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ VERIFIED_INSIGHTS: dict[str, set[str]] = {
     | {
         "filter.location.query",
         "filter.tags",
+        # DISCOURAGED for place: allowed, but it timed out in 4 of 6 cities (E4). Use filter.location.query.
         "signal.location.query",
         "signal.interests.entities",
         "signal.interests.tags",
@@ -61,6 +63,31 @@ VERIFIED_INSIGHTS: dict[str, set[str]] = {
         )
     },
 }
+# Promoted with scripts/promote_param.py; each entry names its row in docs/param_evidence.md.
+PROMOTED: list[tuple[str, str, str]] = [
+    ("urn:entity:place", "filter.exclude.entities", "ev_a1647925"),  # docs/param_evidence.md ev_a1647925
+    ("urn:entity:artist", "filter.exclude.entities", "ev_15455188"),  # docs/param_evidence.md ev_15455188
+    ("urn:entity:movie", "filter.exclude.entities", "ev_ef4684c9"),  # docs/param_evidence.md ev_ef4684c9
+    ("urn:entity:brand", "filter.exclude.entities", "ev_3b8677bd"),  # docs/param_evidence.md ev_3b8677bd
+    ("urn:entity:place", "filter.popularity.max", "ev_a76125b5"),  # docs/param_evidence.md ev_a76125b5
+    ("urn:entity:movie", "filter.popularity.max", "ev_7106748a"),  # docs/param_evidence.md ev_7106748a
+    ("urn:entity:brand", "filter.popularity.max", "ev_db9f8c70"),  # docs/param_evidence.md ev_db9f8c70
+    ("urn:entity:place", "filter.results.entities", "ev_0d51fb5f"),  # docs/param_evidence.md ev_0d51fb5f
+    ("urn:entity:movie", "filter.results.entities", "ev_cb6ddf4d"),  # docs/param_evidence.md ev_cb6ddf4d
+    ("urn:entity:brand", "filter.results.entities", "ev_b38f3365"),  # docs/param_evidence.md ev_b38f3365
+    # end PROMOTED (promote_param.py --apply inserts above this line)
+]
+for _type, _param, _evidence in PROMOTED:
+    VERIFIED_INSIGHTS.setdefault(_type, set(_COMMON_INSIGHTS)).add(_param)
+
+# Do not retry: accepted by Qloo but no measured change (INEFFECTIVE). Evidence in docs/param_evidence.md.
+#   urn:entity:place signal.demographics.age=35_and_younger (Phase 1 E5, E11)
+#   urn:entity:place signal.demographics.gender=female (Phase 1 E5)
+#   urn:entity:artist bias.trends=high (Phase 1 E6, coverage freshness probe)
+#   urn:entity:movie bias.trends=high (docs/param_evidence.md ev_2e9b0769)
+#   urn:entity:brand bias.trends=high (docs/param_evidence.md ev_7ab34baf)
+# end do-not-retry
+
 VERIFIED_OTHER: dict[str, set[str]] = {
     "/search": {"query", "types", "take"},
 }
