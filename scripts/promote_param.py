@@ -21,7 +21,8 @@ One row per distinct argument set goes to docs/param_evidence.md (aggregates onl
 no result ids, no scores). Re-running the same arguments adds no row. `--apply` records the
 verdict in src/blindspot/qloo/params.py: VERIFIED -> PROMOTED, INEFFECTIVE -> the do-not-retry
 list. It only ever adds. `--dry-run` uses a replay-mode client: it lists every planned request as
-cached or LIVE and never reaches the network.
+cached or LIVE and never reaches the network (its cache lookups still appear in
+`cli calls`, never as live attempts).
 """
 
 from __future__ import annotations
