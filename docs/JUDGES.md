@@ -114,7 +114,7 @@ auto-deploy on every commit to `main`), `QLOO_API_KEY` set in the Render dashboa
 5. Verify from a **different network** (for example a phone hotspot):
    - `curl https://<app>.onrender.com/healthz` returns `{"ok":true,"mode":"live"}`.
    - `curl https://<app>.onrender.com/api/qloo/status` shows `"key_configured": true` and no key or salt.
-   - Its `your_client_id` differs between the phone and the laptop, and doesn't change when you add `-H "X-Forwarded-For: 1.2.3.4"` or between repeated requests. Render sits behind Cloudflare, so `TRUSTED_PROXY_HOPS=2` (#80).
+   - Its `your_client_id` differs between the phone and the laptop, and doesn't change when you add `-H "X-Forwarded-For: 1.2.3.4"` or between repeated requests. Render sits behind Cloudflare and two of its own proxies, so `TRUSTED_PROXY_HOPS=3` (#80).
    - Or run all checks at once: `python scripts/verify_deploy.py https://<app>.onrender.com` (about 1 live Qloo call).
 6. Measure the cold start: leave the app idle for at least 20 minutes, then run `curl -o /dev/null -w "%{time_total}\n" https://<app>.onrender.com/healthz`.
 7. Keep it warm during judging: in GitHub, go to **Settings → Secrets and variables → Actions → Variables** and set `BLINDSPOT_URL=https://<app>.onrender.com`. That turns on `.github/workflows/keepalive.yml`, but GitHub runs scheduled workflows **best-effort**: observed gaps of 2 to 4.5 hours between runs, while the free instance sleeps after about 15 minutes. The real keep-alive is the external UptimeRobot monitor on `/healthz` every 5 minutes (live since 2026-10-19).
@@ -130,7 +130,7 @@ auto-deploy on every commit to `main`), `QLOO_API_KEY` set in the Render dashboa
 | `/api/qloo/status` caps match `render.yaml` | PASS (daily 150, hourly 30, run 150, reserve 50) |
 | `/api/qloo/status` leaks nothing (key shapes, paths, hostnames, raw IPs) | PASS |
 | search: `live` then `cache` | PASS (5 results both times; 1 live Qloo call) |
-| client identity stable, forged `X-Forwarded-For` ignored | **FAIL** (open, #80): after `TRUSTED_PROXY_HOPS=2` the identity still varies between plain requests (4 ids in 4 on the 2026-10-19 re-run), so the proxy chain has more hops than two. First seen 2026-10-17. Affects per-client limits, not the demo |
+| client identity stable, forged `X-Forwarded-For` ignored | **FAIL** on 2026-10-19 with `TRUSTED_PROXY_HOPS=2` (4 ids in 4 plain requests). Root cause found the same day with a probe: three proxy hops, not two. Fixed by `TRUSTED_PROXY_HOPS=3` (#80, #84); re-verified after that deploy, see below |
 | unknown route: JSON 404, no traceback | PASS |
 | oversized `q` (10 KB): 4xx not 500 | PASS (422) |
 | keepalive workflow, manual run | PASS, [run 39057710749](https://github.com/nexuszephyr/Blindspot/actions/runs/39057710749) |
