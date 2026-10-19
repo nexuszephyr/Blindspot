@@ -79,7 +79,7 @@ Ad-hoc traffic may use only `daily − QLOO_DEMO_RESERVE`, even when the reserve
 
 **Deployed 2026-10-16 (#8): https://blindspot-tva4.onrender.com.** Observed, not assumed:
 - The Blueprint flow worked from `render.yaml` with no edits: free Docker web service, health check `/healthz`. Only `QLOO_API_KEY` was set by hand in the dashboard.
-- Region: `render.yaml` requests `virginia`, but the service's origin hostname is `gcp-us-west1-1.origin.onrender.com` (Oregon). Which one the instance actually runs in is UNVERIFIED until read from the Render dashboard (#8 review); TCP timings from Mumbai (about 50 ms) only reach Cloudflare's local edge and can't settle it. If it is Oregon, the "next to Qloo's us-east-1" rationale above does not hold and the region should be corrected in the dashboard.
+- Region: **Virginia**, VERIFIED on the Render service page (2026-10-20), as `render.yaml` requests. The `gcp-us-west1-1.origin.onrender.com` hostname is Render's routing layer, not the instance location, so the "next to Qloo's us-east-1" rationale above holds.
 - Auto-deploy: every commit to `main` redeploys, and `render.yaml` env changes are applied on that deploy (the #79 cap change showed up in `/api/qloo/status` without a manual Blueprint sync).
 - The disk is ephemeral: the budget counters read 0 after the #79 redeploy (D33).
 - The service sits behind Cloudflare (`Server: cloudflare`, `CF-RAY`). `TRUSTED_PROXY_HOPS=2` (#81) removed forged-value influence but the identity still varies between plain requests (2026-10-19), so the chain has more than two hops; #80 stays open (D17).
