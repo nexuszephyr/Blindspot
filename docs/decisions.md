@@ -82,7 +82,7 @@ Ad-hoc traffic may use only `daily − QLOO_DEMO_RESERVE`, even when the reserve
 - Region: **Virginia**, VERIFIED on the Render service page (2026-10-20), as `render.yaml` requests. The `gcp-us-west1-1.origin.onrender.com` hostname is Render's routing layer, not the instance location, so the "next to Qloo's us-east-1" rationale above holds.
 - Auto-deploy: every commit to `main` redeploys, and `render.yaml` env changes are applied on that deploy (the #79 cap change showed up in `/api/qloo/status` without a manual Blueprint sync).
 - The disk is ephemeral: the budget counters read 0 after the #79 redeploy (D33).
-- The service sits behind Cloudflare and two Render proxies; `TRUSTED_PROXY_HOPS=3` (#80, #84; verified chain in D17).
+- The service sits behind Cloudflare and two Render proxies; `TRUSTED_PROXY_HOPS=3` (#80, #84; verified chain in D17). Re-verified 2026-10-20 after that deploy: `verify_deploy.py` 8/8, one identity per client. Gate 11 closed (#8).
 - Cold start: about 60 s, measured 2026-10-19 from a phone on mobile data after 20+ minutes idle (manual count, approximate). That matches Render's own dashboard figure of "50 seconds or more" for a free instance after idle.
 - Still UNVERIFIED: the spin-down delay (about 15 minutes per Render's docs), the Secret File mount path (#20), and the 750-hour monthly allowance.
 
