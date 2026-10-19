@@ -117,7 +117,7 @@ auto-deploy on every commit to `main`), `QLOO_API_KEY` set in the Render dashboa
    - Its `your_client_id` differs between the phone and the laptop, and doesn't change when you add `-H "X-Forwarded-For: 1.2.3.4"` or between repeated requests. Render sits behind Cloudflare, so `TRUSTED_PROXY_HOPS=2` (#80).
    - Or run all checks at once: `python scripts/verify_deploy.py https://<app>.onrender.com` (about 1 live Qloo call).
 6. Measure the cold start: leave the app idle for at least 20 minutes, then run `curl -o /dev/null -w "%{time_total}\n" https://<app>.onrender.com/healthz`.
-7. Keep it warm during judging: in GitHub, go to **Settings → Secrets and variables → Actions → Variables** and set `BLINDSPOT_URL=https://<app>.onrender.com`. That turns on `.github/workflows/keepalive.yml`, but GitHub runs scheduled workflows **best-effort**: observed gaps of 2 to 4.5 hours between runs, while the free instance sleeps after about 15 minutes. The real keep-alive is an external 5-minute `HEAD /healthz` monitor (for example UptimeRobot).
+7. Keep it warm during judging: in GitHub, go to **Settings → Secrets and variables → Actions → Variables** and set `BLINDSPOT_URL=https://<app>.onrender.com`. That turns on `.github/workflows/keepalive.yml`, but GitHub runs scheduled workflows **best-effort**: observed gaps of 2 to 4.5 hours between runs, while the free instance sleeps after about 15 minutes. The real keep-alive is the external UptimeRobot monitor on `/healthz` every 5 minutes (live since 2026-10-19).
 
 ### Hosted verification log
 
@@ -130,12 +130,13 @@ auto-deploy on every commit to `main`), `QLOO_API_KEY` set in the Render dashboa
 | `/api/qloo/status` caps match `render.yaml` | PASS (daily 150, hourly 30, run 150, reserve 50) |
 | `/api/qloo/status` leaks nothing (key shapes, paths, hostnames, raw IPs) | PASS |
 | search: `live` then `cache` | PASS (5 results both times; 1 live Qloo call) |
-| client identity stable, forged `X-Forwarded-For` ignored | **FAIL** (open, #80): forged values are ignored, but the identity still varies between plain requests (2 ids in 4) after `TRUSTED_PROXY_HOPS=2`, so the proxy chain has more hops than two. First seen 2026-10-17 |
+| client identity stable, forged `X-Forwarded-For` ignored | **FAIL** (open, #80): after `TRUSTED_PROXY_HOPS=2` the identity still varies between plain requests (4 ids in 4 on the 2026-10-19 re-run), so the proxy chain has more hops than two. First seen 2026-10-17. Affects per-client limits, not the demo |
 | unknown route: JSON 404, no traceback | PASS |
 | oversized `q` (10 KB): 4xx not 500 | PASS (422) |
 | keepalive workflow, manual run | PASS, [run 39057710749](https://github.com/nexuszephyr/Blindspot/actions/runs/39057710749) |
 | keepalive scheduled runs | best-effort: 9 runs in 28 hours, 2 to 4.5 hours apart |
-| cold start after 20+ min idle | pending, measuring 2026-10-18 from a phone on mobile data |
+| cold start after 20+ min idle | about 60 s (2026-10-19, phone on mobile data, manual count, approximate); matches Render's own "50 seconds or more" |
+| external keep-alive | UptimeRobot HTTP(s) monitor on `/healthz` every 5 minutes, live since 2026-10-19 (status Up, 120 to 226 ms). This, not the GitHub workflow, keeps the free instance awake |
 | disk | ephemeral: budget counters reset to 0 on the #79 redeploy (D33) |
 
 ---

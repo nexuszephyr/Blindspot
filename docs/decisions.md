@@ -83,10 +83,10 @@ Ad-hoc traffic may use only `daily − QLOO_DEMO_RESERVE`, even when the reserve
 - Auto-deploy: every commit to `main` redeploys, and `render.yaml` env changes are applied on that deploy (the #79 cap change showed up in `/api/qloo/status` without a manual Blueprint sync).
 - The disk is ephemeral: the budget counters read 0 after the #79 redeploy (D33).
 - The service sits behind Cloudflare (`Server: cloudflare`, `CF-RAY`). `TRUSTED_PROXY_HOPS=2` (#81) removed forged-value influence but the identity still varies between plain requests (2026-10-19), so the chain has more than two hops; #80 stays open (D17).
-- Cold start: pending, measured 2026-10-18 from a phone on mobile data after 20+ minutes idle. Render's own dashboard banner says a free instance can delay requests by 50 seconds or more after idle (UNVERIFIED until measured).
+- Cold start: about 60 s, measured 2026-10-19 from a phone on mobile data after 20+ minutes idle (manual count, approximate). That matches Render's own dashboard figure of "50 seconds or more" for a free instance after idle.
 - Still UNVERIFIED: the spin-down delay (about 15 minutes per Render's docs), the Secret File mount path (#20), and the 750-hour monthly allowance.
 
-**Keep-alive:** `.github/workflows/keepalive.yml` asks for a `/healthz` ping every 10 minutes, but GitHub runs scheduled workflows best-effort: 9 runs in 28 hours, 2 to 4.5 hours apart. It can't keep a free instance awake on its own, so the real mitigation is an external 5-minute `HEAD /healthz` monitor (owner action, NEEDS_FROM_USER).
+**Keep-alive:** `.github/workflows/keepalive.yml` asks for a `/healthz` ping every 10 minutes, but GitHub runs scheduled workflows best-effort: 9 runs in 28 hours, 2 to 4.5 hours apart. It can't keep a free instance awake on its own. The real mitigation is the UptimeRobot HTTP(s) monitor on `/healthz` every 5 minutes, live since 2026-10-19 (status Up, responses 120 to 226 ms).
 
 ## Phase-1 call budget plan
 
