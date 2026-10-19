@@ -1,0 +1,54 @@
+# Draft personas for the Phase 2 answer-key experiments E12-E15 (#13), read by
+# scripts/experiments_p2.py. Schema kept close to what #14's config/personas.yaml needs, so #14 can
+# promote these.
+#
+# - descriptor: neutral, no identity terms.
+# - age_band: Qloo's signal.demographics.age value. 35_and_younger and 55_and_older are VERIFIED
+#   (recon E5); 36_to_55 is UNVERIFIED. Age is not sent in E12-E15 (it doesn't change dining).
+# - audiences: Qloo audience URNs from GET /v2/audiences (listed 2026-10-20). Interest, leisure and
+#   life-stage types only: never identity-based (religion, orientation, ethnicity, communities,
+#   political views; AGENTS §13). A test enforces this.
+# - domains.<id>.seeds: entity names with their /search type, resolved with QlooClient.resolve_ids
+#   and never sent as text. Dining seeds are taste entities from any domain: places are
+#   city-specific, and Qloo accepts a cross-domain entity signal for places (E11).
+# - domains.<id>.tag_query: resolved to one tag id with resolve_ids (top-1 /v2/tags hit).
+personas:
+  - id: mainstream_pop
+    descriptor: Follows mainstream pop culture, chart music and big releases
+    age_band: 35_and_younger
+    audiences: [urn:audience:leisure:music_festivals]
+    domains:
+      dining: {seeds: [{name: Nike, type: urn:entity:brand}], tag_query: italian}
+      music: {seeds: [{name: Burna Boy, type: urn:entity:artist}], tag_query: pop}
+      film_tv: {seeds: [{name: The Godfather, type: urn:entity:movie}], tag_query: comedy}
+      brands: {seeds: [{name: Nike, type: urn:entity:brand}], tag_query: fashion}
+
+  - id: indie_arts
+    descriptor: Into independent music, art-house film and galleries
+    age_band: 35_and_younger
+    audiences: [urn:audience:leisure:arts_culture]
+    domains:
+      dining: {seeds: [{name: Radiohead, type: urn:entity:artist}], tag_query: cafe}
+      music: {seeds: [{name: Radiohead, type: urn:entity:artist}], tag_query: indie}
+      film_tv: {seeds: [{name: Breaking Bad, type: urn:entity:tv_show}], tag_query: drama}
+      brands: {seeds: [{name: Patagonia, type: urn:entity:brand}], tag_query: art}
+
+  - id: family
+    descriptor: Plans outings and media around young children
+    age_band: 36_to_55
+    audiences: [urn:audience:life_stage:parents_with_young_children]
+    domains:
+      dining: {seeds: [{name: LEGO, type: urn:entity:brand}], tag_query: pizza}
+      music: {seeds: [{name: A. R. Rahman, type: urn:entity:artist}], tag_query: children}
+      film_tv: {seeds: [{name: Toy Story, type: urn:entity:movie}], tag_query: animation}
+      brands: {seeds: [{name: LEGO, type: urn:entity:brand}], tag_query: toys}
+
+  - id: outdoors_sports
+    descriptor: Spends free time outdoors and following sport
+    age_band: 55_and_older
+    audiences: [urn:audience:hobbies_and_interests:outdoors]
+    domains:
+      dining: {seeds: [{name: Patagonia, type: urn:entity:brand}], tag_query: street food}
+      music: {seeds: [{name: Bob Marley, type: urn:entity:artist}], tag_query: reggae}
+      film_tv: {seeds: [{name: Rocky, type: urn:entity:movie}], tag_query: sports}
+      brands: {seeds: [{name: Patagonia, type: urn:entity:brand}], tag_query: outdoor}

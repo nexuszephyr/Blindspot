@@ -134,3 +134,29 @@ Ad-hoc traffic may use only `daily − QLOO_DEMO_RESERVE`, even when the reserve
 | **Worst-case total** | **about 8,400 of 10,000** |
 
 The old setting (500/day, 400 ad-hoc) allowed about 12,000 a month on its own. Budget counters live in SQLite on Render's ephemeral disk, so they reset on every redeploy until durable counters land (#20). Revisit in #57/#58: once the demo is precomputed, most judge traffic is served from the snapshot and the cap can be set from measured use.
+
+**D34. Answer-key depth 20, membership pool 50, for every domain (E12, #13, 2026-10-20).** In both
+test cities take 20, 30 and 50 returned full lists, the top 10 never changed with `take`, and ranks
+11-20 and 21-50 had 0.0 overlap between cities and at most 0.07 between a persona and the standard
+query. 20 is deep enough for recall at the agent's list length; the top 50 is kept as a membership
+pool for scoring picks outside the top 20. Rich/thin thresholds are provisional (every cell filled),
+recorded for #24 in the reality doc.
+
+**D35. Dining shape: location filter + restaurant tag + the persona's audience id (E13).** All six
+signal shapes were perfectly stable on a cache-bypassed repeat (Jaccard 1.0). Only the audience shape
+stayed under the 8 s request deadline (p50 2.55 s, slowest 4.29 s); entity and tag shapes reached 9 to
+28 s, and tag+audience timed out in one city. The pre-set rule (slowest call ≤ 4 s) left no shape;
+the rule used is p50 ≤ 4 s with every call under the 8 s deadline, as the brief asks ("well under the
+8 s deadline"). Latency rests on six calls per shape.
+
+**D36. Candidate scoring with a persona signal; fallback is rank membership in the local top 50
+(E14).** `filter.results.entities` with the location plus an entity, tag or audience signal returned
+24-25 of 25 candidates, all scored, all from the pool, in under 1 s, in every domain (50 of 50 with
+an entity signal). Film with an entity seed was partial (6/10, 18/25, 36/50 in one city), so film
+scoring uses tag or audience signals, or the fallback. The fallback is computable from the E12
+recordings.
+
+**D37. The `audience` probe is viable for music, film and brands, marginal for dining (E15).** Mean
+pairwise top-10 Jaccard across 4 personas was 0.07-0.24 for music, film and brands in both cities.
+Dining was 0.14 in the rich city but 0.75 in the focus city, so dining audience probes need a
+per-city coverage check before use (#16).
