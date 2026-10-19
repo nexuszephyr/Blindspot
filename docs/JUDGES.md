@@ -137,6 +137,7 @@ auto-deploy on every commit to `main`), `QLOO_API_KEY` set in the Render dashboa
 | keepalive scheduled runs | best-effort: 9 runs in 28 hours, 2 to 4.5 hours apart |
 | cold start after 20+ min idle | about 60 s (2026-10-19, phone on mobile data, manual count, approximate); matches Render's own "50 seconds or more" |
 | external keep-alive | UptimeRobot HTTP(s) monitor on `/healthz` every 5 minutes, live since 2026-10-19 (status Up, 120 to 226 ms). This, not the GitHub workflow, keeps the free instance awake |
+| **re-verified 2026-10-20** after `TRUSTED_PROXY_HOPS=3` (#84) was deployed from `main` | **8/8 PASS.** Identity: 1 id in 4 plain requests, 1 id in 3 forged requests. `/healthz` 362 ms warm; search `live` then `cache`; 1 Qloo call. Issue #8 closed |
 | disk | ephemeral: budget counters reset to 0 on the #79 redeploy (D33) |
 
 ---
