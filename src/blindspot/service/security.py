@@ -2,25 +2,37 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections import deque
 
 from starlette.requests import Request
 
+log = logging.getLogger("blindspot.service")
+
 
 def client_ip(request: Request, trusted_hops: int) -> str:
     """Requester IP. X-Forwarded-For is trusted only for the configured number of proxy hops;
     each trusted proxy appends the address it saw, so the client is `trusted_hops` from the right.
-    Render sits behind Cloudflare, so it needs 2 (#80). Too few entries -> the peer address."""
+    Render needs 3: Cloudflare, Render edge, Render internal proxy (#80). Too few entries -> peer.
+    If Cloudflare's cf-connecting-ip is present and disagrees, the hop count is wrong: log it (no
+    addresses) so a misconfigured deploy is visible; the configured entry still wins."""
     peer = request.client.host if request.client else "unknown"
     if trusted_hops <= 0:
         return peer
     xff = request.headers.get("x-forwarded-for", "")
     hops = [h.strip() for h in xff.split(",") if h.strip()]
-    if len(hops) >= trusted_hops:
-        return hops[-trusted_hops]
-    return peer
+    if len(hops) < trusted_hops:
+        return peer
+    chosen = hops[-trusted_hops]
+    cf = request.headers.get("cf-connecting-ip", "").strip()
+    if cf and cf != chosen:
+        log.warning(
+            "client_ip: cf-connecting-ip disagrees with X-Forwarded-For[-%d]; check TRUSTED_PROXY_HOPS",
+            trusted_hops,
+        )
+    return chosen
 
 
 class SlidingWindowLimiter:

@@ -20,11 +20,13 @@ services:
         value: live
       - key: QLOO_ENABLED
         value: "true"
-      # Two trusted hops: Cloudflare edge -> Render proxy -> app (VERIFIED #80: responses carry
-      # Server: cloudflare, CF-RAY, x-render-origin-server). With 1 the app read the varying edge
-      # address, so every request looked like a new client and forged entries were never tested.
+      # Three trusted hops: Cloudflare edge -> Render edge -> Render internal proxy -> app.
+      # VERIFIED 2026-10-19 with the proxy-headers probe (#80): X-Forwarded-For has 3 entries
+      # [client, edge, internal]; forged values are appended on the left; entry [-3] is identical
+      # on every request and equals cf-connecting-ip. With 1 or 2 the app read a varying proxy
+      # address, so every request looked like a new client.
       - key: TRUSTED_PROXY_HOPS
-        value: "2"
+        value: "3"
       # Hosted caps share the key's 10,000/month quota with local Phase 2-7 work (decisions D33).
       # Web traffic is ad-hoc priority, so it gets at most DAILY - RESERVE = 100 live calls/day.
       # Counters reset on every redeploy (SQLite on an ephemeral disk) until #20.
