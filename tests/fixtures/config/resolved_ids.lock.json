@@ -1,0 +1,36 @@
+{
+  "items": {
+    "audience:*:leisure:test listening": {
+      "ambiguous": false,
+      "confidence": 1.0,
+      "domain": "*",
+      "id": "urn:audience:leisure:test_listening",
+      "kind": "audience",
+      "query": "leisure:test listening",
+      "reason": "",
+      "status": "resolved"
+    },
+    "seed:music:test artist one": {
+      "ambiguous": true,
+      "confidence": 0.7,
+      "domain": "music",
+      "id": "00000000-0000-4000-8000-0000000000b1",
+      "kind": "seed",
+      "query": "Test Artist One",
+      "reason": "top hit is a partial name match",
+      "search_type": "urn:entity:artist",
+      "status": "resolved"
+    },
+    "tag:dining:test snacks": {
+      "ambiguous": false,
+      "confidence": null,
+      "domain": "dining",
+      "id": null,
+      "kind": "tag",
+      "query": "test snacks",
+      "reason": "no tag in an allowed dining family (families returned: keyword:qloo)",
+      "status": "unresolved"
+    }
+  },
+  "version": 1
+}

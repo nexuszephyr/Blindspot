@@ -93,11 +93,13 @@ Sources: the official hackathon developer guide and live checks in `docs/qloo_ap
 
 ```text
 config/               data: cities.yaml, domains.yaml, probe_types.yaml, personas.yaml,
-                      demo_queries.json, experiments_p2.yaml (resolved ID lock: Phase 2);
+                      demo_queries.json, experiments_p2.yaml, resolved_ids.lock.json
+                      (Qloo ids for persona text, written by scripts/resolve_seeds.py);
                       field reference in docs/scenarios.md
 src/blindspot/
   config.py           settings from env (never repr in logs)
   catalog.py          loads and validates config/ (load_catalog: every file + cross-references)
+  idlock.py           the id lock: load_lock(), IdLock.id_for(), and the rules that pick an id
   qloo/               the only Qloo access: client, models, params (allowlist + id checks),
                       errors, cache, db, calllog, budget, breaker, ratelimit, context,
                       redact, snapshot, cli
@@ -111,8 +113,8 @@ src/blindspot/
   fix/                (Phase 5) Qloo-grounded re-run and export
 web/                  (Phase 6) UI
 scripts/              dev (task runner), _common, smoke, recon, coverage_matrix, warm_cache,
-                      export_snapshot, scan_secrets, promote_param, experiments_p2
-                      (resolve_seeds: Phase 2)
+                      export_snapshot, scan_secrets, promote_param, experiments_p2,
+                      resolve_seeds
 tests/                offline by default
 data/                 gitignored: cache, recordings, private snapshot
 docs/                 architecture, ADRs, phase reports, JUDGES.md, references

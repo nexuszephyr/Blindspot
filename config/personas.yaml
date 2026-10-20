@@ -27,7 +27,7 @@ personas:
   - id: street_food_explorer
     descriptor: Hunts for cheap, fast street food and busy night markets
     age_band: 35_and_younger
-    audiences: [{name: street food, type: hobbies_and_interests}]
+    audiences: [{name: foodie, type: leisure}]
     domains: [dining, music, film_tv, brands]
     interest_tags: {dining: [street food, night market]}
     seeds:
@@ -38,7 +38,7 @@ personas:
   - id: fine_dining
     descriptor: Books tasting menus and chef-led restaurants for special evenings
     age_band: 36_to_55
-    audiences: [{name: fine dining, type: leisure}]
+    audiences: [{name: wine enthusiast, type: hobbies_and_interests}]
     domains: [dining, music, film_tv, brands]
     interest_tags: {dining: [fine dining, tasting menu]}
     seeds:
@@ -49,7 +49,7 @@ personas:
   - id: indie_music_fan
     descriptor: Follows independent bands and small-venue gigs
     age_band: 35_and_younger
-    audiences: [{name: live music, type: leisure}]
+    audiences: [{name: musician, type: hobbies_and_interests}]
     domains: [dining, music, film_tv, brands]
     interest_tags: {dining: [cafe], music: [indie rock]}
     seeds:
@@ -84,7 +84,7 @@ personas:
     age_band: 36_to_55
     audiences: [urn:audience:life_stage:parents_with_young_children]
     domains: [dining, music, film_tv, brands]
-    interest_tags: {dining: [family friendly, pizza]}
+    interest_tags: {dining: [pizza]}
     seeds:
       music: [{name: Ed Sheeran, type: urn:entity:artist}]
       film_tv: [{name: Toy Story, type: urn:entity:movie}, {name: My Neighbor Totoro, type: urn:entity:movie}]
@@ -95,7 +95,7 @@ personas:
     age_band: 35_and_younger
     audiences: [{name: travel, type: hobbies_and_interests}]
     domains: [dining, music, film_tv, brands]
-    interest_tags: {dining: [cheap eats]}
+    interest_tags: {dining: [fast food]}
     seeds:
       music: [{name: Manu Chao, type: urn:entity:artist}]
       film_tv: [{name: Before Sunrise, type: urn:entity:movie}]
@@ -104,9 +104,9 @@ personas:
   - id: fitness_focused
     descriptor: Trains most days and eats light, high-protein meals
     age_band: 35_and_younger
-    audiences: [{name: fitness, type: hobbies_and_interests}]
+    audiences: [{name: running, type: hobbies_and_interests}]
     domains: [dining, music, film_tv, brands]
-    interest_tags: {dining: [healthy food, salad]}
+    interest_tags: {dining: [healthy food]}
     seeds:
       music: [{name: The Weeknd, type: urn:entity:artist}]
       film_tv: [{name: Creed, type: urn:entity:movie}]
@@ -126,7 +126,7 @@ personas:
   - id: coffee_and_books
     descriptor: Reads a lot and likes quiet cafes and bakeries
     age_band: 55_and_older
-    audiences: [{name: reading, type: hobbies_and_interests}]
+    audiences: [{name: avid reader, type: leisure}]
     domains: [dining, music, film_tv, brands]
     interest_tags: {dining: [cafe, bakery]}
     seeds:
@@ -137,7 +137,7 @@ personas:
   - id: nightlife
     descriptor: Goes out late for cocktail bars and electronic music
     age_band: 35_and_younger
-    audiences: [{name: nightlife, type: leisure}]
+    audiences: [{name: dance, type: hobbies_and_interests}]
     domains: [dining, music, film_tv, brands]
     interest_tags: {dining: [cocktail bar], music: [electronic]}
     seeds:
@@ -148,18 +148,18 @@ personas:
   - id: classical_and_jazz
     descriptor: Goes to concerts, opera and jazz clubs
     age_band: 55_and_older
-    audiences: [{name: classical music, type: leisure}]
+    audiences: [{name: museums, type: leisure}]
     domains: [dining, music, film_tv, brands]
     interest_tags: {dining: [french]}
     seeds:
-      music: [{name: Yo-Yo Ma, type: urn:entity:artist}, {name: John Coltrane, type: urn:entity:artist}]
+      music: [{name: Lang Lang, type: urn:entity:artist}, {name: John Coltrane, type: urn:entity:artist}]
       film_tv: [{name: Amadeus, type: urn:entity:movie}]
-      brands: [{name: Steinway & Sons, type: urn:entity:brand}]
+      brands: [{name: Steinway, type: urn:entity:brand}]
 
   - id: gamer
     descriptor: Plays story-driven video games and follows game soundtracks
     age_band: 35_and_younger
-    audiences: [{name: video games, type: hobbies_and_interests}]
+    audiences: [{name: video gamer, type: hobbies_and_interests}]
     domains: [dining, music, film_tv, brands]
     interest_tags: {dining: [ramen]}
     seeds:
@@ -181,7 +181,7 @@ personas:
   - id: fashion_forward
     descriptor: Follows runway trends and shops for statement pieces
     age_band: 35_and_younger
-    audiences: [{name: fashion, type: hobbies_and_interests}]
+    audiences: [{name: high fashion, type: hobbies_and_interests}]
     domains: [dining, music, film_tv, brands]
     interest_tags: {dining: [brunch]}
     seeds:
@@ -192,7 +192,7 @@ personas:
   - id: garden_and_heritage
     descriptor: Gardens, visits historic sites and enjoys classic films
     age_band: 55_and_older
-    audiences: [{name: gardening, type: hobbies_and_interests}]
+    audiences: [{name: home decor, type: hobbies_and_interests}]
     domains: [dining, music, film_tv, brands]
     interest_tags: {dining: [traditional]}
     seeds:
