@@ -423,29 +423,6 @@ class Runner:
             out["domains"][d.id] = {"signal": combo, "cities": per_city, "call": call_by_cities(means_ok)}
         return out
 
-    def phase1_checks(self) -> dict[str, Any]:
-        s = self.summary
-        e12, e13 = s.get("E12") or {}, s.get("E13") or {}
-        out: dict[str, Any] = {}
-        if e12:
-            out["top10_of_take20_equals_take10"] = all(
-                v["top10_equal"]["20"] for v in e12["domains"].values()
-            )
-            out["max_city_top10_jaccard"] = max(
-                (v["city_band_jaccard"]["1-10"] or 0) for v in e12["domains"].values()
-            )
-        if e13:
-            lat = [v["latency"]["p50_s"] for v in e13["shapes"].values() if v["latency"]["p50_s"] is not None]
-            out["place_latency_p50_s"] = round(statistics.median(lat), 2) if lat else None
-            out["place_audience_failures"] = sum(
-                o != "ok"
-                for k, v in e13["shapes"].items()
-                if "audience" in k
-                for c in v["cities"].values()
-                for o in c["outcomes"]
-            )
-        return out
-
 
 def pick_shape(shapes: dict[str, Any]) -> dict[str, Any]:
     """E13 rule: scores everywhere, stable on repeat, fast, then the most persona-specific (lowest
@@ -505,12 +482,49 @@ def _f(v: Any) -> str:
     return str(v)
 
 
-PHASE1 = {  # what Phase 1 reported, for the cross-check table
-    "top10_of_take20_equals_take10": "yes (E11)",
-    "max_city_top10_jaccard": "≤ 0.12 (coverage swap)",
-    "place_latency_p50_s": "about 2.4 s (coverage dining median, age signal)",
-    "place_audience_failures": "1 of 2 cities timed out (E11)",
-}
+def _failures(shape: dict[str, Any]) -> str:
+    cities = shape["cities"].values()
+    bad = [sum(o != "ok" for o in c["outcomes"]) for c in cities]
+    total = sum(len(c["outcomes"]) for c in cities)
+    return f"{sum(bad)} of {total} requests, {sum(b > 0 for b in bad)} of {len(bad)} cities"
+
+
+def phase1_rows(s: dict[str, Any]) -> list[tuple[str, str, str]]:
+    """Like-for-like comparisons with what Phase 1 reported: (check, Phase 1, now)."""
+    rows = []
+    if e12 := s.get("E12"):
+        doms = e12["domains"].values()
+        rows.append(
+            ("Top 10 unchanged at take 20", "yes (E11)", _f(all(v["top10_equal"]["20"] for v in doms)))
+        )
+        top = max((v["city_band_jaccard"]["1-10"] or 0) for v in doms)
+        rows.append(("Max between-city top-10 Jaccard", "≤ 0.12 (coverage swap)", _f(top)))
+    if e13 := s.get("E13"):
+        shapes, pick = e13["shapes"], e13.get("pick")
+        if pick:
+            p50 = shapes[pick]["latency"]["p50_s"]
+            rows.append(
+                (f"Dining p50, picked shape ({pick})", "about 2.4 s (coverage, age signal)", f"{_f(p50)} s")
+            )
+        lat = [v["latency"]["p50_s"] for v in shapes.values() if v["latency"]["p50_s"] is not None]
+        rows.append(
+            (
+                f"Dining p50, all {len(shapes)} shapes (median)",
+                "-",
+                f"{_f(round(statistics.median(lat), 2)) if lat else '-'} s",
+            )
+        )
+        if "audience" in shapes:
+            rows.append(
+                (
+                    "Dining audience-only failures",
+                    "1 of 2 cities timed out (E11)",
+                    _failures(shapes["audience"]),
+                )
+            )
+        if "tag+audience" in shapes:
+            rows.append(("Dining tag+audience failures", "-", _failures(shapes["tag+audience"])))
+    return rows
 
 
 def _claims(rows: list[tuple[str, bool | str]]) -> list[str]:
@@ -763,9 +777,9 @@ def render(s: dict[str, Any]) -> str:
                 (f"Not viable for: {_names(doms, lambda v: v['call'] == 'not viable')}", "VERIFIED"),
             ]
         )
-    if p := s.get("phase1_checks"):
+    if rows := phase1_rows(s):
         out += ["### Phase 1 cross-checks", "", "| Check | Phase 1 | Now |", "|---|---|---|"]
-        out += [f"| {k} | {PHASE1.get(k, '-')} | {_f(v)} |" for k, v in p.items()]
+        out += [f"| {a} | {b} | {c} |" for a, b, c in rows]
         out.append("")
     out.append(END)
     return "\n".join(out)
@@ -799,7 +813,7 @@ async def run(a: argparse.Namespace, client: QlooClient) -> dict[str, Any]:
                 r.summary[exp] = await getattr(r, exp.lower())()
     except Stop as exc:
         stopped = str(exc)
-    r.summary["phase1_checks"] = r.phase1_checks()
+    r.summary.pop("phase1_checks", None)  # computed at render time
     r.summary["cities"] = [c.id for c in r.cities]
     r.summary["date"] = time.strftime("%Y-%m-%d")
     r.summary["tags"] = {f"{p}/{d}": v for (p, d, k), v in r.resolved.items() if k == "tag"}

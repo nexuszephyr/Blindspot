@@ -258,10 +258,12 @@ Call: *viable* when the mean is below 0.5 in both cities (with all 4 personas re
 
 | Check | Phase 1 | Now |
 |---|---|---|
-| top10_of_take20_equals_take10 | yes (E11) | yes |
-| max_city_top10_jaccard | ≤ 0.12 (coverage swap) | 0 |
-| place_latency_p50_s | about 2.4 s (coverage dining median, age signal) | 5.12 |
-| place_audience_failures | 1 of 2 cities timed out (E11) | 3 |
+| Top 10 unchanged at take 20 | yes (E11) | yes |
+| Max between-city top-10 Jaccard | ≤ 0.12 (coverage swap) | 0 |
+| Dining p50, picked shape (audience) | about 2.4 s (coverage, age signal) | 2.55 s |
+| Dining p50, all 6 shapes (median) | - | 5.12 s |
+| Dining audience-only failures | 1 of 2 cities timed out (E11) | 0 of 6 requests, 0 of 2 cities |
+| Dining tag+audience failures | - | 3 of 6 requests, 1 of 2 cities |
 
 <!-- END experiments_p2 -->
 

@@ -244,3 +244,28 @@ def test_personas_use_no_identity_audiences():
     for p in personas:
         assert set(p["domains"]) == {"dining", "music", "film_tv", "brands"}
         assert all(d["seeds"] and d["tag_query"] for d in p["domains"].values())
+
+
+def test_phase1_rows_compare_the_picked_shape():
+    def shape(p50, outcomes):
+        city = {"outcomes": outcomes}
+        return {"latency": {"p50_s": p50}, "cities": {"c1": city, "c2": {"outcomes": ["ok"] * 3}}}
+
+    s = {
+        "E13": {
+            "pick": "audience",
+            "shapes": {
+                "audience": shape(2.55, ["ok"] * 3),
+                "entity": shape(9.0, ["ok"] * 3),
+                "tag+audience": shape(1.2, ["qloo_error"] * 3),
+            },
+        }
+    }
+    text = "\n".join(f"| {a} | {b} | {c} |" for a, b, c in X.phase1_rows(s))  # rows as render() writes them
+    assert "| Dining p50, picked shape (audience) | about 2.4 s (coverage, age signal) | 2.55 s |" in text
+    assert "| Dining p50, all 3 shapes (median) | - | 2.55 s |" in text
+    assert (
+        "| Dining audience-only failures | 1 of 2 cities timed out (E11) | 0 of 6 requests, 0 of 2 cities |"
+        in text
+    )
+    assert "| Dining tag+audience failures | - | 3 of 6 requests, 1 of 2 cities |" in text

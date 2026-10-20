@@ -148,12 +148,19 @@ stayed under the 8 s request deadline (p50 2.55 s, slowest 4.29 s); entity and t
 28 s, and tag+audience timed out in one city. The pre-set rule (slowest call ≤ 4 s) left no shape;
 the rule used is p50 ≤ 4 s with every call under the 8 s deadline, as the brief asks ("well under the
 8 s deadline"). Latency rests on six calls per shape.
+The 8 s deadline binds live request paths: the any-city coverage probe (#24) and hosted audits. The
+answer-key build (#18) is a resumable batch job, so it may retry a timed-out dining cell beyond 8 s;
+a slow shape is unusable only for live paths, not for ground truth. The audience-only evidence is
+thin (six calls, and Phase 1 E11 saw an audience-signal dining query time out in 1 of 2 cities), so
+#18 records per-cell timeouts and retries them, and #24 reports a dining timeout as `unknown`, never
+`empty`.
 
 **D36. Candidate scoring with a persona signal; fallback is rank membership in the local top 50
 (E14).** `filter.results.entities` with the location plus an entity, tag or audience signal returned
 24-25 of 25 candidates, all scored, all from the pool, in under 1 s, in every domain (50 of 50 with
-an entity signal). Film with an entity seed was partial (6/10, 18/25, 36/50 in one city), so film
-scoring uses tag or audience signals, or the fallback. The fallback is computable from the E12
+an entity signal). Film with an entity seed was partial for the seed tested, in one city (6/10,
+18/25, 36/50 in the rich city; 25/25 in the focus city), so film scoring prefers tag or audience
+signals or the fallback; entity scoring for film isn't ruled out. The fallback is computable from the E12
 recordings.
 
 **D37. The `audience` probe is viable for music, film and brands, marginal for dining (E15).** Mean
