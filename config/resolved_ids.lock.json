@@ -1,54 +1,54 @@
 {
   "items": {
-    "audience:*:hobbies_and_interests:fashion": {
-      "ambiguous": true,
-      "confidence": 0.7,
+    "audience:*:hobbies_and_interests:dance": {
+      "ambiguous": false,
+      "confidence": 1.0,
+      "domain": "*",
+      "id": "urn:audience:hobbies_and_interests:dance",
+      "kind": "audience",
+      "query": "hobbies_and_interests:dance",
+      "reason": "",
+      "status": "resolved"
+    },
+    "audience:*:hobbies_and_interests:high fashion": {
+      "ambiguous": false,
+      "confidence": 1.0,
       "domain": "*",
       "id": "urn:audience:hobbies_and_interests:high_fashion",
       "kind": "audience",
-      "query": "hobbies_and_interests:fashion",
-      "reason": "2 audiences match partly; best match is partial",
+      "query": "hobbies_and_interests:high fashion",
+      "reason": "",
       "status": "resolved"
     },
-    "audience:*:hobbies_and_interests:fitness": {
+    "audience:*:hobbies_and_interests:home decor": {
       "ambiguous": false,
-      "confidence": null,
+      "confidence": 1.0,
       "domain": "*",
-      "id": null,
+      "id": "urn:audience:hobbies_and_interests:home_decor",
       "kind": "audience",
-      "query": "hobbies_and_interests:fitness",
-      "reason": "no audience in that type has this name",
-      "status": "unresolved"
+      "query": "hobbies_and_interests:home decor",
+      "reason": "",
+      "status": "resolved"
     },
-    "audience:*:hobbies_and_interests:gardening": {
+    "audience:*:hobbies_and_interests:musician": {
       "ambiguous": false,
-      "confidence": null,
+      "confidence": 1.0,
       "domain": "*",
-      "id": null,
+      "id": "urn:audience:hobbies_and_interests:musician",
       "kind": "audience",
-      "query": "hobbies_and_interests:gardening",
-      "reason": "no audience in that type has this name",
-      "status": "unresolved"
+      "query": "hobbies_and_interests:musician",
+      "reason": "",
+      "status": "resolved"
     },
-    "audience:*:hobbies_and_interests:reading": {
+    "audience:*:hobbies_and_interests:running": {
       "ambiguous": false,
-      "confidence": null,
+      "confidence": 1.0,
       "domain": "*",
-      "id": null,
+      "id": "urn:audience:hobbies_and_interests:running",
       "kind": "audience",
-      "query": "hobbies_and_interests:reading",
-      "reason": "no audience in that type has this name",
-      "status": "unresolved"
-    },
-    "audience:*:hobbies_and_interests:street food": {
-      "ambiguous": false,
-      "confidence": null,
-      "domain": "*",
-      "id": null,
-      "kind": "audience",
-      "query": "hobbies_and_interests:street food",
-      "reason": "no audience in that type has this name",
-      "status": "unresolved"
+      "query": "hobbies_and_interests:running",
+      "reason": "",
+      "status": "resolved"
     },
     "audience:*:hobbies_and_interests:travel": {
       "ambiguous": false,
@@ -60,55 +60,55 @@
       "reason": "",
       "status": "resolved"
     },
-    "audience:*:hobbies_and_interests:video games": {
+    "audience:*:hobbies_and_interests:video gamer": {
       "ambiguous": false,
-      "confidence": null,
+      "confidence": 1.0,
       "domain": "*",
-      "id": null,
+      "id": "urn:audience:hobbies_and_interests:video_gamer",
       "kind": "audience",
-      "query": "hobbies_and_interests:video games",
-      "reason": "no audience in that type has this name",
-      "status": "unresolved"
+      "query": "hobbies_and_interests:video gamer",
+      "reason": "",
+      "status": "resolved"
     },
-    "audience:*:leisure:classical music": {
+    "audience:*:hobbies_and_interests:wine enthusiast": {
       "ambiguous": false,
-      "confidence": null,
+      "confidence": 1.0,
       "domain": "*",
-      "id": null,
+      "id": "urn:audience:hobbies_and_interests:wine_enthusiast",
       "kind": "audience",
-      "query": "leisure:classical music",
-      "reason": "no audience in that type has this name",
-      "status": "unresolved"
+      "query": "hobbies_and_interests:wine enthusiast",
+      "reason": "",
+      "status": "resolved"
     },
-    "audience:*:leisure:fine dining": {
+    "audience:*:leisure:avid reader": {
       "ambiguous": false,
-      "confidence": null,
+      "confidence": 1.0,
       "domain": "*",
-      "id": null,
+      "id": "urn:audience:leisure:avid_reader",
       "kind": "audience",
-      "query": "leisure:fine dining",
-      "reason": "no audience in that type has this name",
-      "status": "unresolved"
+      "query": "leisure:avid reader",
+      "reason": "",
+      "status": "resolved"
     },
-    "audience:*:leisure:live music": {
+    "audience:*:leisure:foodie": {
       "ambiguous": false,
-      "confidence": null,
+      "confidence": 1.0,
       "domain": "*",
-      "id": null,
+      "id": "urn:audience:leisure:foodie",
       "kind": "audience",
-      "query": "leisure:live music",
-      "reason": "no audience in that type has this name",
-      "status": "unresolved"
+      "query": "leisure:foodie",
+      "reason": "",
+      "status": "resolved"
     },
-    "audience:*:leisure:nightlife": {
+    "audience:*:leisure:museums": {
       "ambiguous": false,
-      "confidence": null,
+      "confidence": 1.0,
       "domain": "*",
-      "id": null,
+      "id": "urn:audience:leisure:museums",
       "kind": "audience",
-      "query": "leisure:nightlife",
-      "reason": "no audience in that type has this name",
-      "status": "unresolved"
+      "query": "leisure:museums",
+      "reason": "",
+      "status": "resolved"
     },
     "audience:*:urn:audience:global_issues:animal_issues": {
       "ambiguous": false,
@@ -314,16 +314,16 @@
       "search_type": "urn:entity:brand",
       "status": "resolved"
     },
-    "seed:brands:steinway & sons": {
-      "ambiguous": true,
-      "confidence": 0.3,
+    "seed:brands:steinway": {
+      "ambiguous": false,
+      "confidence": null,
       "domain": "brands",
-      "id": "3481DA6C-849A-4B17-A064-DFEFB0295276",
+      "id": null,
       "kind": "seed",
-      "query": "Steinway & Sons",
-      "reason": "top hit's name doesn't match",
+      "query": "Steinway",
+      "reason": "no search hits",
       "search_type": "urn:entity:brand",
-      "status": "resolved"
+      "status": "unresolved"
     },
     "seed:brands:vans": {
       "ambiguous": false,
@@ -644,6 +644,17 @@
       "search_type": "urn:entity:artist",
       "status": "resolved"
     },
+    "seed:music:lang lang": {
+      "ambiguous": false,
+      "confidence": 1.0,
+      "domain": "music",
+      "id": "4A22F06D-2354-4D3E-A372-B1296DDB090F",
+      "kind": "seed",
+      "query": "Lang Lang",
+      "reason": "",
+      "search_type": "urn:entity:artist",
+      "status": "resolved"
+    },
     "seed:music:manu chao": {
       "ambiguous": false,
       "confidence": 1.0,
@@ -743,17 +754,6 @@
       "search_type": "urn:entity:artist",
       "status": "resolved"
     },
-    "seed:music:yo-yo ma": {
-      "ambiguous": true,
-      "confidence": 0.7,
-      "domain": "music",
-      "id": "00DA44FD-EE9A-4BFD-B54E-5DBB269B0426",
-      "kind": "seed",
-      "query": "Yo-Yo Ma",
-      "reason": "top hit is a partial name match",
-      "search_type": "urn:entity:artist",
-      "status": "resolved"
-    },
     "tag:dining:bakery": {
       "ambiguous": true,
       "confidence": 1.0,
@@ -778,7 +778,7 @@
       "ambiguous": true,
       "confidence": 1.0,
       "domain": "dining",
-      "id": "urn:tag:cuisine:qloo:burgers",
+      "id": "urn:tag:genre:place:restaurant:burgers",
       "kind": "tag",
       "query": "burgers",
       "reason": "2 allowed tags match exactly",
@@ -794,16 +794,6 @@
       "reason": "6 allowed tags match exactly",
       "status": "resolved"
     },
-    "tag:dining:cheap eats": {
-      "ambiguous": false,
-      "confidence": null,
-      "domain": "dining",
-      "id": null,
-      "kind": "tag",
-      "query": "cheap eats",
-      "reason": "no tag in an allowed dining family (families returned: ambience:qloo, category:place, genre:place, good_for:qloo)",
-      "status": "unresolved"
-    },
     "tag:dining:cocktail bar": {
       "ambiguous": true,
       "confidence": 1.0,
@@ -814,21 +804,21 @@
       "reason": "4 allowed tags match exactly",
       "status": "resolved"
     },
-    "tag:dining:family friendly": {
-      "ambiguous": false,
-      "confidence": null,
+    "tag:dining:fast food": {
+      "ambiguous": true,
+      "confidence": 1.0,
       "domain": "dining",
-      "id": null,
+      "id": "urn:tag:cuisine:qloo:fast_food",
       "kind": "tag",
-      "query": "family friendly",
-      "reason": "no tag in an allowed dining family (families returned: ambience:hotel_finder, ambience:place, ambience:qloo, audience:qloo, decor:qloo, good_for:qloo, neighborhood_characteristic:qloo, neighborhood_characteristics:qloo, specialty_dish:place, style:qloo)",
-      "status": "unresolved"
+      "query": "fast food",
+      "reason": "3 allowed tags match exactly",
+      "status": "resolved"
     },
     "tag:dining:fine dining": {
       "ambiguous": true,
       "confidence": 1.0,
       "domain": "dining",
-      "id": "urn:tag:dining_option:qloo:fine_dining",
+      "id": "urn:tag:cuisine:qloo:fine_dining",
       "kind": "tag",
       "query": "fine dining",
       "reason": "3 allowed tags match exactly",
@@ -838,7 +828,7 @@
       "ambiguous": true,
       "confidence": 1.0,
       "domain": "dining",
-      "id": "urn:tag:amenity:place:french",
+      "id": "urn:tag:genre:place:restaurant:french",
       "kind": "tag",
       "query": "french",
       "reason": "4 allowed tags match exactly",
@@ -848,7 +838,7 @@
       "ambiguous": true,
       "confidence": 1.0,
       "domain": "dining",
-      "id": "urn:tag:category:place:grill",
+      "id": "urn:tag:genre:place:restaurant:grill",
       "kind": "tag",
       "query": "grill",
       "reason": "5 allowed tags match exactly",
@@ -868,7 +858,7 @@
       "ambiguous": true,
       "confidence": 1.0,
       "domain": "dining",
-      "id": "urn:tag:genre:place:night_market",
+      "id": "urn:tag:genre:place:restaurant:night_market",
       "kind": "tag",
       "query": "night market",
       "reason": "3 allowed tags match exactly",
@@ -894,21 +884,11 @@
       "reason": "2 allowed tags match exactly",
       "status": "resolved"
     },
-    "tag:dining:salad": {
-      "ambiguous": true,
-      "confidence": 0.7,
-      "domain": "dining",
-      "id": "urn:tag:genre:place:restaurant:salad_shop",
-      "kind": "tag",
-      "query": "salad",
-      "reason": "2 allowed tags match partly; best match is partial",
-      "status": "resolved"
-    },
     "tag:dining:street food": {
       "ambiguous": true,
       "confidence": 1.0,
       "domain": "dining",
-      "id": "urn:tag:cuisine:qloo:street_food",
+      "id": "urn:tag:genre:place:restaurant:street_food",
       "kind": "tag",
       "query": "street food",
       "reason": "2 allowed tags match exactly",
@@ -928,7 +908,7 @@
       "ambiguous": true,
       "confidence": 1.0,
       "domain": "dining",
-      "id": "urn:tag:genre:place:hotel:traditional",
+      "id": "urn:tag:cuisine:qloo:traditional",
       "kind": "tag",
       "query": "traditional",
       "reason": "2 allowed tags match exactly",

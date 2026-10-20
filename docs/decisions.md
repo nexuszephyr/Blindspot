@@ -181,3 +181,10 @@ bands such as `36_to_55`.
 Dining tastes are stated as interest tags, not seed places, because places are city-specific.
 `take` stays 10 in `domains.yaml` (the recon scripts' cache keys use it); the answer key uses the new
 `depth` (20).
+
+**D39. Committed config may hold bare Qloo ids that queries need; docs and fixtures hash or label
+them (#15, 2026-10-20).** `config/resolved_ids.lock.json` commits the seed entity UUIDs and the tag
+and audience URNs, because it's functional config: judges need it for the no-key and own-key runs
+(hard rule 4). It holds ids only, never names, scores or popularity (D5). Documentation is
+different: an id there only illustrates, so it is labelled (`entity#<sha256[:6]>`, as in
+`docs/param_evidence.md`, #86), and test fixtures use synthetic ids.

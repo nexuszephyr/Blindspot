@@ -40,6 +40,13 @@ TAG_FAMILIES: dict[str, frozenset[str]] = {
     "brands": frozenset({"category:brand", "genre:brand", "keyword:qloo"}),
 }
 
+# On an exact-name tie, dining prefers a restaurant genre, then a cuisine, then any other allowed
+# family, before popularity: "french" also exists as an amenity tag and "traditional" as a hotel
+# genre, and both were the more popular (#15 review).
+TIE_PREFERENCE: dict[str, tuple[str, ...]] = {
+    "dining": ("urn:tag:genre:place:restaurant:", "urn:tag:cuisine:qloo:"),
+}
+
 
 # --------------------------------------------------------------------------- keys and names
 def lock_key(kind: str, domain: str, query: str) -> str:
@@ -208,7 +215,8 @@ def tag_family(tag_id: str) -> str:
 def resolve_tag(query: str, domain: str, hits: list[dict[str, Any]]) -> Decision:
     """Pick a tag from /v2/tags hits: only tags in the domain's allowed families count; exact
     normalized name 1.0, contains 0.7. Ambiguous when 2+ allowed tags match exactly or the best
-    is only 0.7 (ties: the most popular, then Qloo's order). Nothing allowed: unresolved."""
+    is only 0.7. Ties go by the domain's TIE_PREFERENCE, then popularity, then Qloo's order.
+    Nothing allowed: unresolved."""
     allowed = TAG_FAMILIES.get(domain)
     if allowed is None:
         return _unresolved(f"no tag families are defined for domain {domain}")
@@ -224,7 +232,13 @@ def resolve_tag(query: str, domain: str, hits: list[dict[str, Any]]) -> Decision
         return _unresolved(f"no tag in an allowed {domain} family (families returned: {returned})")
     best = max(s for s, _ in scored)
     tops = [i for s, i in scored if s == best]
-    pick = max(tops, key=lambda i: (_popularity(hits[i]), -i))
+    prefer = TIE_PREFERENCE.get(domain, ())
+
+    def rank(i: int) -> int:
+        tag_id = str(hits[i]["id"])
+        return next((n for n, p in enumerate(prefer) if tag_id.startswith(p)), len(prefer))
+
+    pick = min(tops, key=lambda i: (rank(i), -_popularity(hits[i]), i))
     reasons = []
     if len(tops) > 1:
         reasons.append(f"{len(tops)} allowed tags match {'exactly' if best == EXACT else 'partly'}")

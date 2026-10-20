@@ -99,7 +99,7 @@ def test_tag_family_filtering_per_domain():
     two = resolve_tag(
         "test snacks", "dining", [*hits, _tag("urn:tag:cuisine:qloo:test_snacks", "Test Snacks", 0.9)]
     )
-    assert two.ambiguous and two.id == "urn:tag:cuisine:qloo:test_snacks"  # most popular exact
+    assert two.ambiguous and two.id == hits[1]["id"]  # a restaurant genre beats a more popular cuisine
     partial = resolve_tag("snacks", "dining", hits)
     assert (partial.confidence, partial.ambiguous) == (PARTIAL, True)
 
@@ -180,3 +180,32 @@ def test_load_lock_rejects_bad_files(tmp_path):
     )
     with pytest.raises(ConfigError, match="doesn't match"):
         load_lock(tmp_path)
+
+
+def test_dining_tie_prefers_restaurant_then_cuisine():
+    french = [
+        _tag("urn:tag:amenity:place:test_french", "Test French", 0.99),
+        _tag("urn:tag:cuisine:qloo:test_french", "Test French", 0.4),
+        _tag("urn:tag:genre:place:restaurant:test_french", "Test French", 0.2),
+    ]
+    assert resolve_tag("test french", "dining", french).id == "urn:tag:genre:place:restaurant:test_french"
+    no_genre = french[:2]
+    d = resolve_tag("test french", "dining", no_genre)
+    assert (
+        d.id == "urn:tag:cuisine:qloo:test_french" and d.ambiguous
+    )  # a cuisine beats a more popular amenity
+    hotel = [
+        _tag("urn:tag:genre:place:hotel:test_old", "Test Old", 0.95),
+        _tag("urn:tag:category:place:test_old", "Test Old", 0.10),
+        _tag("urn:tag:cuisine:qloo:test_old", "Test Old", 0.05),
+    ]
+    assert resolve_tag("test old", "dining", hotel).id == "urn:tag:cuisine:qloo:test_old"
+    others = hotel[:2]  # no preferred family: popularity decides, as before
+    assert resolve_tag("test old", "dining", others).id == "urn:tag:genre:place:hotel:test_old"
+    music = [
+        _tag("urn:tag:genre:music:test_a", "Test A", 0.1),
+        _tag("urn:tag:genre:music:test_b", "Test A", 0.9),
+    ]
+    assert (
+        resolve_tag("test a", "music", music).id == "urn:tag:genre:music:test_b"
+    )  # no preference outside dining

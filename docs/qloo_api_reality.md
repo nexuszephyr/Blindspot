@@ -108,7 +108,7 @@ Sources:
 
 | Claim | Label |
 |---|---|
-| `/search` with the seed's own type: 54 of 54 persona seeds returned hits of the requested type; for 6 film titles the top 5 held 2 or 3 entries with the exact same name and type (remakes or same-name films), and some of those carry no `popularity` | VERIFIED |
+| `/search` with the seed's own type: 53 of 54 persona seeds returned hits of the requested type (a piano maker returned no brand hits under either its short or its full name); for 6 film titles the top 5 held 2 or 3 entries with the exact same name and type (remakes or same-name films), and some of those carry no `popularity` | VERIFIED |
 | `/search` returns no confidence score; for 3 seeds (2 brands, 1 artist) the top hit's name only contains ours (a longer official or collaboration name), and for 1 brand none of the top 3 names matched | VERIFIED |
 | `/v2/tags?filter.query=` returns the same tag name in many families: up to 6 exact-name tags across the dining families for one word (for example `genre:place:restaurant:*`, `category:place:*`, `dining_option:qloo:*`), plus non-place families (`amenity:place`, `genre:place:hotel:*`, `specialty_dish:place`, `menu_highlight:qloo`, `good_for:qloo`, `ambience:*`) | VERIFIED |
 | A cuisine word can match a non-cuisine tag first: "french" also exists as `amenity:place:french`, and "traditional" as a hotel genre | VERIFIED |
