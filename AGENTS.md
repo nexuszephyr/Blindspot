@@ -92,11 +92,12 @@ Sources: the official hackathon developer guide and live checks in `docs/qloo_ap
 ## 4. Repo map
 
 ```text
-config/               data: cities.yaml, domains.yaml, demo_queries.json, experiments_p2.yaml
-                      (personas, probe types, resolved ID lock: Phase 2)
+config/               data: cities.yaml, domains.yaml, probe_types.yaml, personas.yaml,
+                      demo_queries.json, experiments_p2.yaml (resolved ID lock: Phase 2);
+                      field reference in docs/scenarios.md
 src/blindspot/
   config.py           settings from env (never repr in logs)
-  catalog.py          loads and validates config/ (cities, domains)
+  catalog.py          loads and validates config/ (load_catalog: every file + cross-references)
   qloo/               the only Qloo access: client, models, params (allowlist + id checks),
                       errors, cache, db, calllog, budget, breaker, ratelimit, context,
                       redact, snapshot, cli
@@ -196,10 +197,11 @@ replay without new calls.
 **Add a city.** Add an entry to `config/cities.yaml` with the exact Qloo location string, run the
 coverage probe for it, record the verdict, and add it to the demo tier only if it's rich.
 
-**Add a persona.** Add it to `config/personas.yaml` with a neutral descriptor, age band, verified
-audience IDs (required for dining), interest tags and seed entity names; run
-`scripts/resolve_seeds.py`; review anything flagged ambiguous in `docs/seed_review.md`. (Personas and
-both files arrive in Phase 2.)
+**Add a persona.** Add it to `config/personas.yaml` with a descriptor about taste (never identity),
+an age band, an audience set no other persona has (every domain's answer key uses it), and 1 to 3 seeds or
+interest tags per domain; check it with `load_catalog()`; run `scripts/resolve_seeds.py` (#15) and
+review anything flagged ambiguous in `docs/seed_review.md`. Steps and every field:
+[docs/scenarios.md](docs/scenarios.md).
 
 **Use a new Qloo parameter.** Run `python scripts/promote_param.py <filter.type> <param> <value>
 --dry-run` to see which calls would be live, then run it without `--dry-run`. It compares the domain's

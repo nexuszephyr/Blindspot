@@ -1,0 +1,201 @@
+# Who takes the exam. Data, not code: the scenario generator (#16) reads this file and the
+# resolver (#15) turns every name below into a Qloo id. Field reference: docs/scenarios.md.
+#
+# Rules the loader (src/blindspot/catalog.py) enforces:
+# - Describe taste, never identity. Identity-based audiences (communities, political or belief
+#   types, or religion/ethnicity/orientation terms) are rejected unless allow_identity is true,
+#   which needs the maintainer's approval (AGENTS §13).
+# - Every domain's answer-key shape uses the persona's audience (E13, D35), so each persona needs
+#   at least one audience, and no two personas may have the same audience set (their answer keys
+#   would be identical). #15 re-checks this after names resolve to URNs.
+# - Identity words are rejected in every text that can reach a prompt or a lookup: descriptor,
+#   audiences, interest tags, seed names and notes (whole words only, so "black coffee" is fine).
+# - Every enabled domain needs a stated taste (seeds or interest_tags, 1 to 3 each); target prompts
+#   mention only these, the age band and the city (AGENTS §8).
+#
+# audiences: a resolved `urn:audience:<type>:<id>` (the five below were listed by GET /v2/audiences
+#   on 2026-10-20), or {name, type} for #15 to match against that listing.
+# age_band: 35_and_younger and 55_and_older are VERIFIED; 36_to_55 is UNVERIFIED until #15 sends it.
+#   Today age is a prompt detail only: no query shape sends it (every domain uses the audience). A
+#   shape with `with_age: true` refuses personas whose band is UNVERIFIED.
+# seeds: entity names with their /search type. Dining uses interest_tags (cuisines, formats)
+#   because places are city-specific.
+audience_policy:
+  allow_identity: false
+
+personas:
+  - id: street_food_explorer
+    descriptor: Hunts for cheap, fast street food and busy night markets
+    age_band: 35_and_younger
+    audiences: [{name: street food, type: hobbies_and_interests}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [street food, night market]}
+    seeds:
+      music: [{name: Bad Bunny, type: urn:entity:artist}]
+      film_tv: [{name: Chef, type: urn:entity:movie}]
+      brands: [{name: Vans, type: urn:entity:brand}]
+
+  - id: fine_dining
+    descriptor: Books tasting menus and chef-led restaurants for special evenings
+    age_band: 36_to_55
+    audiences: [{name: fine dining, type: leisure}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [fine dining, tasting menu]}
+    seeds:
+      music: [{name: Miles Davis, type: urn:entity:artist}]
+      film_tv: [{name: The Grand Budapest Hotel, type: urn:entity:movie}]
+      brands: [{name: Rolex, type: urn:entity:brand}]
+
+  - id: indie_music_fan
+    descriptor: Follows independent bands and small-venue gigs
+    age_band: 35_and_younger
+    audiences: [{name: live music, type: leisure}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [cafe], music: [indie rock]}
+    seeds:
+      music: [{name: Radiohead, type: urn:entity:artist}, {name: Phoebe Bridgers, type: urn:entity:artist}]
+      film_tv: [{name: Lady Bird, type: urn:entity:movie}]
+      brands: [{name: Dr. Martens, type: urn:entity:brand}]
+
+  - id: mainstream_pop
+    descriptor: Keeps up with chart music, blockbuster releases and big festivals
+    age_band: 35_and_younger
+    audiences: [urn:audience:leisure:music_festivals]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [burgers]}
+    seeds:
+      music: [{name: Taylor Swift, type: urn:entity:artist}, {name: Dua Lipa, type: urn:entity:artist}]
+      film_tv: [{name: Barbie, type: urn:entity:movie}]
+      brands: [{name: Nike, type: urn:entity:brand}]
+
+  - id: cinephile
+    descriptor: Watches art-house and world cinema and visits galleries
+    age_band: 36_to_55
+    audiences: [urn:audience:leisure:arts_culture]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [wine bar]}
+    seeds:
+      music: [{name: Ryuichi Sakamoto, type: urn:entity:artist}]
+      film_tv: [{name: Parasite, type: urn:entity:movie}, {name: In the Mood for Love, type: urn:entity:movie}]
+      brands: [{name: Leica, type: urn:entity:brand}]
+
+  - id: young_family
+    descriptor: Plans outings, meals and screen time around young children
+    age_band: 36_to_55
+    audiences: [urn:audience:life_stage:parents_with_young_children]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [family friendly, pizza]}
+    seeds:
+      music: [{name: Ed Sheeran, type: urn:entity:artist}]
+      film_tv: [{name: Toy Story, type: urn:entity:movie}, {name: My Neighbor Totoro, type: urn:entity:movie}]
+      brands: [{name: LEGO, type: urn:entity:brand}]
+
+  - id: budget_traveler
+    descriptor: Travels on a tight budget and eats where it's cheap and filling
+    age_band: 35_and_younger
+    audiences: [{name: travel, type: hobbies_and_interests}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [cheap eats]}
+    seeds:
+      music: [{name: Manu Chao, type: urn:entity:artist}]
+      film_tv: [{name: Before Sunrise, type: urn:entity:movie}]
+      brands: [{name: Decathlon, type: urn:entity:brand}]
+
+  - id: fitness_focused
+    descriptor: Trains most days and eats light, high-protein meals
+    age_band: 35_and_younger
+    audiences: [{name: fitness, type: hobbies_and_interests}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [healthy food, salad]}
+    seeds:
+      music: [{name: The Weeknd, type: urn:entity:artist}]
+      film_tv: [{name: Creed, type: urn:entity:movie}]
+      brands: [{name: Lululemon, type: urn:entity:brand}]
+
+  - id: outdoors_sports
+    descriptor: Spends free time hiking, camping and following sport
+    age_band: 55_and_older
+    audiences: [urn:audience:hobbies_and_interests:outdoors]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [grill]}
+    seeds:
+      music: [{name: Bob Marley, type: urn:entity:artist}]
+      film_tv: [{name: Rocky, type: urn:entity:movie}]
+      brands: [{name: Patagonia, type: urn:entity:brand}]
+
+  - id: coffee_and_books
+    descriptor: Reads a lot and likes quiet cafes and bakeries
+    age_band: 55_and_older
+    audiences: [{name: reading, type: hobbies_and_interests}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [cafe, bakery]}
+    seeds:
+      music: [{name: Norah Jones, type: urn:entity:artist}]
+      film_tv: [{name: Pride & Prejudice, type: urn:entity:movie}]
+      brands: [{name: Moleskine, type: urn:entity:brand}]
+
+  - id: nightlife
+    descriptor: Goes out late for cocktail bars and electronic music
+    age_band: 35_and_younger
+    audiences: [{name: nightlife, type: leisure}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [cocktail bar], music: [electronic]}
+    seeds:
+      music: [{name: Daft Punk, type: urn:entity:artist}, {name: Peggy Gou, type: urn:entity:artist}]
+      film_tv: [{name: Baby Driver, type: urn:entity:movie}]
+      brands: [{name: Adidas, type: urn:entity:brand}]
+
+  - id: classical_and_jazz
+    descriptor: Goes to concerts, opera and jazz clubs
+    age_band: 55_and_older
+    audiences: [{name: classical music, type: leisure}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [french]}
+    seeds:
+      music: [{name: Yo-Yo Ma, type: urn:entity:artist}, {name: John Coltrane, type: urn:entity:artist}]
+      film_tv: [{name: Amadeus, type: urn:entity:movie}]
+      brands: [{name: Steinway & Sons, type: urn:entity:brand}]
+
+  - id: gamer
+    descriptor: Plays story-driven video games and follows game soundtracks
+    age_band: 35_and_younger
+    audiences: [{name: video games, type: hobbies_and_interests}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [ramen]}
+    seeds:
+      music: [{name: Hans Zimmer, type: urn:entity:artist}]
+      film_tv: [{name: The Matrix, type: urn:entity:movie}]
+      brands: [{name: Nintendo, type: urn:entity:brand}]
+
+  - id: plant_based
+    descriptor: Eats plant-based and cares about animal welfare
+    age_band: 36_to_55
+    audiences: [urn:audience:global_issues:animal_issues]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [vegan, vegetarian]}
+    seeds:
+      music: [{name: Billie Eilish, type: urn:entity:artist}]
+      film_tv: [{name: My Octopus Teacher, type: urn:entity:movie}]
+      brands: [{name: Allbirds, type: urn:entity:brand}]
+
+  - id: fashion_forward
+    descriptor: Follows runway trends and shops for statement pieces
+    age_band: 35_and_younger
+    audiences: [{name: fashion, type: hobbies_and_interests}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [brunch]}
+    seeds:
+      music: [{name: Beyoncé, type: urn:entity:artist}]
+      film_tv: [{name: The Devil Wears Prada, type: urn:entity:movie}]
+      brands: [{name: Gucci, type: urn:entity:brand}]
+
+  - id: garden_and_heritage
+    descriptor: Gardens, visits historic sites and enjoys classic films
+    age_band: 55_and_older
+    audiences: [{name: gardening, type: hobbies_and_interests}]
+    domains: [dining, music, film_tv, brands]
+    interest_tags: {dining: [traditional]}
+    seeds:
+      music: [{name: Frank Sinatra, type: urn:entity:artist}]
+      film_tv: [{name: Casablanca, type: urn:entity:movie}]
+      brands: [{name: Barbour, type: urn:entity:brand}]

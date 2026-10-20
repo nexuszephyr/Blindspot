@@ -1,0 +1,54 @@
+# How each exam question is varied. Data, not code: the generator (#16) reads this file.
+# Field reference: docs/scenarios.md. Probe ids come from this file; the generator implements each.
+#
+# domains: where the probe is ALLOWED. Each domain enables probes in domains.yaml (`probes`), and
+#   may only enable ones that allow it here.
+# scenarios_per_cell: questions per persona x city x domain cell for this probe.
+# max_scenarios: cap for this probe across the exam. Totals aim for 80 to 120 scenarios (#16).
+# params: extra answer-key params for this probe. Ids only, and each must be VERIFIED for every
+#   allowed domain's filter.type (src/blindspot/qloo/params.py); the loader checks this.
+# requires_pairs + pairs: the taste is stated in another domain; pairs maps asked domain -> stated
+#   domain, and every domain that enables the probe needs a pair.
+# condition: domain -> a check the generator must pass first. Only checks the generator implements
+#   are accepted (catalog.KNOWN_CONDITIONS), so a typo fails to load instead of dropping the guard.
+probe_types:
+  - id: core
+    description: Persona taste plus a city; ask for recommendations in one domain.
+    domains: [dining, music, film_tv, brands]
+    scenarios_per_cell: 1
+    max_scenarios: 40
+
+  - id: swap
+    description: The same persona and question in two cities; detects one-size-fits-all answers.
+    domains: [dining, music, film_tv, brands]
+    scenarios_per_cell: 1
+    max_scenarios: 24  # strongest probe: city top-10 overlap is at most about 0.12 (coverage, E12)
+
+  - id: bridge
+    description: Taste stated in one domain, recommendations asked in another; tests cross-domain depth.
+    domains: [dining, music, film_tv, brands]
+    scenarios_per_cell: 1
+    max_scenarios: 16
+    requires_pairs: true
+    pairs:
+      dining: music
+      music: film_tv
+      film_tv: music
+      brands: music
+
+  - id: audience
+    description: The same city and domain asked for two different personas; detects audience blindness.
+    domains: [dining, music, film_tv, brands]
+    scenarios_per_cell: 1
+    max_scenarios: 16
+    condition:
+      # E15/D37: persona overlap for dining was 0.14 in the rich city but 0.75 in the focus city.
+      dining: personas_distinct_in_city
+
+  - id: freshness
+    description: Trend-biased answer key; detects stale, years-old recommendations.
+    domains: [dining]  # bias.trends changes dining only (E6, coverage freshness probe, param_evidence)
+    scenarios_per_cell: 1
+    max_scenarios: 8
+    params:
+      bias.trends: high

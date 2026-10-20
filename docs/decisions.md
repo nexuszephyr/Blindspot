@@ -167,3 +167,17 @@ recordings.
 pairwise top-10 Jaccard across 4 personas was 0.07-0.24 for music, film and brands in both cities.
 Dining was 0.14 in the rich city but 0.75 in the focus city, so dining audience probes need a
 per-city coverage check before use (#16).
+
+**D38. Personas are taste-only and each has its own audience set (#14, 2026-10-20).** Every domain's
+answer-key shape uses the persona's audience (D35), so two personas with the same audiences would get
+identical answer keys; the loader rejects that. Audiences are given as a resolved URN or as
+`{name, type}` for #15 to match against `GET /v2/audiences`, since Qloo has no audience name search.
+Both forms compare as one key, and #15 re-runs the check on the resolved URNs. Identity-based
+audience types (`communities`, `political_preferences`, `lifestyle_preferences_beliefs`) and identity
+words (whole tokens, in every text that can reach a prompt) are rejected while `allow_identity` is
+false. Config loads strictly: unknown keys, references, probe pairs and `condition` checks fail rather
+than fall back (review of #88). Age is a prompt detail only; a shape that sends it refuses UNVERIFIED
+bands such as `36_to_55`.
+Dining tastes are stated as interest tags, not seed places, because places are city-specific.
+`take` stays 10 in `domains.yaml` (the recon scripts' cache keys use it); the answer key uses the new
+`depth` (20).

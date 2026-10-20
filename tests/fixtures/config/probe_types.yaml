@@ -1,0 +1,16 @@
+probe_types:
+  - id: core
+    description: Synthetic test probe asking one domain.
+    domains: [dining, music]
+    max_scenarios: 4
+  - id: bridge
+    description: Synthetic test probe across two domains.
+    domains: [music]
+    max_scenarios: 2
+    requires_pairs: true
+    pairs: {music: dining}
+  - id: freshness
+    description: Synthetic test probe with a trend bias.
+    domains: [dining]
+    max_scenarios: 2
+    params: {bias.trends: high}
