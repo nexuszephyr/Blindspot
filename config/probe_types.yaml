@@ -1,5 +1,5 @@
 # How each exam question is varied. Data, not code: the generator (#16) reads this file.
-# Field reference: docs/scenarios.md.
+# Field reference: docs/scenarios.md. Probe ids come from this file; the generator implements each.
 #
 # domains: where the probe is ALLOWED. Each domain enables probes in domains.yaml (`probes`), and
 #   may only enable ones that allow it here.
@@ -7,8 +7,10 @@
 # max_scenarios: cap for this probe across the exam. Totals aim for 80 to 120 scenarios (#16).
 # params: extra answer-key params for this probe. Ids only, and each must be VERIFIED for every
 #   allowed domain's filter.type (src/blindspot/qloo/params.py); the loader checks this.
-# pairs (bridge only): asked domain -> the domain the taste is stated in.
-# condition: domain -> a check the generator must pass before using the probe there.
+# requires_pairs + pairs: the taste is stated in another domain; pairs maps asked domain -> stated
+#   domain, and every domain that enables the probe needs a pair.
+# condition: domain -> a check the generator must pass first. Only checks the generator implements
+#   are accepted (catalog.KNOWN_CONDITIONS), so a typo fails to load instead of dropping the guard.
 probe_types:
   - id: core
     description: Persona taste plus a city; ask for recommendations in one domain.
@@ -27,6 +29,7 @@ probe_types:
     domains: [dining, music, film_tv, brands]
     scenarios_per_cell: 1
     max_scenarios: 16
+    requires_pairs: true
     pairs:
       dining: music
       music: film_tv

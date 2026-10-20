@@ -1,4 +1,5 @@
-"""The exam is data (config/*.yaml), validated here. Never hard-code cities, domains or personas in code.
+"""The exam is data (config/*.yaml), validated here. Never hard-code cities, domains, personas or
+probe types in code.
 
 Files and what they hold (field reference: docs/scenarios.md):
 
@@ -7,13 +8,16 @@ Files and what they hold (field reference: docs/scenarios.md):
 - probe_types.yaml: how a question is varied (core, swap, bridge, audience, freshness).
 - personas.yaml: who is asking. Taste only, never identity.
 
-`load_catalog()` loads all four and checks every cross-reference. Errors are `ConfigError`, which
+`load_catalog()` loads all four and checks every cross-reference. Anything that would load silently
+but mean something else (an unknown key, an unknown reference, a typo in a condition) is an error,
+for the same reason Qloo's silent-ignore is guarded on the API side. Errors are `ConfigError`, which
 names the file, the item and the field.
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,21 +29,38 @@ from .qloo.models import INSIGHTS_TYPES, SEARCH_TYPES
 from .qloo.params import check_params
 
 SignalKind = Literal["audience", "entity", "tag"]
-ProbeId = Literal["core", "swap", "bridge", "audience", "freshness"]
-# Qloo signal.demographics.age values. 35_and_younger and 55_and_older are VERIFIED (recon E5);
-# 36_to_55 is documented but UNVERIFIED until #15 sends it. Age never reaches dining (E5, E11).
-AgeBand = Literal["35_and_younger", "36_to_55", "55_and_older"]
 
-# Identity-based audiences (AGENTS §13): opt-in only. Parent types from GET /v2/audiences, plus words
-# that would make a persona about who someone is rather than what they like.
+# Qloo signal.demographics.age values. 36_to_55 is documented but UNVERIFIED until #15 sends it.
+# No current query shape sends age (every domain uses the audience, E13); a shape that sets
+# `with_age: true` only loads if every persona in that domain has a VERIFIED band.
+AgeBand = Literal["35_and_younger", "36_to_55", "55_and_older"]
+VERIFIED_AGE_BANDS = frozenset({"35_and_younger", "55_and_older"})  # recon E5
+
+# Checks the scenario generator (#16) implements. A `condition` naming anything else fails to load,
+# so a typo can't silently drop a guard such as D37's dining check.
+KNOWN_CONDITIONS = frozenset({"personas_distinct_in_city"})
+
+# Identity-based audiences (AGENTS §13) are opt-in. Matching is on whole tokens (split on anything
+# that isn't a letter), so taste words such as "white-tablecloth", "black coffee" or "Southeast
+# Asian street food" pass, while `race_ethnicity` inside a URN is caught (by "ethnicity"; bare
+# "race" is left out because it is also a sport: "race-day food").
 IDENTITY_AUDIENCE_TYPES = frozenset({"communities", "political_preferences", "lifestyle_preferences_beliefs"})
-IDENTITY_WORDS = re.compile(
-    r"religio|christian|muslim|islam|jewish|hindu|buddhis|sikh|atheis|lgbt|gay|lesbian|queer|"
-    r"transgender|orientation|ethnic|\brace\b|racial|african|asian|latin[oax]|hispanic|black|white|"
-    r"caste|immigra|politic",
-    re.I,
-)
-AUDIENCE_URN = re.compile(r"^urn:audience:([a-z0-9_]+):[\w.\-]+$")
+IDENTITY_TOKENS = frozenset(
+    {
+        "religion", "religions", "religious", "faith", "christian", "christians", "muslim", "muslims",
+        "islam", "islamic", "jewish", "judaism", "hindu", "hindus", "buddhist", "buddhists", "sikh",
+        "sikhs", "atheist", "atheists", "ethnicity", "ethnicities", "ethnic", "racial",
+        "lgbt", "lgbtq", "gay", "lesbian", "bisexual", "queer", "transgender", "orientation", "caste",
+        "castes", "immigrant", "immigrants", "immigration", "political", "politics", "conservative",
+        "liberal", "nationality",
+    }
+)  # fmt: skip
+AUDIENCE_URN = re.compile(r"^urn:audience:([a-z0-9_]+):([\w.\-]+)$")
+
+
+def identity_terms(text: str) -> list[str]:
+    """Identity words in `text`, as whole tokens. Empty when the text is about taste."""
+    return sorted({t for t in re.findall(r"[a-z]+", text.lower()) if t in IDENTITY_TOKENS})
 
 
 class ConfigError(ValueError):
@@ -47,11 +68,11 @@ class ConfigError(ValueError):
 
 
 class _Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid")  # an unknown or misspelled key fails instead of defaulting
 
 
 # --------------------------------------------------------------------------- cities and domains
-class City(BaseModel):
+class City(_Strict):
     id: str = Field(pattern=r"^[a-z0-9_]+$")
     display_name: str
     location: str = Field(min_length=1, max_length=100)  # sent as *.location.query
@@ -65,9 +86,10 @@ class QueryShape(_Strict):
 
     signal: SignalKind  # the persona signal added to the location for the answer key
     candidate_scoring: list[SignalKind] = Field(default_factory=list)  # signals that score an agent's picks
+    with_age: bool = False  # also send the persona's age band (never for places: no effect, E5)
 
 
-class Domain(BaseModel):
+class Domain(_Strict):
     id: str = Field(pattern=r"^[a-z0-9_]+$")
     filter_type: str
     take: int = Field(ge=1, le=50)  # the standard (location-only) query size used by recon scripts
@@ -91,6 +113,8 @@ class Domain(BaseModel):
     def _pool_covers_depth(self) -> Domain:
         if self.membership_pool < self.depth:
             raise ValueError(f"membership_pool ({self.membership_pool}) is smaller than depth ({self.depth})")
+        if self.query_shape and self.query_shape.with_age and self.filter_type == "urn:entity:place":
+            raise ValueError("query_shape.with_age: age doesn't change places (E5); use the audience")
         return self
 
     def location_params(self, city: City) -> dict[str, str]:
@@ -99,24 +123,30 @@ class Domain(BaseModel):
 
 # --------------------------------------------------------------------------- probe types
 class ProbeType(_Strict):
-    id: ProbeId
+    id: str = Field(pattern=r"^[a-z0-9_]+$")
     description: str = Field(min_length=10)
     domains: list[str] = Field(min_length=1)  # domains this probe is allowed in
     scenarios_per_cell: int = Field(default=1, ge=1, le=5)
     max_scenarios: int = Field(ge=0, le=200)  # cap for the generator (#16)
     params: dict[str, Any] = Field(default_factory=dict)  # extra answer-key params, VERIFIED per domain
-    pairs: dict[str, str] = Field(default_factory=dict)  # bridge only: asked domain -> stated domain
-    condition: dict[str, str] = Field(default_factory=dict)  # domain -> check that must pass first
+    requires_pairs: bool = False  # the taste is stated in another domain (bridge)
+    pairs: dict[str, str] = Field(default_factory=dict)  # asked domain -> stated domain
+    condition: dict[str, str] = Field(default_factory=dict)  # domain -> a KNOWN_CONDITIONS check
 
     @model_validator(mode="after")
-    def _pairs_only_for_bridge(self) -> ProbeType:
-        if self.id == "bridge" and not self.pairs:
-            raise ValueError("bridge needs `pairs` (asked domain -> stated domain)")
-        if self.id != "bridge" and self.pairs:
-            raise ValueError("`pairs` is only for the bridge probe")
+    def _pairs_and_conditions(self) -> ProbeType:
+        if self.requires_pairs and not self.pairs:
+            raise ValueError("requires_pairs is true but `pairs` is empty")
+        if self.pairs and not self.requires_pairs:
+            raise ValueError("`pairs` is set but requires_pairs is false")
         for asked, stated in self.pairs.items():
             if asked == stated:
                 raise ValueError(f"pairs: {asked} -> {stated} bridges a domain to itself")
+        for domain, check in self.condition.items():
+            if check not in KNOWN_CONDITIONS:
+                raise ValueError(
+                    f"condition.{domain}: unknown check {check!r}; known: {sorted(KNOWN_CONDITIONS)}"
+                )
         return self
 
 
@@ -150,8 +180,17 @@ def audience_type(a: AudienceRef) -> str:
     return m[1] if m else ""
 
 
-def audience_key(a: AudienceRef) -> str:
-    return a if isinstance(a, str) else f"{a.type}:{a.name.strip().lower()}"
+def audience_key(a: AudienceRef, resolved: Mapping[str, str] | None = None) -> str:
+    """One comparable key per audience, whichever form it's written in. Before #15 resolves names,
+    `{name: fine dining, type: leisure}` and `urn:audience:leisure:fine_dining` share a key; after,
+    pass #15's {name key: URN} map so both forms compare as the resolved URN."""
+    if isinstance(a, str):
+        m = AUDIENCE_URN.match(a)
+        return f"{m[1]}:{m[2].lower()}" if m else a
+    name_key = f"{a.type}:{re.sub(r'[^a-z0-9]+', '_', a.name.lower()).strip('_')}"
+    if resolved and name_key in resolved:
+        return audience_key(resolved[name_key])
+    return name_key
 
 
 class Persona(_Strict):
@@ -163,6 +202,7 @@ class Persona(_Strict):
     cities: list[str] = Field(default_factory=list)  # empty = every city
     seeds: dict[str, list[Seed]] = Field(default_factory=dict)  # domain -> 1 to 3 seed entities
     interest_tags: dict[str, list[str]] = Field(default_factory=dict)  # domain -> 1 to 3 tag names
+    exclude_probes: list[str] = Field(default_factory=list)  # probe types never generated for it
     notes: str = ""
 
     @field_validator("audiences")
@@ -201,12 +241,23 @@ class Persona(_Strict):
             raise ValueError("duplicate domain in `domains`")
         return self
 
+    def prompt_texts(self) -> dict[str, str]:
+        """Every text from this persona that can reach a target prompt or a Qloo lookup."""
+        out = {"descriptor": self.descriptor, "notes": self.notes}
+        for a in self.audiences:
+            out[f"audiences ({a if isinstance(a, str) else a.name})"] = a if isinstance(a, str) else a.name
+        for d, tags in self.interest_tags.items():
+            out |= {f"interest_tags.{d}": t for t in tags}
+        for d, seeds in self.seeds.items():
+            out |= {f"seeds.{d}": s.name for s in seeds}
+        return out
+
 
 class AudiencePolicy(_Strict):
     allow_identity: bool = False  # identity-based audiences are opt-in and off by default (AGENTS §13)
 
 
-# --------------------------------------------------------------------------- loading
+# --------------------------------------------------------------------------- the catalog
 class Catalog(BaseModel):
     cities: list[City]
     domains: list[Domain]
@@ -215,15 +266,33 @@ class Catalog(BaseModel):
     audience_policy: AudiencePolicy
 
     def domain(self, domain_id: str) -> Domain:
-        return next(d for d in self.domains if d.id == domain_id)
+        return _by_id(self.domains, domain_id, "domain")
 
     def probe(self, probe_id: str) -> ProbeType:
-        return next(p for p in self.probe_types if p.id == probe_id)
+        return _by_id(self.probe_types, probe_id, "probe type")
+
+    def persona(self, persona_id: str) -> Persona:
+        return _by_id(self.personas, persona_id, "persona")
+
+    def city(self, city_id: str) -> City:
+        return _by_id(self.cities, city_id, "city")
 
     def persona_cities(self, persona: Persona) -> list[City]:
         return [c for c in self.cities if not persona.cities or c.id in persona.cities]
 
+    def persona_probes(self, persona: Persona, domain_id: str) -> list[str]:
+        """Probe types to generate for this persona in this domain."""
+        return [p for p in self.domain(domain_id).probes if p not in persona.exclude_probes]
 
+
+def _by_id(items: list, item_id: str, kind: str):
+    found = next((x for x in items if x.id == item_id), None)
+    if found is None:
+        raise KeyError(f"unknown {kind} id {item_id!r}; known: {[x.id for x in items]}")
+    return found
+
+
+# --------------------------------------------------------------------------- loading
 def _read(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise ConfigError(f"{path}: file not found")
@@ -236,13 +305,15 @@ def _read(path: Path) -> dict[str, Any]:
     return data
 
 
-def _where(path: Path, key: str, i: int, item: Any) -> str:
-    ident = item.get("id") if isinstance(item, dict) else None
-    return f"{path}: {key}[{i}]" + (f" (id={ident})" if ident else "")
+def _errors(exc: ValidationError) -> str:
+    return "; ".join(
+        f"{'.'.join(map(str, e['loc'])) or '(item)'}: {e['msg'].removeprefix('Value error, ')}"
+        for e in exc.errors()
+    )
 
 
-def _load(path: Path, key: str, model):
-    items = _read(Path(path)).get(key) or []
+def _items(path: Path, data: dict[str, Any], key: str, model):
+    items = data.get(key) or []
     if not isinstance(items, list):
         raise ConfigError(f"{path}: `{key}` must be a list")
     out = []
@@ -250,16 +321,18 @@ def _load(path: Path, key: str, model):
         try:
             out.append(model.model_validate(item))
         except ValidationError as exc:
-            errs = "; ".join(
-                f"{'.'.join(map(str, e['loc'])) or '(item)'}: {e['msg'].removeprefix('Value error, ')}"
-                for e in exc.errors()
-            )
-            raise ConfigError(f"{_where(Path(path), key, i, item)}: {errs}") from None
+            ident = item.get("id") if isinstance(item, dict) else None
+            where = f"{path}: {key}[{i}]" + (f" (id={ident})" if ident else "")
+            raise ConfigError(f"{where}: {_errors(exc)}") from None
     ids = [x.id for x in out]
     dupes = sorted({x for x in ids if ids.count(x) > 1})
     if dupes:
         raise ConfigError(f"{path}: duplicate ids {dupes}")
     return out
+
+
+def _load(path: Path, key: str, model):
+    return _items(path, _read(path), key, model)
 
 
 def load_cities(config_dir: Path | str = "config") -> list[City]:
@@ -274,67 +347,77 @@ def load_probe_types(config_dir: Path | str = "config") -> list[ProbeType]:
     return _load(Path(config_dir) / "probe_types.yaml", "probe_types", ProbeType)
 
 
-def load_audience_policy(config_dir: Path | str = "config") -> AudiencePolicy:
+def _personas_and_policy(config_dir: Path | str) -> tuple[list[Persona], AudiencePolicy]:
+    """Parse personas.yaml once: the policy used to validate is the policy returned."""
     path = Path(config_dir) / "personas.yaml"
+    data = _read(path)
     try:
-        return AudiencePolicy.model_validate(_read(path).get("audience_policy") or {})
+        policy = AudiencePolicy.model_validate(data.get("audience_policy") or {})
     except ValidationError as exc:
-        raise ConfigError(f"{path}: audience_policy: {exc.errors()[0]['msg']}") from None
+        raise ConfigError(f"{path}: audience_policy: {_errors(exc)}") from None
+    personas = _items(path, data, "personas", Persona)
+    if not policy.allow_identity:
+        for p in personas:
+            _reject_identity(path, p)
+    return personas, policy
+
+
+def load_audience_policy(config_dir: Path | str = "config") -> AudiencePolicy:
+    return _personas_and_policy(config_dir)[1]
 
 
 def load_personas(config_dir: Path | str = "config") -> list[Persona]:
     """Personas, checked on their own and against the policy. `load_catalog` adds the cross-checks."""
-    path = Path(config_dir) / "personas.yaml"
-    personas = _load(path, "personas", Persona)
-    if not load_audience_policy(config_dir).allow_identity:
-        for p in personas:
-            _reject_identity(path, p)
-    return personas
+    return _personas_and_policy(config_dir)[0]
 
 
 def _reject_identity(path: Path, p: Persona) -> None:
     for a in p.audiences:
-        label = a if isinstance(a, str) else a.name
-        if audience_type(a) in IDENTITY_AUDIENCE_TYPES or IDENTITY_WORDS.search(label):
+        if audience_type(a) in IDENTITY_AUDIENCE_TYPES:
             raise ConfigError(
-                f"{path}: persona {p.id}: audiences: {label!r} is identity-based; set "
+                f"{path}: persona {p.id}: audiences: type {audience_type(a)!r} is identity-based; set "
                 "audience_policy.allow_identity: true to opt in (AGENTS §13)"
             )
-    if IDENTITY_WORDS.search(p.descriptor):
-        raise ConfigError(f"{path}: persona {p.id}: descriptor: describe taste, not identity")
+    for field, text in p.prompt_texts().items():
+        if terms := identity_terms(text):
+            raise ConfigError(
+                f"{path}: persona {p.id}: {field}: {terms} describe identity, not taste; set "
+                "audience_policy.allow_identity: true to opt in (AGENTS §13)"
+            )
+
+
+def check_distinct_audiences(
+    personas: list[Persona], resolved: Mapping[str, str] | None = None, *, where: str = "personas.yaml"
+) -> None:
+    """Every persona needs an audience set no other persona has: the answer key uses the audience
+    (D35), so equal sets mean equal keys (D38). load_catalog runs this on the names as written;
+    #15 must run it again with its {name key: URN} map, once names have resolved."""
+    owners: dict[frozenset[str], str] = {}
+    for p in personas:
+        key = frozenset(audience_key(a, resolved) for a in p.audiences)
+        if key and key in owners:
+            raise ConfigError(
+                f"{where}: persona {p.id}: audiences: same set as persona {owners[key]}; "
+                "their answer keys would be identical"
+            )
+        owners[key] = p.id
 
 
 def load_catalog(config_dir: Path | str = "config") -> Catalog:
     """Load every config file and check that all references resolve."""
     root = Path(config_dir)
+    personas, policy = _personas_and_policy(root)
     cat = Catalog(
         cities=load_cities(root),
         domains=load_domains(root),
         probe_types=load_probe_types(root),
-        personas=load_personas(root),
-        audience_policy=load_audience_policy(root),
+        personas=personas,
+        audience_policy=policy,
     )
     _check_probes(root, cat)  # first: domains.yaml refers to these
     _check_domains(root, cat)
     _check_personas(root, cat)
     return cat
-
-
-def _check_domains(root: Path, cat: Catalog) -> None:
-    path = root / "domains.yaml"
-    probes = {p.id: p for p in cat.probe_types}
-    for d in cat.domains:
-        if d.query_shape is None:
-            raise ConfigError(f"{path}: domain {d.id}: query_shape is required")
-        if not d.probes:
-            raise ConfigError(f"{path}: domain {d.id}: probes: enable at least one probe type")
-        for pid in d.probes:
-            if pid not in probes:
-                raise ConfigError(f"{path}: domain {d.id}: probes: unknown probe type {pid!r}")
-            if d.id not in probes[pid].domains:
-                raise ConfigError(
-                    f"{path}: domain {d.id}: probes: {pid!r} isn't allowed for {d.id} in probe_types.yaml"
-                )
 
 
 def _check_probes(root: Path, cat: Catalog) -> None:
@@ -357,11 +440,33 @@ def _check_probes(root: Path, cat: Catalog) -> None:
                 raise ConfigError(f"{path}: probe {p.id}: params for {did}: {exc}") from None
 
 
+def _check_domains(root: Path, cat: Catalog) -> None:
+    path = root / "domains.yaml"
+    probes = {p.id: p for p in cat.probe_types}
+    for d in cat.domains:
+        if d.query_shape is None:
+            raise ConfigError(f"{path}: domain {d.id}: query_shape is required")
+        if not d.probes:
+            raise ConfigError(f"{path}: domain {d.id}: probes: enable at least one probe type")
+        for pid in d.probes:
+            if pid not in probes:
+                raise ConfigError(f"{path}: domain {d.id}: probes: unknown probe type {pid!r}")
+            if d.id not in probes[pid].domains:
+                raise ConfigError(
+                    f"{path}: domain {d.id}: probes: {pid!r} isn't allowed for {d.id} in probe_types.yaml"
+                )
+            if probes[pid].requires_pairs and d.id not in probes[pid].pairs:
+                raise ConfigError(
+                    f"{path}: domain {d.id}: probes: {pid!r} needs a pair for {d.id} "
+                    f"(probe_types.yaml {pid}.pairs) naming the domain the taste is stated in"
+                )
+
+
 def _check_personas(root: Path, cat: Catalog) -> None:
     path = root / "personas.yaml"
     domains = {d.id: d for d in cat.domains}
+    probes = {p.id: p for p in cat.probe_types}
     cities = {c.id for c in cat.cities}
-    owners: dict[frozenset[str], str] = {}
     for p in cat.personas:
         where = f"{path}: persona {p.id}"
         unknown = sorted(set(p.domains) - set(domains))
@@ -370,25 +475,38 @@ def _check_personas(root: Path, cat: Catalog) -> None:
         unknown = sorted(set(p.cities) - cities)
         if unknown:
             raise ConfigError(f"{where}: cities: unknown city id(s) {unknown}")
+        unknown = sorted(set(p.exclude_probes) - set(probes))
+        if unknown:
+            raise ConfigError(f"{where}: exclude_probes: unknown probe type(s) {unknown}")
         for did in p.domains:
-            signal = domains[did].query_shape.signal
-            if signal == "audience" and not p.audiences:
-                raise ConfigError(
-                    f"{where}: audiences: required, because {did}'s query shape uses an audience signal"
-                    " (age and gender don't change places, E5/E13)"
-                )
-            if signal == "entity" and not p.seeds.get(did):
-                raise ConfigError(f"{where}: seeds.{did}: required by {did}'s entity query shape")
-            if signal == "tag" and not p.interest_tags.get(did):
-                raise ConfigError(f"{where}: interest_tags.{did}: required by {did}'s tag query shape")
-            if not (p.seeds.get(did) or p.interest_tags.get(did)):
-                raise ConfigError(
-                    f"{where}: {did}: state a taste in seeds.{did} or interest_tags.{did} (prompts use it)"
-                )
-        # With an audience-only shape, two personas with the same audiences get the same answer key.
-        key = frozenset(audience_key(a) for a in p.audiences)
-        if key and key in owners:
+            _check_persona_domain(where, p, domains[did], probes)
+    check_distinct_audiences(cat.personas, where=str(path))
+
+
+def _check_persona_domain(where: str, p: Persona, d: Domain, probes: dict[str, ProbeType]) -> None:
+    shape = d.query_shape
+    if shape.signal == "audience" and not p.audiences:
+        raise ConfigError(
+            f"{where}: audiences: required, because {d.id}'s query shape uses an audience signal"
+            " (age and gender don't change places, E5/E13)"
+        )
+    if shape.signal == "entity" and not p.seeds.get(d.id):
+        raise ConfigError(f"{where}: seeds.{d.id}: required by {d.id}'s entity query shape")
+    if shape.signal == "tag" and not p.interest_tags.get(d.id):
+        raise ConfigError(f"{where}: interest_tags.{d.id}: required by {d.id}'s tag query shape")
+    if shape.with_age and p.age_band not in VERIFIED_AGE_BANDS:
+        raise ConfigError(
+            f"{where}: age_band: {p.age_band!r} is UNVERIFIED, and {d.id}'s query shape sends age; "
+            "verify it first (#15) or use a VERIFIED band"
+        )
+    if not (p.seeds.get(d.id) or p.interest_tags.get(d.id)):
+        raise ConfigError(
+            f"{where}: {d.id}: state a taste in seeds.{d.id} or interest_tags.{d.id} (prompts use it)"
+        )
+    for pid in d.probes:
+        stated = probes[pid].pairs.get(d.id)
+        if stated and pid not in p.exclude_probes and stated not in p.domains:
             raise ConfigError(
-                f"{where}: audiences: same set as persona {owners[key]}; their answer keys would match"
+                f"{where}: {pid} in {d.id} states the taste in {stated}, which this persona doesn't have; "
+                f"add {stated} to its domains or list {pid!r} in exclude_probes"
             )
-        owners[key] = p.id

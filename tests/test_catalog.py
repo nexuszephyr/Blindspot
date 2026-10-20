@@ -9,9 +9,10 @@ import yaml
 
 from blindspot.catalog import (
     IDENTITY_AUDIENCE_TYPES,
-    IDENTITY_WORDS,
     ConfigError,
     audience_type,
+    check_distinct_audiences,
+    identity_terms,
     load_catalog,
     load_cities,
     load_domains,
@@ -158,9 +159,9 @@ def test_identity_descriptor_rejected(tmp_path):
         ("probe_types", lambda d: d["probe_types"][0].update(domains=["dining", "poetry"]), ["poetry"]),
         ("probe_types", lambda d: d["probe_types"][1].update(pairs={"music": "poetry"}), ["poetry"]),
         (
-            "probe_types",
-            lambda d: d["probe_types"].append(dict(d["probe_types"][0], id="rumour")),
-            ["rumour"],
+            "personas",
+            lambda d: d["personas"][0].update(exclude_probes=["rumour"]),
+            ["rumour", "exclude_probes"],
         ),
     ],
 )
@@ -218,6 +219,145 @@ def test_field_rules(tmp_path, name, fn, needles):
 def test_real_personas_describe_taste_not_identity():
     cat = load_catalog(ROOT / "config")
     for p in cat.personas:
-        assert not IDENTITY_WORDS.search(p.descriptor), p.id
+        assert not any(identity_terms(t) for t in p.prompt_texts().values()), p.id
         for a in p.audiences:
             assert audience_type(a) not in IDENTITY_AUDIENCE_TYPES, p.id
+
+
+# --- review fixes on #88: nothing that should fail may load silently ---------------------------------
+
+
+def test_bridge_stated_domain_must_belong_to_the_persona(tmp_path):
+    # test_listener has only music; music's bridge states the taste in dining
+    _rejects(
+        tmp_path,
+        "personas",
+        lambda d: d["personas"][1].pop("exclude_probes"),
+        "test_listener",
+        "dining",
+        "exclude_probes",
+    )
+    cat = load_catalog(FIX)
+    assert cat.persona_probes(cat.persona("test_listener"), "music") == ["core"]
+    assert cat.persona_probes(cat.persona("test_snacker"), "music") == ["core", "bridge"]
+
+
+def test_domain_enabling_a_paired_probe_needs_a_pair(tmp_path):
+    # allowing bridge in dining is fine on its own; enabling it there without a dining pair is the error
+    root = _copy(tmp_path)
+    _edit(root, "probe_types", lambda d: d["probe_types"][1].update(domains=["music", "dining"]))
+    _edit(root, "domains", lambda d: d["domains"][0].update(probes=["core", "bridge", "freshness"]))
+    with pytest.raises(ConfigError, match=r"domains\.yaml: domain dining: probes: 'bridge' needs a pair"):
+        load_catalog(root)
+
+
+def test_unknown_condition_rejected(tmp_path):
+    def typo(d):
+        d["probe_types"][0]["condition"] = {"dining": "personas_distinct_in_cty"}
+
+    _rejects(tmp_path, "probe_types", typo, "personas_distinct_in_cty", "condition.dining")
+
+
+@pytest.mark.parametrize(
+    "name, fn, key",
+    [
+        ("domains", lambda d: d["domains"][0].update(depht=30), "depht"),
+        ("domains", lambda d: d["domains"][0].update({"membership-pool": 40}), "membership-pool"),
+        ("domains", lambda d: d["domains"][0]["query_shape"].update(sgnal="tag"), "sgnal"),
+        ("cities", lambda d: d["cities"][0].update(teir=1), "teir"),
+        ("probe_types", lambda d: d["probe_types"][0].update(max_scenario=3), "max_scenario"),
+    ],
+)
+def test_unknown_keys_fail_instead_of_defaulting(tmp_path, name, fn, key):
+    _rejects(tmp_path, name, fn, key)
+
+
+def test_lookups_raise_keyerror_with_the_id():
+    cat = load_catalog(FIX)
+    for lookup in (cat.domain, cat.probe, cat.persona, cat.city):
+        with pytest.raises(KeyError, match="film"):
+            lookup("film")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["Books white-tablecloth restaurants", "Drinks black coffee in quiet cafes", "Southeast Asian street food",
+     "Caucasian mountain hikes", "Racing games and race-day food", "Latin jazz and salsa clubs"],
+)  # fmt: skip
+def test_identity_filter_allows_taste_words(text):
+    assert identity_terms(text) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["urn:audience:demographics:race_ethnicity", "A religious person", "LGBTQ nightlife", "immigrant food"],
+)
+def test_identity_filter_catches_whole_words_and_urn_tokens(text):
+    assert identity_terms(text)
+
+
+def test_identity_urn_token_rejected(tmp_path):
+    aud = ["urn:audience:demographics:race_ethnicity"]
+    _rejects(tmp_path, "personas", lambda d: d["personas"][0].update(audiences=aud), "race", "allow_identity")
+
+
+@pytest.mark.parametrize(
+    "fn, field",
+    [
+        (lambda p: p["interest_tags"].update(dining=["religious holiday food"]), "interest_tags.dining"),
+        (lambda p: p["seeds"]["music"][0].update(name="Political Rally Anthems"), "seeds.music"),
+        (lambda p: p.update(notes="target the ethnic community"), "notes"),
+    ],
+)
+def test_identity_terms_rejected_in_tags_seeds_and_notes(tmp_path, fn, field):
+    _rejects(tmp_path, "personas", lambda d: fn(d["personas"][0]), field)
+
+
+def test_taste_descriptor_with_colour_words_loads(tmp_path):
+    root = _copy(tmp_path)
+    _edit(
+        root, "personas", lambda d: d["personas"][0].update(descriptor="Books white-tablecloth restaurants")
+    )
+    assert load_catalog(root).personas[0].descriptor.startswith("Books")
+
+
+def test_same_audience_in_two_forms_rejected(tmp_path):
+    def two_forms(d):
+        d["personas"][0]["audiences"] = [
+            "urn:audience:leisure:test_listening"
+        ]  # == test_listener's name form
+
+    _rejects(tmp_path, "personas", two_forms, "test_snacker", "same set")
+
+
+def test_distinct_audience_check_reruns_after_resolution():
+    cat = load_catalog(FIX)
+    check_distinct_audiences(cat.personas)  # distinct as written
+    resolved = {"leisure:test_listening": "urn:audience:hobbies_and_interests:test_snacks"}
+    with pytest.raises(ConfigError, match="same set"):
+        check_distinct_audiences(cat.personas, resolved)
+
+
+def test_unverified_age_band_refused_only_when_a_shape_sends_age(tmp_path):
+    root = _copy(tmp_path)
+    _edit(root, "personas", lambda d: d["personas"][1].update(age_band="36_to_55"))
+    assert load_catalog(root)  # no shape sends age: a prompt detail only
+    _edit(root, "domains", lambda d: d["domains"][1]["query_shape"].update(with_age=True))
+    with pytest.raises(ConfigError, match="'36_to_55' is UNVERIFIED"):
+        load_catalog(root)
+
+
+def test_age_never_sent_for_places(tmp_path):
+    _rejects(
+        tmp_path, "domains", lambda d: d["domains"][0]["query_shape"].update(with_age=True), "with_age", "E5"
+    )
+
+
+def test_personas_yaml_parsed_once(monkeypatch):
+    import blindspot.catalog as catalog
+
+    reads: list[str] = []
+    real = catalog._read
+    monkeypatch.setattr(catalog, "_read", lambda path: reads.append(path.name) or real(path))
+    load_catalog(FIX)
+    assert reads.count("personas.yaml") == 1

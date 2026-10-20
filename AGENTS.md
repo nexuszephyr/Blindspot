@@ -198,7 +198,7 @@ replay without new calls.
 coverage probe for it, record the verdict, and add it to the demo tier only if it's rich.
 
 **Add a persona.** Add it to `config/personas.yaml` with a descriptor about taste (never identity),
-an age band, an audience no other persona has (every domain's answer key uses it), and 1 to 3 seeds or
+an age band, an audience set no other persona has (every domain's answer key uses it), and 1 to 3 seeds or
 interest tags per domain; check it with `load_catalog()`; run `scripts/resolve_seeds.py` (#15) and
 review anything flagged ambiguous in `docs/seed_review.md`. Steps and every field:
 [docs/scenarios.md](docs/scenarios.md).

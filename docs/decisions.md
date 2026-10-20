@@ -172,8 +172,12 @@ per-city coverage check before use (#16).
 answer-key shape uses the persona's audience (D35), so two personas with the same audiences would get
 identical answer keys; the loader rejects that. Audiences are given as a resolved URN or as
 `{name, type}` for #15 to match against `GET /v2/audiences`, since Qloo has no audience name search.
-Identity-based audience types (`communities`, `political_preferences`,
-`lifestyle_preferences_beliefs`) and identity terms are rejected while `allow_identity` is false.
+Both forms compare as one key, and #15 re-runs the check on the resolved URNs. Identity-based
+audience types (`communities`, `political_preferences`, `lifestyle_preferences_beliefs`) and identity
+words (whole tokens, in every text that can reach a prompt) are rejected while `allow_identity` is
+false. Config loads strictly: unknown keys, references, probe pairs and `condition` checks fail rather
+than fall back (review of #88). Age is a prompt detail only; a shape that sends it refuses UNVERIFIED
+bands such as `36_to_55`.
 Dining tastes are stated as interest tags, not seed places, because places are city-specific.
 `take` stays 10 in `domains.yaml` (the recon scripts' cache keys use it); the answer key uses the new
 `depth` (20).

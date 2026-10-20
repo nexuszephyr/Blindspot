@@ -15,5 +15,6 @@ personas:
     audiences: [{name: test listening, type: leisure}]
     domains: [music]
     cities: [other_town]
+    exclude_probes: [bridge]  # bridge in music states the taste in dining, which it doesn't have
     seeds:
       music: [{name: Test Artist Two, type: urn:entity:artist}]

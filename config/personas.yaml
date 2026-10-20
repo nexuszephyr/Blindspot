@@ -6,15 +6,18 @@
 #   types, or religion/ethnicity/orientation terms) are rejected unless allow_identity is true,
 #   which needs the maintainer's approval (AGENTS §13).
 # - Every domain's answer-key shape uses the persona's audience (E13, D35), so each persona needs
-#   at least one audience, and no two personas may share the same audience set (their answer keys
-#   would be identical).
+#   at least one audience, and no two personas may have the same audience set (their answer keys
+#   would be identical). #15 re-checks this after names resolve to URNs.
+# - Identity words are rejected in every text that can reach a prompt or a lookup: descriptor,
+#   audiences, interest tags, seed names and notes (whole words only, so "black coffee" is fine).
 # - Every enabled domain needs a stated taste (seeds or interest_tags, 1 to 3 each); target prompts
 #   mention only these, the age band and the city (AGENTS §8).
 #
 # audiences: a resolved `urn:audience:<type>:<id>` (the five below were listed by GET /v2/audiences
 #   on 2026-10-20), or {name, type} for #15 to match against that listing.
 # age_band: 35_and_younger and 55_and_older are VERIFIED; 36_to_55 is UNVERIFIED until #15 sends it.
-#   Age is a prompt detail and a signal for non-place domains only (it doesn't change places, E5).
+#   Today age is a prompt detail only: no query shape sends it (every domain uses the audience). A
+#   shape with `with_age: true` refuses personas whose band is UNVERIFIED.
 # seeds: entity names with their /search type. Dining uses interest_tags (cuisines, formats)
 #   because places are city-specific.
 audience_policy:
