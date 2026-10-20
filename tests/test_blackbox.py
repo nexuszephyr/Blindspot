@@ -11,82 +11,18 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass, field
 
-import httpx
 import pytest
 from pydantic import SecretStr
 
 from blindspot.qloo.breaker import CircuitBreaker
 from blindspot.qloo.cache import cache_key, normalize_params
-from blindspot.qloo.client import MAX_RETRY_AFTER_S, QlooClient
+from blindspot.qloo.client import MAX_RETRY_AFTER_S
 from blindspot.qloo.snapshot import Snapshot
-from blindspot.service.app import create_app
-from tests.conftest import FAKE_KEY
-from tests.fakeqloo import SEARCH_RESULT, FakeQloo, FakeTransport
+from tests.conftest import FAKE_KEY, HARNESS_SALT
+from tests.fakeqloo import SEARCH_RESULT, FakeQloo, Harness, check_behaviour
 
-SALT = "blackbox-salt-91x"
-
-
-@dataclass
-class Harness:
-    fake: FakeQloo
-    client: QlooClient
-    http: httpx.AsyncClient
-    sleeps: list[float] = field(default_factory=list)
-
-    async def search(self, q: str, *, ip: str | None = None, **params) -> dict:
-        headers = {"X-Forwarded-For": ip} if ip else {}
-        r = await self.http.get("/api/qloo/search", params={"q": q, **params}, headers=headers)
-        assert r.status_code == 200, r.text
-        return r.json()
-
-    async def status(self, *, ip: str | None = None) -> dict:
-        headers = {"X-Forwarded-For": ip} if ip else {}
-        r = await self.http.get("/api/qloo/status", headers=headers)
-        assert r.status_code == 200
-        return r.json()
-
-
-@pytest.fixture
-async def harness(make_settings):
-    """Factory: harness(real_sleep=False, snapshot=None, **settings) -> Harness."""
-    opened: list[Harness] = []
-
-    async def make(*, real_sleep: bool = False, snapshot: Snapshot | None = None, **kw) -> Harness:
-        base = dict(
-            ip_hash_salt=SALT,
-            http_rate_per_minute=100_000,
-            qloo_breaker_threshold=1000,
-            qloo_client_hourly_cap=1000,
-            qloo_run_cap=1000,
-            qloo_daily_live_cap=1000,
-            qloo_demo_reserve=0,
-        )
-        s = make_settings(**{**base, **kw})
-        fake, sleeps = FakeQloo(), []
-
-        async def fake_sleep(seconds: float) -> None:
-            sleeps.append(seconds)
-
-        client = QlooClient(
-            s,
-            snapshot=snapshot or Snapshot(),
-            transport=FakeTransport(fake),
-            sleep=asyncio.sleep if real_sleep else fake_sleep,
-        )
-        app = create_app(s, client)
-        client.startup()  # ASGITransport doesn't run the lifespan
-        http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://blindspot.test")
-        h = Harness(fake, client, http, sleeps)
-        opened.append(h)
-        return h
-
-    yield make
-    for h in opened:
-        await h.http.aclose()
-        await h.client.aclose()
-        h.client.db.close()
+# The `harness` fixture lives in conftest.py so any test on the request path can use it.
 
 
 # --------------------------------------------------------------------------- retries
@@ -119,7 +55,8 @@ async def test_attempts_per_failure_type(harness, behaviour, attempts, served_fr
     r = await h.search("retry-matrix")
     assert (r["served_from"], r["ok"]) == (served_from, ok)
     assert h.fake.count() == attempts
-    assert all(s.has_key_header for s in h.fake.seen)  # header auth on every attempt
+    for seen in h.fake.seen:  # header-only auth on every attempt (AGENTS §3, §7)
+        assert seen.key_header == FAKE_KEY and FAKE_KEY not in seen.url
     assert len(h.sleeps) == attempts - 1  # a backoff between attempts, none after the last
     if not ok:
         assert r["reason"] and "Traceback" not in r["reason"]
@@ -127,7 +64,7 @@ async def test_attempts_per_failure_type(harness, behaviour, attempts, served_fr
 
 async def test_retry_after_is_honoured(harness):
     h = await harness()
-    h.fake.queue = ["rate_limited:3", "ok"]
+    h.fake.then("rate_limited:3", "ok")
     r = await h.search("retry-after")
     assert r["served_from"] == "live" and h.fake.count() == 2
     assert h.sleeps and h.sleeps[0] >= 3
@@ -217,6 +154,7 @@ async def test_demo_reserve_is_kept_from_adhoc_traffic(harness):
 
 # --------------------------------------------------------------------------- deadline
 DEADLINE = 1.0
+SLACK = 1.0  # generous for loaded Windows runners; still well below the 4 s slow server and 30 s waits
 
 
 @pytest.mark.parametrize("behaviour", ["rate_limited:30", "rate_limited:1", "slow", "server_503"])
@@ -228,7 +166,7 @@ async def test_fifty_concurrent_requests_all_meet_the_deadline(harness, behaviou
         qloo_max_concurrency=4,
         qloo_rps=1000,
     )
-    h.fake.behaviour, h.fake.slow_s = behaviour, 3.0
+    h.fake.behaviour = behaviour
 
     async def timed(i):
         t0 = time.monotonic()
@@ -237,8 +175,10 @@ async def test_fifty_concurrent_requests_all_meet_the_deadline(harness, behaviou
 
     out = await asyncio.wait_for(asyncio.gather(*(timed(i) for i in range(50))), DEADLINE + 5)
     worst = max(t for _, t in out)
-    assert worst <= DEADLINE + 0.5, f"slowest request took {worst:.2f}s"
+    assert worst <= DEADLINE + SLACK, f"slowest request took {worst:.2f}s"
     assert all(r["served_from"] == "degraded" for r, _ in out)
+    if behaviour == "slow":  # the server takes 4 s: only the deadline can have stopped these
+        assert worst >= DEADLINE * 0.8
 
 
 # --------------------------------------------------------------------------- kill switch
@@ -263,7 +203,7 @@ async def test_kill_switch_is_per_request(harness):
 
 
 # --------------------------------------------------------------------------- served_from
-async def test_served_from_is_truthful(harness, tmp_path):
+async def test_served_from_is_truthful(harness):
     norm = normalize_params({"query": "from-snapshot", "types": None, "take": 5})
     key = cache_key("GET", "/search", norm)
     entry = {"key": key, "method": "GET", "path": "/search", "params": norm, "status": 200}
@@ -291,9 +231,8 @@ async def test_replay_mode_without_key_never_calls_qloo(harness):
 async def test_status_leaks_nothing(harness, tmp_path):
     h = await harness()
     await h.search("warm")
-    r = await h.http.get("/api/qloo/status")
-    body = r.text
-    secrets = [FAKE_KEY, FAKE_KEY[:8], FAKE_KEY[-8:], SALT]
+    body = (await h.get("/api/qloo/status")).text
+    secrets = [FAKE_KEY, FAKE_KEY[:8], FAKE_KEY[-8:], HARNESS_SALT]
     paths = [str(tmp_path), tmp_path.name, "cache.sqlite", "snapshot.json", "/raw"]
     hosts = ["hackathon.api.qloo.com", "localhost", "127.0.0.1", "blindspot.test"]
     env_values = [str(v) for v in h.client.s.model_dump().values() if isinstance(v, str) and len(v) > 6]
@@ -304,8 +243,8 @@ async def test_status_leaks_nothing(harness, tmp_path):
 
 # --------------------------------------------------------------------------- fuzzing
 FUZZ = [
-    "",
-    "x" * 10_000,
+    "x",
+    "x" * 100,
     "مرحبا بالعالم ‮ gnp.exe",
     "nul\x00byte",
     "\x01\x02\x1b[31mctrl",
@@ -320,13 +259,21 @@ FUZZ = [
 @pytest.mark.parametrize("q", FUZZ)
 async def test_fuzzed_query_is_handled_safely(harness, q):
     h = await harness()
-    r = await h.http.get("/api/qloo/search", params={"q": q})
+    r = await h.get("/api/qloo/search", q=q)
     assert r.status_code < 500 and "Traceback" not in r.text and 'File "' not in r.text
-    body = r.json()
+    assert r.headers["content-type"].startswith("application/json"), r.text[:200]
     if r.status_code == 200:
-        assert body["served_from"] in {"live", "cache", "snapshot", "degraded", "disabled"}
+        assert r.json()["served_from"] in {"live", "cache", "snapshot", "degraded", "disabled"}
     assert h.fake.count() <= 1  # at most the one search; never a different endpoint
     assert all(s.path == "/search" for s in h.fake.seen)
+
+
+@pytest.mark.parametrize("q", ["", "x" * 101, "x" * 10_000])
+async def test_out_of_bounds_query_is_rejected_before_qloo(harness, q):
+    h = await harness()
+    r = await h.get("/api/qloo/search", q=q)
+    assert r.status_code == 422 and r.json()["fields"] == ["q"]
+    assert h.fake.count() == 0
 
 
 @pytest.mark.parametrize(
@@ -346,6 +293,7 @@ async def test_odd_parameters_are_handled_safely(harness, query):
     h = await harness()
     r = await h.http.get(f"/api/qloo/search?{query}")
     assert r.status_code < 500 and "Traceback" not in r.text
+    assert r.headers["content-type"].startswith("application/json"), r.text[:200]
 
 
 # --------------------------------------------------------------------------- identity
@@ -357,3 +305,23 @@ async def test_forged_forwarded_for_does_not_change_identity_without_trusted_hop
     ids = {(await h.status(ip=ip))["your_client_id"] for ip in forged}
     assert len(ids) == 1  # one identity, whatever the header says
     assert h.fake.count() == 2
+
+
+# --------------------------------------------------------------------------- the fake itself
+def test_misspelled_behaviours_fail_loudly():
+    fake = FakeQloo()
+    for bad in ("bad_requst", "server_5O3", "rate_limited:soon", "rate_limited:"):
+        with pytest.raises(ValueError, match="unknown fake Qloo behaviour"):
+            fake.behaviour = bad
+        with pytest.raises(ValueError):
+            fake.then("ok", bad)
+    assert check_behaviour("rate_limited:7") == "rate_limited:7"
+
+
+async def test_fake_errors_are_recorded_for_the_harness(harness):
+    h = await harness(qloo_max_attempts=1)
+    h.fake._queue.append("bad_requst")  # bypass validation, as a bug in the fake might
+    r = await h.search("broken-fake")
+    errors, h.fake.errors[:] = list(h.fake.errors), []  # expected here; any other test fails at teardown
+    assert r["served_from"] == "degraded"  # what the client sees looks like any failure...
+    assert errors and "bad_requst" in errors[0]  # ...but the fake recorded it for the harness
