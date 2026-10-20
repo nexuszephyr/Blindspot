@@ -166,6 +166,9 @@ previous report before starting a phase; it overrides the plan where they confli
 
 - Default test run is **offline and keyless**; CI runs on Ubuntu and Windows.
 - Mock Qloo with `respx`. Fixtures in `tests/fixtures/` are tiny (≤ 5 results) and trimmed or synthetic.
+- Black-box tests drive the real app and client against the fake Qloo server in `tests/fakeqloo.py`
+  (every failure mode, timeouts and resets, request counting); use its `harness` fixture pattern in
+  `tests/test_blackbox.py` for anything on the request path.
 - Live tests use `@pytest.mark.live` and run only with `QLOO_LIVE_TESTS=1`. Never in CI.
 - For bugs and security properties, **write the failing test first**, confirm it fails, then fix.
 - Security properties need a test that fails when the protection is removed (mutation spot-check):
