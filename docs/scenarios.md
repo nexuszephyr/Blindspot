@@ -30,6 +30,18 @@ python -c "from blindspot.catalog import load_catalog; c = load_catalog(); print
 Names in these files (seed entities, tags, audiences) are **inputs**, never sent as free text. #15
 resolves each one to a Qloo id and locks it; the lock file is what queries use.
 
+### The id lock (`resolved_ids.lock.json`)
+
+`python scripts/resolve_seeds.py` looks up every seed, interest tag and audience in `personas.yaml`
+and writes `config/resolved_ids.lock.json`. Each item is keyed `<kind>:<domain>:<our query,
+lowercased>` (audiences use domain `*`, and a `{name, type}` audience's query is `<type>:<name>`)
+and holds our query text, the chosen Qloo id, a confidence, an `ambiguous` flag and a reason. Only
+our text and ids are stored, never Qloo names (D5). Code reads it with
+`blindspot.idlock.load_lock().id_for(kind, domain, query)`, which returns None for anything
+unresolved. The file is deterministic: re-running with an unchanged config makes 0 live calls and
+leaves it byte-identical, and changing one persona's text only looks up the new text. Review what
+the rules flagged in `docs/seed_review.md`; run `--dry-run` first to see which lookups would be live.
+
 ## domains.yaml
 
 | Field | Meaning | Source |
