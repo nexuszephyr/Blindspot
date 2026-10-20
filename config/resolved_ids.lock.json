@@ -314,17 +314,6 @@
       "search_type": "urn:entity:brand",
       "status": "resolved"
     },
-    "seed:brands:steinway": {
-      "ambiguous": false,
-      "confidence": null,
-      "domain": "brands",
-      "id": null,
-      "kind": "seed",
-      "query": "Steinway",
-      "reason": "no search hits",
-      "search_type": "urn:entity:brand",
-      "status": "unresolved"
-    },
     "seed:brands:vans": {
       "ambiguous": false,
       "confidence": 1.0,
@@ -333,6 +322,17 @@
       "kind": "seed",
       "query": "Vans",
       "reason": "",
+      "search_type": "urn:entity:brand",
+      "status": "resolved"
+    },
+    "seed:brands:yamaha": {
+      "ambiguous": true,
+      "confidence": 0.7,
+      "domain": "brands",
+      "id": "90BB3F03-0DCB-4A77-8C77-0C586A93DE4F",
+      "kind": "seed",
+      "query": "Yamaha",
+      "reason": "top hit is a partial name match",
       "search_type": "urn:entity:brand",
       "status": "resolved"
     },

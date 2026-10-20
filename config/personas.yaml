@@ -154,7 +154,7 @@ personas:
     seeds:
       music: [{name: Lang Lang, type: urn:entity:artist}, {name: John Coltrane, type: urn:entity:artist}]
       film_tv: [{name: Amadeus, type: urn:entity:movie}]
-      brands: [{name: Steinway, type: urn:entity:brand}]
+      brands: [{name: Yamaha, type: urn:entity:brand}]
 
   - id: gamer
     descriptor: Plays story-driven video games and follows game soundtracks

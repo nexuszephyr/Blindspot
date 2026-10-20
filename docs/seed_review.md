@@ -68,16 +68,16 @@ Not run yet: the live run is waiting on the local live-call cap (see the PR).
 | Kind | Resolved | Ambiguous (resolved, review) | Unresolved |
 |---|---|---|---|
 | audience | 16 | 0 | 0 |
-| seed | 45 | 8 | 1 |
+| seed | 45 | 9 | 0 |
 | tag | 4 | 17 | 0 |
 
 ### To review
 
 | Kind | Domain | Our query | Status | Confidence | Reason | Used by |
 |---|---|---|---|---|---|---|
-| seed | brands | Steinway | unresolved | - | no search hits | classical_and_jazz |
 | seed | brands | LEGO | ambiguous | 0.7 | top hit is a partial name match | young_family |
 | seed | brands | Leica | ambiguous | 0.7 | top hit is a partial name match | cinephile |
+| seed | brands | Yamaha | ambiguous | 0.7 | top hit is a partial name match | classical_and_jazz |
 | seed | film_tv | Amadeus | ambiguous | 1.0 | 2 exact name and type matches in the top 5; took the most popular | classical_and_jazz |
 | seed | film_tv | Before Sunrise | ambiguous | 1.0 | 2 exact name and type matches in the top 5; took the most popular | budget_traveler |
 | seed | film_tv | Chef | ambiguous | 1.0 | 3 exact name and type matches in the top 5; took the most popular | street_food_explorer |
@@ -101,7 +101,5 @@ Not run yet: the live run is waiting on the local live-call cap (see the PR).
 | tag | dining | vegan | ambiguous | 1.0 | 3 allowed tags match exactly | plant_based |
 | tag | dining | vegetarian | ambiguous | 1.0 | 3 allowed tags match exactly | plant_based |
 | tag | dining | wine bar | ambiguous | 1.0 | 5 allowed tags match exactly | cinephile |
-
-Audience listings (take=50): global_issues: 11, hobbies_and_interests: 42, leisure: 11, life_stage: 4. No type filled a page.
 
 <!-- END resolve_seeds -->
