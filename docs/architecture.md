@@ -328,7 +328,7 @@ flowchart LR
 | Domain | `dining` (place), `music` (artist), `film_tv` (movie, tv_show), `brands` (brand); others possible |
 | Probe type | `core`, `swap`, `bridge`, `audience`, `freshness` (see below) |
 | Scenario | One exam question; content-hashed id `sc_…`; deterministic from config and lockfile |
-| Answer key | Local ranked list + global baseline list from Qloo, at the depth chosen in E12 |
+| Answer key | Local ranked list + global baseline list from Qloo, 20 deep, plus a top-50 membership pool (E12) |
 
 ### 7.2 Probe types
 
@@ -337,7 +337,7 @@ flowchart LR
 | `core` | Persona taste + location, ask a domain | Taste-fit, famous-vs-local, phantoms | Coverage rich in all 6 cities × 4 domains |
 | `swap` | Same persona, two cities | Sameness | City overlap at most about 0.12, so the strongest probe |
 | `bridge` | Taste stated in domain A, ask domain B | Shallow cross-domain guessing | To validate in Phase 2 |
-| `audience` | Same place, different audience | Audience blindness | Only where E15 shows persona sensitivity |
+| `audience` | Same place, different audience | Audience blindness | E15: viable for music, film and brands; marginal for dining (persona overlap 0.14 in the rich city, 0.75 in the focus city) |
 | `freshness` | Trending-biased answer key | Stale taste | `bias.trends` changes dining only |
 
 ### 7.3 Answer-key build
@@ -362,9 +362,13 @@ sequenceDiagram
     CLI->>CLI: below threshold? audit params, one broader retry
 ```
 
-**Query shape rules** (from recon): places always pair the location **filter** with a taste signal
-(that's when scores exist, and the location signal timed out for restaurants); dining personas use
-audience IDs, never age or gender; `bias.trends` only for dining.
+**Query shape rules** (from recon and E12 to E15): places always pair the location **filter** with a
+taste signal (that's when scores exist, and the location signal timed out for restaurants); the dining
+signal is the persona's **audience id** (E13: entity and tag signals were stable but took 5 to 28 s),
+never age or gender; `bias.trends` only for dining. Every domain's answer key is 20 deep, with a top-50
+membership pool. An agent's own picks are scored with `filter.results.entities` plus the persona
+signal (E14); where that's only partial, rank membership in the top-50 pool is the fallback. The
+per-domain table is in `docs/qloo_api_reality.md` ("Standard query shape per domain").
 
 **Single read path:** `get_answer_key(scenario_id) -> AnswerKey` returns the local list, the global
 list, an entity lookup, metadata and `served_from`. Later phases never query Qloo for ground truth

@@ -79,11 +79,11 @@ Sources: the official hackathon developer guide and live checks in `docs/qloo_ap
 | Places get affinity scores only when a signal is added to the location (entity, tag, audience, even an age bracket, which adds scores without changing results); artists, film/TV, brands always have scores | VERIFIED (E11) |
 | Age and gender don't change dining results; use audience IDs for dining | VERIFIED |
 | `bias.trends` changes dining results only | VERIFIED |
-| For places use the location **filter**; the location signal timed out for restaurants in 4 of 6 cities | VERIFIED |
-| Restaurant queries take about 2.4 s | VERIFIED |
-| Default insights returned 10 results per cell; don't assume more without testing `take` | VERIFIED |
+| For places use the location **filter** plus the restaurant tag and an **audience** signal (E13); the location signal timed out for restaurants in 4 of 6 cities | VERIFIED |
+| Restaurant queries take about 2.5 s (p50) with an audience signal; with an entity or tag signal p50 is 5 to 16 s and the slowest calls take 9 to 28 s (E13) | VERIFIED |
+| `take` 20, 30 and 50 return full lists in every domain; the top 10 doesn't change with `take`; ranks 11 to 50 stay city- and persona-specific. Answer-key depth 20, membership pool 50 (E12) | VERIFIED |
 | City-to-city top-10 overlap ≤ about 0.12, so city swap is the strongest probe | VERIFIED |
-| Candidate scoring (`filter.results.entities`) with location alone returned 1 of N | VERIFIED; retest with a taste signal (E14) |
+| Candidate scoring (`filter.results.entities`) returns ≥ 24 of 25 with an entity, tag or audience signal in every domain (film + entity seed: partial); location alone returns 1 of N. Fallback: rank membership in the local top 50 (E14, E7) | VERIFIED |
 | Keys deactivate after judging; replay/snapshot is the long-term run path | Official |
 | Quota can be raised by asking in the Qloo Discord `#api-help` | Official |
 
@@ -92,7 +92,7 @@ Sources: the official hackathon developer guide and live checks in `docs/qloo_ap
 ## 4. Repo map
 
 ```text
-config/               data: cities.yaml, domains.yaml, demo_queries.json
+config/               data: cities.yaml, domains.yaml, demo_queries.json, experiments_p2.yaml
                       (personas, probe types, resolved ID lock: Phase 2)
 src/blindspot/
   config.py           settings from env (never repr in logs)
@@ -110,7 +110,8 @@ src/blindspot/
   fix/                (Phase 5) Qloo-grounded re-run and export
 web/                  (Phase 6) UI
 scripts/              dev (task runner), _common, smoke, recon, coverage_matrix, warm_cache,
-                      export_snapshot, scan_secrets, promote_param (resolve_seeds: Phase 2)
+                      export_snapshot, scan_secrets, promote_param, experiments_p2
+                      (resolve_seeds: Phase 2)
 tests/                offline by default
 data/                 gitignored: cache, recordings, private snapshot
 docs/                 architecture, ADRs, phase reports, JUDGES.md, references
