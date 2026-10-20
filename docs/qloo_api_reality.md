@@ -100,6 +100,18 @@ Sources:
 | Artists: `signal.demographics.age` (55_and_older, 35_and_younger) and `gender=female` each change results (Jaccard 0.11 against the baseline; the three variants differ from each other) | VERIFIED |
 | An audience id changes artist results (Jaccard 0.82) and place results in Lagos | VERIFIED |
 | **Places: age and gender signals do NOT change the result set** (Jaccard 1.0 against location+age and in the coverage audience probe). They only add affinity scores | VERIFIED |
+| 2026-10-20 (#15): listings by parent type with `take=50` returned hobbies_and_interests 42, leisure 11, life_stage 4, global_issues 11 audiences | VERIFIED |
+| Audience listing pagination (`page=2` when a type fills `take`): not exercised, because no type filled 50 (largest 42). The resolver asks for page 2 and records the verdict if a type ever does | UNVERIFIED |
+| There is no audience name search: 9 of 11 audience names written in our own words matched no name in their type's listing; matching works only on the listing's own wording (#15, `docs/seed_review.md`) | VERIFIED |
+
+### Name lookups for the id lock (#15, 2026-10-20)
+
+| Claim | Label |
+|---|---|
+| `/search` with the seed's own type: 54 of 54 persona seeds returned hits of the requested type; for 6 film titles the top 5 held 2 or 3 entries with the exact same name and type (remakes or same-name films), and some of those carry no `popularity` | VERIFIED |
+| `/search` returns no confidence score; for 3 seeds (2 brands, 1 artist) the top hit's name only contains ours (a longer official or collaboration name), and for 1 brand none of the top 3 names matched | VERIFIED |
+| `/v2/tags?filter.query=` returns the same tag name in many families: up to 6 exact-name tags across the dining families for one word (for example `genre:place:restaurant:*`, `category:place:*`, `dining_option:qloo:*`), plus non-place families (`amenity:place`, `genre:place:hotel:*`, `specialty_dish:place`, `menu_highlight:qloo`, `good_for:qloo`, `ambience:*`) | VERIFIED |
+| A cuisine word can match a non-cuisine tag first: "french" also exists as `amenity:place:french`, and "traditional" as a hotel genre | VERIFIED |
 
 ## E6. Popularity and trends
 

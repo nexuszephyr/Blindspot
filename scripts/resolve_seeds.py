@@ -422,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
     for kind, n in sorted(out["plan"].items()):
         print(f"{kind}: {n} {label}")
     print(f"total: {sum(out['plan'].values())} {label}")
-    if out.get("failed"):
+    if out.get("failed") and not a.dry_run:  # in a dry run, uncached lookups are expected misses
         print(
             f"WARNING: {out['failed']} lookups failed; their previous lock entries were kept where they existed"
         )
