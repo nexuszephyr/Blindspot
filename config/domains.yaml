@@ -3,6 +3,14 @@
 #   the place; "signal" only influences ranking). Settled by recon E4.
 # params: extra insights params for every query in this domain (ids only, never free text).
 # tag_query: free text resolved to a tag id via /v2/tags for tag-signal probes (E11).
+# take: size of the standard location-only query the recon scripts use (cache keys depend on it).
+# depth: answer-key depth (E12, D34). membership_pool: top-N kept to place an agent's picks that
+#   fall outside the key (E14 fallback, D36).
+# query_shape.signal: the persona signal added to the location for the answer key (E13, D35).
+#   query_shape.candidate_scoring: signals that score an agent's own picks via
+#   filter.results.entities (E14, D36); anything else uses the membership pool.
+# probes: probe types enabled for this domain; each must allow the domain in probe_types.yaml.
+# Field reference: docs/scenarios.md.
 domains:
   - id: dining
     filter_type: urn:entity:place
@@ -12,6 +20,12 @@ domains:
     params:
       filter.tags: urn:tag:genre:place:restaurant
     tag_query: italian
+    depth: 20
+    membership_pool: 50
+    query_shape:
+      signal: audience
+      candidate_scoring: [entity, tag, audience]
+    probes: [core, swap, bridge, audience, freshness]  # audience: conditional, see probe_types.yaml
   - id: music
     filter_type: urn:entity:artist
     take: 10
@@ -19,6 +33,12 @@ domains:
     location_param: signal
     params: {}
     tag_query: pop
+    depth: 20
+    membership_pool: 50
+    query_shape:
+      signal: audience
+      candidate_scoring: [entity, tag, audience]
+    probes: [core, swap, bridge, audience]
   - id: film_tv
     filter_type: urn:entity:movie
     take: 10
@@ -26,6 +46,12 @@ domains:
     location_param: signal
     params: {}
     tag_query: comedy
+    depth: 20
+    membership_pool: 50
+    query_shape:
+      signal: audience
+      candidate_scoring: [tag, audience]  # entity was partial for the seed tested (E14, D36)
+    probes: [core, swap, bridge, audience]
   - id: brands
     filter_type: urn:entity:brand
     take: 10
@@ -33,3 +59,9 @@ domains:
     location_param: signal
     params: {}
     tag_query: fashion
+    depth: 20
+    membership_pool: 50
+    query_shape:
+      signal: audience
+      candidate_scoring: [entity, tag, audience]
+    probes: [core, swap, bridge, audience]

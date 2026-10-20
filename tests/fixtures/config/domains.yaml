@@ -6,8 +6,16 @@ domains:
     location_param: filter
     params:
       filter.tags: urn:tag:genre:place:restaurant
+    depth: 5
+    membership_pool: 10
+    query_shape: {signal: audience, candidate_scoring: [audience]}
+    probes: [core, freshness]
   - id: music
     filter_type: urn:entity:artist
     take: 5
     phrasing: "artists"
     location_param: signal
+    depth: 5
+    membership_pool: 10
+    query_shape: {signal: audience, candidate_scoring: [entity, audience]}
+    probes: [core, bridge]

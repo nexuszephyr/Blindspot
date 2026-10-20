@@ -1,0 +1,19 @@
+audience_policy:
+  allow_identity: false
+personas:
+  - id: test_snacker
+    descriptor: Synthetic persona who likes quick snacks
+    age_band: 35_and_younger
+    audiences: [urn:audience:hobbies_and_interests:test_snacks]
+    domains: [dining, music]
+    interest_tags: {dining: [test snacks]}
+    seeds:
+      music: [{name: Test Artist One, type: urn:entity:artist}]
+  - id: test_listener
+    descriptor: Synthetic persona who mostly listens to music
+    age_band: 55_and_older
+    audiences: [{name: test listening, type: leisure}]
+    domains: [music]
+    cities: [other_town]
+    seeds:
+      music: [{name: Test Artist Two, type: urn:entity:artist}]

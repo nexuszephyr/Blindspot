@@ -177,14 +177,14 @@ blindspot/
 ├── AGENTS.md  CLAUDE.md  README.md  LICENSE  SECURITY.md  CONTRIBUTING.md
 ├── config/                    # data, never code
 │   ├── cities.yaml            # id, display_name, location (Qloo string), country, script_note, tier
-│   ├── domains.yaml           # id, filter_type, take, phrasing, location_param, params, tag_query
+│   ├── domains.yaml           # + depth, membership_pool, query_shape, probes (E12 to E15)
 │   ├── demo_queries.json      # query list for warm_cache.py / export_snapshot.py (no Qloo data)
-│   ├── personas.yaml          # Planned (Phase 2)
-│   ├── probe_types.yaml       # Planned (Phase 2)
+│   ├── personas.yaml          # taste-only personas + audience_policy (docs/scenarios.md)
+│   ├── probe_types.yaml       # core, swap, bridge, audience, freshness: allowed domains, caps
 │   └── resolved_ids.lock.json # Planned (Phase 2): IDs + our query text only
 ├── src/blindspot/
 │   ├── config.py              # settings from env
-│   ├── catalog.py             # loads and validates config/ (City, Domain)
+│   ├── catalog.py             # load_catalog(): validates config/ and every cross-reference
 │   ├── qloo/                  # the only way to reach Qloo
 │   │   ├── client.py  models.py  params.py  errors.py
 │   │   ├── cache.py   db.py      calllog.py budget.py  breaker.py  ratelimit.py
@@ -323,7 +323,7 @@ flowchart LR
 
 | Concept | Definition |
 |---|---|
-| Persona | Neutral descriptor, age band, audience IDs (required for dining), interest tag IDs, seed entities per domain |
+| Persona | Taste-only descriptor, age band, a unique audience set (every domain's key uses it), interest tags and seed entities per domain; fields in [scenarios.md](scenarios.md) |
 | City | From `config/cities.yaml`; the exact Qloo location string that worked in recon |
 | Domain | `dining` (place), `music` (artist), `film_tv` (movie, tv_show), `brands` (brand); others possible |
 | Probe type | `core`, `swap`, `bridge`, `audience`, `freshness` (see below) |
