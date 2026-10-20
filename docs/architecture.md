@@ -687,6 +687,13 @@ erDiagram
 Storage settings: WAL mode, busy timeout, indexes on lookup columns, one connection per task or a
 serialized writer.
 
+**Answer keys (built, #18).** The ground-truth tables live in their own file,
+`data/groundtruth.sqlite` (gitignored: it holds Qloo names), next to the Qloo cache. A run is keyed
+by its spec's content key, not by scenario, so a spec shared by many scenarios is fetched and stored
+once; `scenarios.local_key` and `global_key` point at runs. `scenario_status` is the per-scenario
+checkpoint and disposition (`pending | done | thin | failed | excluded`). Read only through
+`groundtruth.get_answer_key()`. Decisions: D41.
+
 ---
 
 ## 15. Run modes and data distribution

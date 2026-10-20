@@ -1,0 +1,153 @@
+"""`blindspot groundtruth build|status|export` (#18).
+
+    blindspot groundtruth build [--tag demo|extended|all] [--fresh] [--max-calls N] [--concurrency N]
+                                [--dry-run]
+    blindspot groundtruth status
+    blindspot groundtruth export [--out data/groundtruth/answer_keys.json]
+
+`build` regenerates the exam from config/ and the id lock (#16; deterministic), then fetches every
+answer key it still lacks through QlooClient (purpose `groundtruth`). It is resumable: re-running
+skips finished scenarios, and `--fresh` starts over (the Qloo cache still saves the calls).
+`--max-calls` stops before a lookup that would be live once reached. `--dry-run` reports the specs
+to fetch and how many would be live, and touches nothing. Output is counts only; Qloo names stay in
+the store under data/ (gitignored).
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import sys
+from pathlib import Path
+
+from ..catalog import load_catalog
+from ..config import Settings
+from ..idlock import load_lock
+from ..qloo.client import QlooClient
+from ..qloo.redact import install_log_redaction
+from ..scenarios.generator import generate
+from .api import NotBuilt, get_answer_key
+from .builder import Builder, Report
+from .store import Store
+
+EXPORT_REL = Path("data/groundtruth/answer_keys.json")
+
+
+def _utf8_console() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
+def _scenarios(config: Path, tag: str):
+    cat = load_catalog(config)
+    sc = generate(cat, load_lock(config)).scenarios
+    words = [w for c in cat.cities for w in (c.display_name, c.location)]
+    return (sc if tag == "all" else [s for s in sc if tag in s.tags]), words
+
+
+def _print_report(r: Report, dry: bool) -> None:
+    print(f"scenarios: {r.scenarios}  distinct specs: {r.specs}  already stored: {r.reused}")
+    if dry:
+        print(f"to fetch: {r.specs - r.reused}  would be live (not cached): {r.planned_live}")
+        return
+    print(f"fetched this run: {r.fetched}  broader retries used: {r.broadened}  live calls: {r.live_calls}")
+    print("status: " + ", ".join(f"{k} {v}" for k, v in sorted(r.statuses.items())))
+    if r.excluded:
+        print(f"excluded: {len(r.excluded)} (conditions or prompt lint; see `status`)")
+    print(f"prompt lint problems: {r.lint_problems}")
+    if r.stopped:
+        print(f"STOPPED: {r.stopped}. Re-run to resume.")
+
+
+def _status(store: Store) -> int:
+    counts = store.status_counts()
+    print(
+        "scenarios: "
+        + ", ".join(f"{k} {counts.get(k, 0)}" for k in ("done", "thin", "excluded", "failed", "pending"))
+    )
+    cov = store.query("SELECT kind, coverage, COUNT(*) n FROM ground_truth_runs GROUP BY kind, coverage")
+    print("specs: " + ", ".join(f"{r['kind']} {r['coverage']} {r['n']}" for r in cov))
+    src = store.query("SELECT served_from, COUNT(*) n FROM ground_truth_runs GROUP BY served_from")
+    print("fetched from: " + ", ".join(f"{r['served_from']} {r['n']}" for r in src))
+    for r in store.query(
+        "SELECT status, reason, COUNT(*) n FROM scenario_status WHERE status IN ('thin','excluded','failed') "
+        "GROUP BY status, reason ORDER BY status, n DESC"
+    ):
+        print(f"  {r['status']}: {r['n']} x {r['reason']}")
+    print("rows: " + ", ".join(f"{k} {v}" for k, v in store.table_counts().items()))
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="blindspot groundtruth", description=__doc__.split("\n\n")[0])
+    ap.add_argument("--config", type=Path, default=Path("config"))
+    ap.add_argument("--db", type=Path, help="answer-key store (default: GROUNDTRUTH_PATH or <repo>/data/...)")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    b = sub.add_parser("build")
+    b.add_argument("--tag", choices=["demo", "extended", "all"], default="all")
+    b.add_argument("--fresh", action="store_true", help="forget stored runs and start over")
+    b.add_argument("--max-calls", type=int, default=450)
+    b.add_argument("--concurrency", type=int, default=4)
+    b.add_argument("--dry-run", action="store_true")
+    sub.add_parser("status")
+    ex = sub.add_parser("export")
+    ex.add_argument("--out", type=Path)
+    a = ap.parse_args(argv)
+    _utf8_console()
+    install_log_redaction()
+    root = a.config.resolve().parent
+    settings = Settings()
+    db = a.db or (
+        settings.groundtruth_path
+        if settings.groundtruth_path.is_absolute()
+        else root / settings.groundtruth_path
+    )
+    store = Store(db)
+    try:
+        if a.cmd == "status":
+            return _status(store)
+        scenarios, words = _scenarios(a.config, getattr(a, "tag", "all"))
+        if a.cmd == "export":
+            keys = []
+            for s in scenarios:
+                try:
+                    keys.append(get_answer_key(s.id, store).model_dump(mode="json"))
+                except NotBuilt:
+                    continue
+            out = a.out or root / EXPORT_REL
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(json.dumps(keys, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+            print(f"exported {len(keys)} of {len(scenarios)} answer keys to {out} (gitignored)")
+            return 0
+        if a.dry_run:
+            client = QlooClient(Settings(qloo_mode="replay"))  # never reaches the network
+        else:
+            client = QlooClient(Settings(qloo_mode="live"))
+            if not client.s.has_key:
+                client.db.close()
+                raise SystemExit("QLOO_API_KEY is missing: put it in .env (the build needs live Qloo access)")
+            client.startup()
+        try:
+            builder = Builder(
+                client, store, concurrency=a.concurrency, max_calls=a.max_calls, location_words=words
+            )
+            if a.dry_run:
+                _print_report(builder.plan(scenarios, resume=not a.fresh), dry=True)
+                return 0
+
+            async def run() -> Report:
+                try:
+                    return await builder.build(scenarios, resume=not a.fresh)
+                finally:
+                    await client.aclose()  # same event loop as the requests
+
+            report = asyncio.run(run())
+            _print_report(report, dry=False)
+            return 1 if report.stopped else 0
+        finally:
+            client.db.close()
+    finally:
+        store.close()

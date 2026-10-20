@@ -105,8 +105,9 @@ src/blindspot/
                       redact, snapshot, cli
   service/            app.py (main_app factory), routes.py, security.py
   scenarios/          scenario engine: generate() (seeded, deterministic), specs, prompts, CLI
-  cli.py              `blindspot <group>` / `python -m blindspot` (groups: scenarios)
-  groundtruth/        (Phase 2) answer key, entity_index, get_answer_key()
+  cli.py              `blindspot <group>` / `python -m blindspot` (groups: scenarios, groundtruth)
+  groundtruth/        answer keys: resumable Builder, store (data/groundtruth.sqlite), normalize,
+                      get_answer_key() (the only read path), CLI
   targets/            (Phase 3) target-model adapters
   resolve/            (Phase 3) free text -> Qloo entity
   metrics/            (Phase 3) scoring
@@ -264,6 +265,8 @@ python scripts/scan_secrets.py
 python -m blindspot.qloo.cli budget
 python -m blindspot.qloo.cli calls --last 20
 blindspot scenarios build   # the exam, offline; prints the distribution and a sha256
+blindspot groundtruth build --dry-run   # answer keys: specs to fetch, how many would be live
+blindspot groundtruth status            # done, thin, excluded, failed, pending
 ```
 
 Windows without `make`: see `docs/JUDGES.md` for the equivalent commands.

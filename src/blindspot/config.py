@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     qloo_cache_ttl_days: float = 7.0
     qloo_snapshot_path: Path = Path("data/snapshot/snapshot.json")
     qloo_raw_dir: Path = Path("data/raw")
+    groundtruth_path: Path = Path("data/groundtruth.sqlite")  # answer keys (#18); holds Qloo names
 
     qloo_timeout_s: float = 10.0
     qloo_max_concurrency: int = 4

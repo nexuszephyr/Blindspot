@@ -215,3 +215,28 @@ different: an id there only illustrates, so it is labelled (`entity#<sha256[:6]>
   a scenario is scored.
 - **`scenarios_per_cell` is removed.** Its cap logic did the opposite of its description, and one
   question per cell is all the exam needs (review of #92).
+
+**D41. Answer-key build choices (#18, 2026-10-20).**
+- **Store and keys.** A separate SQLite file, `data/groundtruth.sqlite` (gitignored). Runs are keyed
+  by spec content key, so 104 scenarios need 155 stored runs, each fetched once (identical in-flight
+  specs share one request).
+- **Checkpoint and resume.** A scenario's status row is written after both of its runs are stored,
+  and each run lands with its items in one transaction. `--resume` (the default) skips finished
+  scenarios and stored runs. A clean stop (`--max-calls`) repeats nothing. A hard kill can repeat only
+  the requests that were in flight, since their answers never landed (tested).
+- **Below threshold.** First a param audit: the strict guard and the id check run before every
+  request. Then one broader retry that drops only the optional narrowing params (`filter.exclude.entities`,
+  `bias.trends`). Never the location, the type or the persona signal: without those, the list
+  answers another question. If the exclusion was dropped, the persona's own seeds are filtered out
+  of the result (D40). Still short: recorded as `thin` (10 to 19), `sparse` (1 to 9) or `empty`, never
+  hidden. Thresholds are the provisional ones from #13.
+- **Failures** are not stored. The scenario is `failed`, and a re-run retries it.
+- **Conditions.** `personas_distinct_in_city` excludes a dining audience pair whose top-20 Jaccard
+  is over 0.5 (the E15 viability line).
+- **Prompt lint.** Any scenario whose prompt contains one of its answer-key names is excluded and
+  counted.
+- **Provenance.** `get_answer_key` serves stored data as `cache`, or `snapshot` when the snapshot
+  supplied it, never `live`. `fetched_from` and `fetched_at` keep how and when it was fetched (hard
+  rule 5).
+- **Purpose.** Build calls are logged with purpose `groundtruth` (new), so the budget report
+  separates them from recon.

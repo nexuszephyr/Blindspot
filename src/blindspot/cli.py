@@ -1,4 +1,4 @@
-"""`blindspot <group> ...`: the project's command line. Groups: scenarios (#16).
+"""`blindspot <group> ...`: the project's command line. Groups: scenarios (#16), groundtruth (#18).
 
 Also runs as `python -m blindspot ...`, which works without reinstalling the package.
 """
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 
-GROUPS = {"scenarios": "blindspot.scenarios.cli"}
+GROUPS = {"scenarios": "blindspot.scenarios.cli", "groundtruth": "blindspot.groundtruth.cli"}
 
 
 def main(argv: list[str] | None = None) -> int:
