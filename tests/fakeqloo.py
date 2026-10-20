@@ -68,6 +68,8 @@ class FakeQloo:
         self._queue: list[str] = []
         self.seen: list[Seen] = []
         self.errors: list[str] = []  # anything unexpected at request time; must stay empty
+        # /v2/insights answers with this many synthetic entities (default: `take`); see insights_body
+        self.insights_size = None
 
     @property
     def behaviour(self) -> str:
@@ -92,6 +94,9 @@ class FakeQloo:
         b = headers.get(BEHAVIOUR_HEADER.encode(), b"").decode()
         try:
             status, body, out_headers = await self._answer(check_behaviour(b))
+            if scope["path"] == "/v2/insights" and status == 200 and b in ("ok", "slow"):
+                params = dict(parse_qsl(scope["query_string"].decode()))
+                body = json.dumps(self.insights_body(params), ensure_ascii=False).encode()
         except Exception as exc:  # recorded for the harness to fail on, then a 500 like a broken server
             self.errors.append(f"{type(exc).__name__}: {exc}")
             status, body, out_headers = 500, b'{"message": "fake failed"}', {}
@@ -103,6 +108,31 @@ class FakeQloo:
             }
         )
         await send({"type": "http.response.body", "body": body})
+
+    def insights_body(self, params: dict[str, str]) -> dict:
+        """A synthetic insights answer: the same params always give the same ranked ids, different
+        params give different ones, and excluded ids never come back (like the VERIFIED filter)."""
+        import hashlib
+
+        stem = {k: v for k, v in params.items() if k not in ("take", "filter.exclude.entities")}
+        seed = hashlib.sha256(json.dumps(stem, sort_keys=True).encode()).hexdigest()
+        excluded = set(params.get("filter.exclude.entities", "").split(","))
+        n = int(params.get("take", 10)) if self.insights_size is None else self.insights_size(params)
+        ents, i = [], 0
+        while len(ents) < n:
+            eid = f"{seed[:8]}-0000-4000-8000-{i:012d}".upper()
+            i += 1
+            if eid in excluded:
+                continue
+            ents.append(
+                {
+                    "entity_id": eid,
+                    "name": f"Synthetic Entity {seed[:4]} {i}",
+                    "type": params.get("filter.type", "urn:entity:artist"),
+                    "query": {"affinity": round(1 - i / 100, 3)},
+                }
+            )
+        return {"success": True, "results": {"entities": ents}}
 
     async def _answer(self, b: str) -> tuple[int, bytes, dict[str, str]]:
         ok = (200, json.dumps(SEARCH_RESULT).encode(), {"content-type": "application/json"})

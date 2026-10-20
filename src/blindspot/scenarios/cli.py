@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from collections import Counter
 from pathlib import Path
 
 from ..catalog import load_catalog
+from ..console import utf8_console
 from ..idlock import load_lock
 from .generator import DEFAULT_SEED, ScenarioSet, generate
 from .models import Scenario
@@ -89,15 +89,6 @@ def load_set(path: Path) -> list[Scenario]:
     return [Scenario.model_validate(s) for s in data["scenarios"]]
 
 
-def _utf8_console() -> None:
-    """UTF-8 on any console (AGENTS §6; Windows crashed on non-Latin text in Phase 1). Same approach
-    as scripts/_common.py; a stream that can't be reconfigured (a test's StringIO) is left alone."""
-    for stream in (sys.stdout, sys.stderr):
-        reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure:
-            reconfigure(encoding="utf-8", errors="replace")
-
-
 def _out(text: str) -> None:
     print(text)
 
@@ -129,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     sh.add_argument("id")
     sh.add_argument("--file", type=Path)
     a = ap.parse_args(argv)
-    _utf8_console()
+    utf8_console()
     root = a.config.resolve().parent
 
     if a.cmd == "build":

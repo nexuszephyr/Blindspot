@@ -20,9 +20,10 @@ from blindspot.qloo.context import RequestContext  # noqa: E402
 from blindspot.qloo.redact import install_log_redaction, redact  # noqa: E402
 
 DATA = ROOT / "data"
+from blindspot.console import utf8_console  # noqa: E402
+
 # Windows consoles default to a legacy codepage; never crash printing non-Latin names.
-for _stream in (sys.stdout, sys.stderr):
-    _stream.reconfigure(encoding="utf-8", errors="replace")
+utf8_console()
 
 
 def require_key(mode: str = "record") -> Settings:
