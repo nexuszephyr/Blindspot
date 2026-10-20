@@ -146,8 +146,10 @@ class Builder:
     async def _ask(self, params: dict[str, Any]):
         check_params("/v2/insights", params, strict=True)  # param audit: every param VERIFIED
         check_ids(params)
-        self._guard(params)
         async with self.sem:
+            # Checked once a slot is ours, right before the request: tasks queued behind the
+            # semaphore must not all pass the cap at once while nothing has been spent yet.
+            self._guard(params)
             return await self.client.insights(params, self.ctx)
 
     async def _fetch(self, spec: QuerySpec, kind: str, depth: int) -> dict[str, Any]:
