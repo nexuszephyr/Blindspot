@@ -161,11 +161,12 @@ def _type_ok(hit: dict[str, Any], search_type: str) -> bool:
 def resolve_seed(query: str, search_type: str, hits: list[dict[str, Any]]) -> Decision:
     """Rank /search hits (top 5) for one seed name and type.
 
-    - 1.0: the top hit has our normalized name and the requested type.
-    - 0.7: the top hit's name starts with or contains ours (or the reverse), and the type matches.
-    - 0.3: anything else.
-    Ambiguous when confidence < 1.0, when 2+ hits in the top 5 are exact name and type matches (the
-    most popular is taken), or when the top hit's type doesn't match. No hits: unresolved."""
+    - 1.0: a hit in the top 5 has our normalized name and the requested type. With one such hit
+      it is chosen (ambiguous if it isn't the top hit); with 2+ the most popular is chosen and it's
+      ambiguous (a remake, for example).
+    - Otherwise the top hit, ambiguous: 0.7 when its name starts with or contains ours (or the
+      reverse) and the type matches, 0.3 for anything else (including another type).
+    No hits: unresolved."""
     hits = hits[:5]
     if not hits:
         return _unresolved("no search hits")
@@ -180,6 +181,10 @@ def resolve_seed(query: str, search_type: str, hits: list[dict[str, Any]]) -> De
             id=hits[best].get("entity_id"), confidence=EXACT, ambiguous=True, chosen=best,
             reason=f"{len(exact)} exact name and type matches in the top 5; took the most popular",
         )  # fmt: skip
+    if len(exact) == 1:
+        i = exact[0]
+        why = "" if i == 0 else f"exact match at rank {i + 1}, not the top hit"
+        return Decision(id=hits[i].get("entity_id"), confidence=EXACT, ambiguous=i != 0, chosen=i, reason=why)
     top = hits[0]
     if not _type_ok(top, search_type):
         return Decision(
@@ -190,12 +195,7 @@ def resolve_seed(query: str, search_type: str, hits: list[dict[str, Any]]) -> De
             reason="top hit has another type",
         )
     score = name_score(query, top.get("name"))
-    if score == EXACT:
-        return Decision(id=top.get("entity_id"), confidence=EXACT, ambiguous=False, chosen=0, reason="")
-    if exact:
-        why = f"top hit is a partial name match; an exact match is at rank {exact[0] + 1}"
-    else:
-        why = "top hit is a partial name match" if score == PARTIAL else "top hit's name doesn't match"
+    why = "top hit is a partial name match" if score == PARTIAL else "top hit's name doesn't match"
     return Decision(id=top.get("entity_id"), confidence=score or WEAK, ambiguous=True, chosen=0, reason=why)
 
 

@@ -67,8 +67,12 @@ def test_seed_rules():
     assert (twins.id, twins.confidence, twins.ambiguous) == (_uuid(2), EXACT, True)  # remake: most popular
     none = rs("Test Artist", ARTIST, [])
     assert (none.id, none.status, none.reason) == (None, "unresolved", "no search hits")
-    later = rs("Test Artist", ARTIST, [_hit(1, "Test Artist Tribute"), _hit(2, "Test Artist")])
-    assert later.id == _uuid(1) and "rank 2" in later.reason  # top-hit rule, flagged for review
+    movie, tv = "urn:entity:movie", "urn:entity:tv_show"
+    sequel = rs("Rocky", movie, [_hit(1, "Rocky II", (movie,)), _hit(2, "Rocky", (movie,))])
+    assert (sequel.id, sequel.confidence, sequel.ambiguous, sequel.chosen) == (_uuid(2), EXACT, True, 1)
+    assert sequel.reason == "exact match at rank 2, not the top hit"
+    other_type = rs("Rocky", movie, [_hit(1, "Rocky", (tv,)), _hit(2, "Rocky", (movie,))])
+    assert (other_type.id, other_type.confidence, other_type.ambiguous) == (_uuid(2), EXACT, True)
 
 
 def _tag(urn, name, popularity=0.5):

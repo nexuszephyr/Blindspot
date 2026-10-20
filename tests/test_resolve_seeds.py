@@ -155,3 +155,51 @@ async def test_audience_collapse_stops_without_writing_the_lock(make_client, moc
     out = await R.run(_args(), make_client())
     assert out["collapse"] and "same set" in out["collapse"]
     assert not (cfg / "resolved_ids.lock.json").exists()
+
+
+def _paged(page2_has_new_ids: bool):
+    """leisure fills a page (take patched to 2); page 2 either has new ids or repeats page 1."""
+
+    def handler(request):
+        q = dict(request.url.params)
+        if request.url.path == "/v2/audiences" and q["filter.parents.types"] == "urn:audience:leisure":
+            items = [("a_one", "A One"), ("a_two", "A Two")]
+            if q.get("page") == "2" and page2_has_new_ids:
+                items = [("test_listening", "Test Listening")]
+            body = [{"id": f"urn:audience:leisure:{i}", "entity_id": _uuid(i), "name": n} for i, n in items]
+            return httpx.Response(200, json={"results": {"audiences": body}})
+        return _handler(request)
+
+    return handler
+
+
+async def test_full_page_fetches_page_two_and_merges_new_ids(make_client, mock_api, cfg, monkeypatch):
+    monkeypatch.setattr(R, "AUDIENCE_TAKE", 2)
+    route = mock_api.route().mock(side_effect=_paged(True))
+    out = await R.run(_args(), make_client())
+    assert out["notes"]["pagination"]["leisure"]["page2"] == "VERIFIED"
+    assert out["notes"]["pagination"]["hobbies_and_interests"]["page2"] is None  # didn't fill a page
+    assert (
+        R.load_lock(cfg).id_for("audience", "*", "leisure:test listening")
+        == "urn:audience:leisure:test_listening"
+    )
+    assert sum(c.request.url.params.get("page") == "2" for c in route.calls) == 1
+
+
+async def test_ignored_page_param_marks_names_possibly_truncated(make_client, mock_api, cfg, monkeypatch):
+    monkeypatch.setattr(R, "AUDIENCE_TAKE", 2)
+    mock_api.route().mock(side_effect=_paged(False))
+    out = await R.run(_args(), make_client())
+    assert out["notes"]["pagination"]["leisure"]["page2"].startswith("FAILED")
+    item = R.load_lock(cfg).items["audience:*:leisure:test listening"]
+    assert item.status == "unresolved" and item.reason == "listing may be truncated (2 of take 2)"
+
+
+async def test_failed_lookups_keep_the_locked_ids(make_client, mock_api, cfg, tmp_path):
+    route = mock_api.route().mock(side_effect=_handler)
+    await R.run(_args(), make_client())
+    before = (cfg / "resolved_ids.lock.json").read_bytes()
+    route.mock(return_value=httpx.Response(429, json={"error": "rate limited"}))
+    out = await R.run(_args(), make_client(qloo_cache_path=tmp_path / "fresh.sqlite"))  # cache expired
+    assert out["failed"] == 5  # 2 seeds, 1 tag, 2 audiences (the types listing is not an item)
+    assert (cfg / "resolved_ids.lock.json").read_bytes() == before

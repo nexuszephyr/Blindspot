@@ -45,6 +45,7 @@ from blindspot.idlock import (
     Decision,
     IdLock,
     LockItem,
+    listing_ids,
     load_lock,
     lock_key,
     resolve_audience_name,
@@ -117,8 +118,10 @@ def _candidates(kind: str, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 class Resolver:
-    def __init__(self, client: QlooClient, *, max_calls: int, dry: bool):
+    def __init__(self, client: QlooClient, *, max_calls: int, dry: bool, previous: IdLock | None = None):
         self.client, self.max_calls, self.dry = client, max_calls, dry
+        self.previous = previous or IdLock()
+        self.failures = 0
         self.start = live_used(client)
         self.c = ctx("resolve_seeds", purpose="recon")
         self.plan: Counter[str] = Counter()
@@ -158,10 +161,15 @@ class Resolver:
             "chosen": d.id,
         }
 
-    def failed(self, w: Work, r) -> None:
-        self.record(
-            w, Decision(id=None, confidence=None, ambiguous=False, reason=f"lookup failed: {r.outcome}"), None
-        )
+    def failed(self, w: Work, reason: str) -> None:
+        """A failed lookup (429, timeout, breaker...) never overwrites a locked id: the previous
+        entry is kept when there is one; otherwise the item is unresolved with the reason."""
+        self.failures += 1
+        if w.key in self.previous.items:
+            self.items[w.key] = self.previous.items[w.key]
+            self.detail[w.key] = {"query": w.query, "personas": w.personas, "kept_previous": reason}
+            return
+        self.record(w, Decision(id=None, confidence=None, ambiguous=False, reason=reason), None)
 
     async def seeds(self, work: list[Work]) -> None:
         for w in work:
@@ -171,7 +179,7 @@ class Resolver:
                 lambda w=w: self.client.search_entities(w.query, self.c, types=[w.search_type], take=SEARCH_TAKE),
             )  # fmt: skip
             if not r.ok:
-                self.failed(w, r)
+                self.failed(w, f"lookup failed: {r.outcome}")
                 continue
             hits = [e.raw for e in r.entities]
             self.record(w, resolve_seed(w.query, w.search_type, hits), hits)
@@ -186,7 +194,7 @@ class Resolver:
                 lambda w=w: self.client.search_tags(self.c, query=w.query, take=TAG_TAKE),
             )
             if not r.ok:
-                self.failed(w, r)
+                self.failed(w, f"lookup failed: {r.outcome}")
                 continue
             hits = [e.raw for e in r.entities]
             self.record(w, resolve_tag(w.query, w.domain, hits), hits)
@@ -205,6 +213,8 @@ class Resolver:
             {str(t.raw.get("type", "")).removeprefix("urn:audience:") for t in r.entities} if r.ok else set()
         )
         listings: dict[str, list[dict[str, Any]] | None] = {}
+        self.truncated: dict[str, str] = {}
+        truncated = self.truncated
         self.notes["pagination"] = {}
         for t in sorted({parent(w) for w in work}):
             params = {"filter.parents.types": [f"urn:audience:{t}"], "take": AUDIENCE_TAKE}
@@ -213,8 +223,9 @@ class Resolver:
                 lambda t=t: self.client.list_audiences(self.c, parent_types=[f"urn:audience:{t}"], take=AUDIENCE_TAKE),
             )  # fmt: skip
             listings[t] = [e.raw for e in lr.entities] if lr.ok else None
-            # list_audiences sends no page parameter, so a full page can't be continued here (UNVERIFIED).
-            self.notes["pagination"][t] = {"count": lr.count, "hit_take": lr.count >= AUDIENCE_TAKE}
+            self.notes["pagination"][t] = {"count": lr.count, "page2": None}
+            if lr.ok and lr.count >= AUDIENCE_TAKE:
+                await self.page_two(t, params, listings)
         self.notes["audience_types_listed"] = bool(known)
         for w in work:
             t, listing = parent(w), listings.get(parent(w))
@@ -230,15 +241,37 @@ class Resolver:
                     None,
                 )
             elif listing is None:
-                self.record(
-                    w,
-                    Decision(id=None, confidence=None, ambiguous=False, reason="audience listing failed"),
-                    None,
-                )
-            elif w.query.startswith("urn:"):
-                self.record(w, resolve_audience_urn(w.query, listing), listing)
+                self.failed(w, "audience listing failed")
             else:
-                self.record(w, resolve_audience_name(w.query.split(":", 1)[1], listing), listing)
+                if w.query.startswith("urn:"):
+                    d = resolve_audience_urn(w.query, listing)
+                else:
+                    d = resolve_audience_name(w.query.split(":", 1)[1], listing)
+                if d.status == "unresolved" and t in truncated and d.reason != "identity-based (AGENTS §13)":
+                    d = Decision(id=None, confidence=None, ambiguous=False, reason=truncated[t])
+                self.record(w, d, listing)
+
+    async def page_two(self, t: str, params: dict[str, Any], listings: dict[str, Any]) -> None:
+        """A type filled a page: ask for page 2 (lookup endpoints aren't param-guarded). New ids mean
+        pagination works (VERIFIED) and are merged; the same ids mean `page` is ignored (FAILED), and
+        names not found there may be on a page we can't reach."""
+        p2 = {**params, "page": 2}
+        r = await self.call(
+            "audiences", "/v2/audiences", p2, lambda: self.client.request("/v2/audiences", p2, self.c)
+        )
+        first = listings[t]
+        seen = set(listing_ids(first))
+        new = [a for a in (e.raw for e in r.entities) if a.get("id") not in seen] if r.ok else []
+        if not r.ok:
+            verdict = f"UNVERIFIED (page 2 failed: {r.outcome})"
+        elif new and listing_ids(new):
+            verdict = "VERIFIED"
+            listings[t] = first + new
+        else:
+            verdict = "FAILED (page 2 returned the same ids)"
+        self.notes["pagination"][t]["page2"] = verdict
+        if verdict != "VERIFIED" or len(new) >= AUDIENCE_TAKE:
+            self.truncated[t] = f"listing may be truncated ({len(listings[t])} of take {AUDIENCE_TAKE})"
 
     def check_distinct(self, cat: Catalog) -> None:
         """Re-run D38's check with the resolved URNs: two personas must not share an audience set."""
@@ -300,8 +333,16 @@ def render(lock: IdLock, work: dict[str, Work], notes: dict[str, Any]) -> str:
     else:
         out.append("Nothing to review.")
     if pag := notes.get("pagination"):
-        listed = ", ".join(f"{t}: {v['count']}" for t, v in sorted(pag.items()))
-        out += ["", f"Audience listings (take={AUDIENCE_TAKE}): {listed}."]
+        listed = ", ".join(
+            f"{t}: {v['count']}" + (f" (page 2: {v['page2']})" if v.get("page2") else "")
+            for t, v in sorted(pag.items())
+        )
+        full = any(v.get("page2") for v in pag.values())
+        out += [
+            "",
+            f"Audience listings (take={AUDIENCE_TAKE}): {listed}."
+            + ("" if full else " No type filled a page."),
+        ]
     out += ["", END]
     return "\n".join(out)
 
@@ -319,7 +360,11 @@ async def run(a: argparse.Namespace, client: QlooClient) -> dict[str, Any]:
     cat = load_catalog(CONFIG)
     work = work_list(cat)
     kinds = [a.only] if a.only else list(KINDS)
-    r = Resolver(client, max_calls=a.max_calls, dry=a.dry_run)
+    try:
+        old = load_lock(CONFIG)
+    except ConfigError:
+        old = IdLock()
+    r = Resolver(client, max_calls=a.max_calls, dry=a.dry_run, previous=old)
     done: set[str] = set()
     stopped = collapse = None
     try:
@@ -338,6 +383,7 @@ async def run(a: argparse.Namespace, client: QlooClient) -> dict[str, Any]:
         "stopped": stopped,
         "collapse": collapse,
         "notes": r.notes,
+        "failed": r.failures,
     }
     if a.dry_run:
         return out
@@ -348,10 +394,6 @@ async def run(a: argparse.Namespace, client: QlooClient) -> dict[str, Any]:
     )
     if collapse:
         return out  # never lock a set of ids that makes two personas' answer keys identical
-    try:
-        old = load_lock(CONFIG)
-    except ConfigError:
-        old = IdLock()
     lock = merge(old, r.items, work, done)
     write_lock(lock, CONFIG / LOCK_FILE)
     write_review(render(lock, work, r.notes))
@@ -380,6 +422,10 @@ def main(argv: list[str] | None = None) -> int:
     for kind, n in sorted(out["plan"].items()):
         print(f"{kind}: {n} {label}")
     print(f"total: {sum(out['plan'].values())} {label}")
+    if out.get("failed"):
+        print(
+            f"WARNING: {out['failed']} lookups failed; their previous lock entries were kept where they existed"
+        )
     for kind, c in (out.get("counts") or {}).items():
         print(f"{kind}: {c['resolved']} resolved, {c['ambiguous']} ambiguous, {c['unresolved']} unresolved")
     if out["collapse"]:
