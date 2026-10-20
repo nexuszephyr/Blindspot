@@ -525,10 +525,12 @@ sequenceDiagram
 
 ## 12. Service API
 
-All routes are deadline-bound, budget-guarded, labeled with `served_from`, and never return secrets.
+Routes that return Qloo-derived data are deadline-bound, budget-guarded and labeled with `served_from`.
+Static routes (`/`, `/healthz`) touch no Qloo data and are exempt. No route ever returns secrets.
 
 | Route | Phase | Purpose |
 |---|---|---|
+| `GET /` | 2 | Static JSON: what Blindspot is and links to the routes below (#83); replaced by the UI in Phase 6 |
 | `GET /healthz` | 1 | Liveness |
 | `GET /api/qloo/status` | 1 | Mode, budgets per scope, cache size, snapshot, breaker state |
 | `GET /api/qloo/search?q=` | 1 | Guarded smoke endpoint |

@@ -325,3 +325,36 @@ async def test_fake_errors_are_recorded_for_the_harness(harness):
     errors, h.fake.errors[:] = list(h.fake.errors), []  # expected here; any other test fails at teardown
     assert r["served_from"] == "degraded"  # what the client sees looks like any failure...
     assert errors and "bad_requst" in errors[0]  # ...but the fake recorded it for the harness
+
+
+# --------------------------------------------------------------------------- root route (#83)
+async def test_root_is_static_safe_and_never_rate_limited(harness):
+    h = await harness(http_rate_per_minute=1)
+    body = await h.json("/")
+    assert body["ok"] is True and body["name"] == "Blindspot"
+    assert set(body["links"]) == {"health", "status", "search"}
+    for _ in range(3):  # not under /api/: the per-IP limiter never applies
+        r = await h.get("/")
+        assert r.status_code == 200
+    assert r.headers["cache-control"] == "no-store" and r.headers["x-content-type-options"] == "nosniff"
+    assert "default-src 'none'" in r.headers["content-security-policy"]
+    assert (await h.http.head("/")).status_code == 200  # uptime monitors use HEAD
+    assert FAKE_KEY not in r.text and HARNESS_SALT not in r.text
+    assert h.fake.count() == 0  # static: never touches Qloo
+
+
+async def test_root_links_open_as_published(harness):
+    h = await harness()  # default limits: every link must answer 200 exactly as shown
+    links = (await h.json("/"))["links"]
+    for name, link in links.items():
+        r = await h.http.get(link)
+        assert r.status_code == 200, f"{name} link {link} -> {r.status_code}: {r.text[:200]}"
+
+
+async def test_root_returns_a_copy_not_the_shared_constant():
+    from blindspot.service.routes import ROOT_INFO, root
+
+    body = await root()
+    body["links"]["health"] = "/tampered"  # a caller mutating what it got...
+    assert (await root())["links"]["health"] == "/healthz"  # ...can't change later responses
+    assert ROOT_INFO["links"]["health"] == "/healthz"
