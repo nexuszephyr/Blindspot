@@ -23,7 +23,7 @@ from itertools import combinations
 from ..catalog import Catalog, City, Domain, Persona, ProbeType
 from ..idlock import IdLock, dumps_lock
 from .models import SCHEMA_VERSION, Scenario, content_hash
-from .prompts import render
+from .prompts import render, taste_phrase
 from .specs import Unresolvable, build_specs, signal_ids
 
 DEFAULT_SEED = 20261028  # the submission date; change it and every pick changes
@@ -79,14 +79,17 @@ def inputs_hash(cat: Catalog, lock: IdLock) -> str:
 
 # --------------------------------------------------------------------------- candidates
 def _resolvable(cat: Catalog, lock: IdLock, skipped: set[str]) -> set[tuple[str, str]]:
-    """(persona, domain) cells whose answer-key signal has locked ids."""
+    """(persona, domain) cells whose answer-key signal has locked ids and whose taste can be named.
+    A prompt names only seeds with a locked id (they're excluded from the key, D40) and interest tags,
+    so a domain whose only seeds are unresolved can't be asked about honestly."""
     ok = set()
     for p in cat.personas:
         for d in p.domains:
             try:
                 signal_ids(p, cat.domain(d), lock)
+                taste_phrase(p, d, lock)
                 ok.add((p.id, d))
-            except Unresolvable as exc:
+            except (Unresolvable, ValueError) as exc:
                 skipped.add(str(exc))
     return ok
 
@@ -109,7 +112,7 @@ def _candidates(cat: Catalog, probe: str, ok: set[tuple[str, str]]) -> Iterator[
                     yield Unit(probe, d.id, (p.id,), (a.id, b.id))
             elif probe == "bridge":
                 stated = pt.pairs.get(d.id)
-                if stated in p.domains:
+                if (p.id, stated) in ok:  # the taste is stated there, so it must be nameable there
                     yield from (Unit(probe, d.id, (p.id,), (c.id,), stated) for c in cities)
             else:  # core, freshness and any single-scenario probe
                 yield from (Unit(probe, d.id, (p.id,), (c.id,)) for c in cities)
@@ -181,7 +184,7 @@ def _scenario(
         depth=asked.depth,
         pool=asked.membership_pool,
         k=k,
-        prompt_variants=render(p, city, asked, u.stated or asked.id, k),
+        prompt_variants=render(p, city, asked, u.stated or asked.id, k, lock),
         pair_id=pair_id,
         conditions=conditions,
     ).with_id()
@@ -189,11 +192,32 @@ def _scenario(
 
 # --------------------------------------------------------------------------- tags
 def _tag_holdout(picks: dict[str, list[Unit]]) -> None:
-    for units in picks.values():
-        for i, u in enumerate(units):
-            if i % HOLDOUT_EVERY == 2:
-                for s in u.scenarios:
-                    s.tags.append("holdout")
+    """Every 5th pick of each probe is held out, by question identity: a question asked under two
+    probes (a core question that is also half of a swap pair, say) is one question, so all its copies
+    and the units they belong to (pairs stay whole) share the decision. Otherwise the fix loop could
+    tune on one copy and be scored as held out on the other (#43)."""
+    units = [u for us in picks.values() for u in us]
+    parent = {id(u): id(u) for u in units}
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    owner: dict[str, int] = {}
+    for u in units:
+        for s in u.scenarios:
+            q = s.question_key()
+            if q in owner:
+                parent[find(id(u))] = find(owner[q])
+            else:
+                owner[q] = id(u)
+    held = {find(id(u)) for us in picks.values() for i, u in enumerate(us) if i % HOLDOUT_EVERY == 2}
+    for u in units:
+        if find(id(u)) in held:
+            for s in u.scenarios:
+                s.tags.append("holdout")
 
 
 def _tag_demo(cat: Catalog, picks: dict[str, list[Unit]]) -> None:
@@ -202,6 +226,7 @@ def _tag_demo(cat: Catalog, picks: dict[str, list[Unit]]) -> None:
     covered_d: set[str] = set()
     cells: set[tuple[str, str]] = set()
     chosen: list[Unit] = []
+    taken: set[int] = set()
 
     def gain(u: Unit) -> tuple[int, int]:
         cs = set(u.cities) & demo_cities
@@ -210,6 +235,7 @@ def _tag_demo(cat: Catalog, picks: dict[str, list[Unit]]) -> None:
 
     def take(u: Unit) -> None:
         chosen.append(u)
+        taken.add(id(u))
         covered_c.update(set(u.cities) & demo_cities)
         covered_d.add(u.domain)
         cells.update((c, u.domain) for c in u.cities if c in demo_cities)
@@ -218,9 +244,10 @@ def _tag_demo(cat: Catalog, picks: dict[str, list[Unit]]) -> None:
         return sum(len(u.scenarios) for u in chosen)
 
     def pick(units: list[Unit], n: int, limit: int) -> None:
-        pool = [u for u in units if u not in chosen and (set(u.cities) & demo_cities)]
+        pool = [u for u in units if id(u) not in taken and (set(u.cities) & demo_cities)]
         for _ in range(n):
-            if not pool or size() + len(pool[0].scenarios) > limit:
+            pool = [u for u in pool if size() + len(u.scenarios) <= limit]  # only units that fit
+            if not pool:
                 return
             best = min(pool, key=gain)
             pool.remove(best)
@@ -241,11 +268,10 @@ def _tag_demo(cat: Catalog, picks: dict[str, list[Unit]]) -> None:
         pick(core, 1, DEMO_MAX)
         if size() == before:
             break
-    demo = {id(u) for u in chosen}
     for units in picks.values():
         for u in units:
             for s in u.scenarios:
-                s.tags.insert(0, "demo" if id(u) in demo else "extended")
+                s.tags.insert(0, "demo" if id(u) in taken else "extended")
 
 
 # --------------------------------------------------------------------------- entry point
@@ -265,7 +291,7 @@ def generate(cat: Catalog, lock: IdLock, *, seed: int = DEFAULT_SEED, k: int = K
         for i, u in enumerate(units):
             u.order = i
         per_unit = 2 if probe in PAIRED else 1
-        cap = probes[probe].max_scenarios // (per_unit * probes[probe].scenarios_per_cell)
+        cap = probes[probe].max_scenarios // per_unit
         chosen = _select(units, cap, tiers, used)
         for u in chosen:
             u.scenarios = _materialize(cat, lock, u, k)

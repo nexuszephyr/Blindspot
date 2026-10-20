@@ -14,7 +14,7 @@ from blindspot.idlock import IdLock, LockItem, load_lock, lock_key
 from blindspot.qloo.params import check_ids, check_params
 from blindspot.scenarios import cli
 from blindspot.scenarios.generator import DEFAULT_SEED, generate
-from blindspot.scenarios.prompts import lint_prompts, taste_phrase
+from blindspot.scenarios.prompts import lint_prompts, named_seeds, taste_phrase
 from blindspot.scenarios.specs import EXCLUDE_PARAM, Unresolvable, build_specs
 from tests.test_catalog import ROOT
 
@@ -218,19 +218,19 @@ def test_pairs(cat, ss):
             assert a.conditions == ([cond] if cond else [])
 
 
-def test_bridge_states_taste_in_another_domain(cat, ss):
+def test_bridge_states_taste_in_another_domain(cat, lock, ss):
     for s in _by(ss, probe_type="bridge"):
         assert s.stated_domain and s.stated_domain != s.domain_id
         assert s.stated_domain == cat.probe("bridge").pairs[s.domain_id]
-        taste = taste_phrase(cat.persona(s.persona_id), s.stated_domain)
+        taste = taste_phrase(cat.persona(s.persona_id), s.stated_domain, lock)
         assert all(taste in v.text and cat.domain(s.domain_id).phrasing in v.text for v in s.prompt_variants)
 
 
 # --------------------------------------------------------------------------- prompt lint
-def test_prompts_mention_only_own_taste_age_and_city(cat, ss):
+def test_prompts_mention_only_own_taste_age_and_city(cat, lock, ss):
     for s in ss.scenarios:
         p = cat.persona(s.persona_id)
-        taste = taste_phrase(p, s.stated_domain or s.domain_id)
+        taste = taste_phrase(p, s.stated_domain or s.domain_id, lock)
         for v in s.prompt_variants:
             assert taste in v.text and cat.city(s.city_id).display_name in v.text
             assert p.descriptor not in v.text and p.id not in v.text
@@ -244,20 +244,56 @@ def test_lint_catches_ids_and_answer_key_names():
     assert lint_prompts(["I love Example Bandwagon"], ["Example Band"]) == []  # whole words only
 
 
-def test_named_seeds_are_excluded_from_the_answer_key(cat, lock, ss):
+def test_every_named_seed_is_locked_and_excluded_from_the_key(cat, lock, ss):
     # what a prompt names can't be in its key, so "no answer-key name in a prompt" holds by construction
     for s in ss.scenarios:
-        if s.stated_domain:  # bridge names another domain's seeds, which can't be in this domain's key
-            continue
-        named = [
-            x
-            for x in (
-                lock.id_for("seed", s.domain_id, sd.name)
-                for sd in cat.persona(s.persona_id).seeds.get(s.domain_id, [])
-            )
-            if x
-        ]
-        assert set(named) <= set(s.local_spec.params.get(EXCLUDE_PARAM, []))
+        p = cat.persona(s.persona_id)
+        stated = s.stated_domain or s.domain_id
+        texts = [v.text for v in s.prompt_variants]
+        for seed in p.seeds.get(stated, []):
+            seed_id = lock.id_for("seed", stated, seed.name)
+            if any(seed.name in t for t in texts):
+                assert seed_id is not None, f"{s.id} names unlocked seed {seed.name!r}"
+                if not s.stated_domain:  # bridge names another domain's seeds: not in this domain's key
+                    assert seed_id in s.local_spec.params.get(EXCLUDE_PARAM, [])
+            else:
+                assert seed_id is None  # a locked seed is always named
+
+
+def test_unlocked_seeds_are_never_named_and_unnameable_cells_are_skipped(cat, lock, ss):
+    unlocked = [
+        (p, d, sd.name)
+        for p in cat.personas
+        for d, seeds in p.seeds.items()
+        for sd in seeds
+        if lock.id_for("seed", d, sd.name) is None
+    ]
+    assert unlocked, "the committed lock has an unresolved seed; this test relies on one"
+    for p, d, name in unlocked:
+        for s in ss.scenarios:
+            if s.persona_id == p.id and (s.stated_domain or s.domain_id) == d:
+                assert all(name not in v.text for v in s.prompt_variants)
+        if not named_seeds(p, d, lock) and not p.interest_tags.get(d):
+            assert not [
+                s for s in ss.scenarios if s.persona_id == p.id and d in (s.domain_id, s.stated_domain)
+            ]
+            assert any(f"{p.id}/{d}" in x for x in ss.skipped)
+
+
+def test_holdout_follows_the_question_not_the_probe(ss):
+    by_question: dict[str, set[bool]] = {}
+    for s in ss.scenarios:
+        by_question.setdefault(s.question_key(), set()).add("holdout" in s.tags)
+    repeated = [k for k, v in Counter(s.question_key() for s in ss.scenarios).items() if v > 1]
+    assert repeated, "no question is asked under two probes; the test needs one"
+    assert all(len(v) == 1 for v in by_question.values()), "a question is both held out and not"
+
+
+def test_lint_reports_are_stable():
+    prompts = ["I love Alpha Band and Beta Band"]
+    assert lint_prompts(prompts, ["Beta Band", "Alpha Band"]) == lint_prompts(
+        prompts, ["Alpha Band", "Beta Band"]
+    )
 
 
 # --------------------------------------------------------------------------- CLI
@@ -267,13 +303,13 @@ def _run(capsys, *argv):
     return code, capsys.readouterr().out
 
 
-def test_cli_build_twice_same_hash_and_docs(tmp_path, capsys, monkeypatch):
+def test_cli_build_twice_same_hash_and_docs(tmp_path, capsys):
     doc = tmp_path / "scenarios.md"
     doc.write_text("# Scenarios\n", encoding="utf-8")
-    monkeypatch.setattr(cli, "DOC", doc)
     out = tmp_path / "s.json"
-    code, first = _run(capsys, "build", "--config", str(CFG), "--out", str(out), "--docs")
-    code2, second = _run(capsys, "build", "--config", str(CFG), "--out", str(out), "--docs")
+    args = ("build", "--config", str(CFG), "--out", str(out), "--docs", "--doc", str(doc))
+    code, first = _run(capsys, *args)
+    code2, second = _run(capsys, *args)
     h1, h2 = (re.search(r"sha256 ([0-9a-f]{64})", t)[1] for t in (first, second))
     assert code == code2 == 0 and h1 == h2
     assert "| **Total** |" in first and "demo |" in first
@@ -299,3 +335,57 @@ def test_top_level_cli_dispatches(capsys):
     from blindspot.cli import main
 
     assert main(["nope"]) == 2
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        f"# S\n{cli.BEGIN}\nold\n",  # END deleted
+        f"# S\n{cli.END}\n{cli.BEGIN}\nold\n",  # END before BEGIN
+        f"# S\n{cli.BEGIN}\n{cli.END}\n{cli.BEGIN}\n{cli.END}\n",  # duplicated
+    ],
+)
+def test_damaged_doc_markers_fail_before_anything_is_written(tmp_path, capsys, body):
+    doc, out = tmp_path / "scenarios.md", tmp_path / "s.json"
+    doc.write_text(body, encoding="utf-8")
+    with pytest.raises(SystemExit, match="markers are damaged"):
+        cli.main(["build", "--config", str(CFG), "--out", str(out), "--docs", "--doc", str(doc)])
+    assert not out.exists() and doc.read_text(encoding="utf-8") == body
+
+
+def test_paths_follow_config_not_the_working_directory(tmp_path, capsys, monkeypatch):
+    import shutil
+
+    repo = tmp_path / "repo"
+    shutil.copytree(CFG, repo / "config")
+    (repo / "docs").mkdir()
+    (repo / "docs" / "scenarios.md").write_text("# Scenarios\n", encoding="utf-8")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    cfg = str(repo / "config")
+    assert _run(capsys, "build", "--config", cfg, "--docs")[0] == 0
+    assert (repo / "data" / "scenarios" / "scenarios.json").is_file()
+    assert cli.BEGIN in (repo / "docs" / "scenarios.md").read_text(encoding="utf-8")
+    assert not any(elsewhere.iterdir())  # nothing written where it was run from
+    code, listed = _run(capsys, "list", "--config", cfg, "--tag", "holdout")
+    assert code == 0 and "holdout" in listed
+
+
+def test_holdout_rule_shares_the_decision_across_probes(ss):
+    # Direct test of the rule, independent of which picks happen to collide: in probe "a" the 3rd
+    # pick is held out; probe "b" asks the same question as its 1st (not held out by position) and
+    # pairs it with another question. Both copies and the whole pair must be held out.
+    from blindspot.scenarios.generator import Unit, _tag_holdout
+
+    def copy(s, probe):
+        return s.model_copy(update={"probe_type": probe, "tags": []}, deep=True)
+
+    s1, s2, s3, s4 = ss.scenarios[:4]
+    picks = {
+        "a": [Unit("a", "d", ("p",), ("c",), scenarios=[copy(s, "a")]) for s in (s1, s2, s3)],
+        "b": [Unit("b", "d", ("p",), ("c", "c2"), scenarios=[copy(s3, "b"), copy(s4, "b")])],
+    }
+    _tag_holdout(picks)
+    held = {(u.probe, s.id) for us in picks.values() for u in us for s in u.scenarios if "holdout" in s.tags}
+    assert held == {("a", s3.id), ("b", s3.id), ("b", s4.id)}

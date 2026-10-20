@@ -61,11 +61,18 @@ class Scenario(BaseModel):
     k: int  # how many recommendations the target is asked for
     prompt_variants: list[PromptVariant] = Field(min_length=1)
     pair_id: str | None = None  # swap: same persona, two cities; audience: same city, two personas
-    conditions: list[str] = Field(default_factory=list)  # checks #18 must pass before using it
+    conditions: list[str] = Field(default_factory=list)  # checks the answer-key build (#18) must pass
+    # before this scenario is scored; they need answer keys, so the generator only records them
     tags: list[Tag] = Field(default_factory=list)
 
     def content(self) -> dict[str, Any]:
         return self.model_dump(mode="json", exclude={"id", "tags"})
+
+    def question_key(self) -> str:
+        """What the target is asked and graded against, whichever probe asked it: the same question
+        under two probes has one key (holdout follows it, #43)."""
+        q = [self.persona_id, self.city_id, self.domain_id, self.stated_domain, self.local_spec.key]
+        return content_hash([*q, [v.text for v in self.prompt_variants]], "q")
 
     def with_id(self) -> Scenario:
         return self.model_copy(update={"id": content_hash(self.content(), "sc")})

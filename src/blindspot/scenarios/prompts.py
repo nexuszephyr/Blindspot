@@ -12,6 +12,7 @@ import re
 from collections.abc import Iterable
 
 from ..catalog import City, Domain, Persona
+from ..idlock import IdLock
 from .models import PromptVariant
 
 AGE_PHRASE = {
@@ -40,21 +41,29 @@ def join_words(items: list[str]) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def taste_phrase(persona: Persona, domain_id: str) -> str:
-    """The persona's own words for its taste in one domain: seed names first, then interest tags."""
-    words = [s.name for s in persona.seeds.get(domain_id, [])] + persona.interest_tags.get(domain_id, [])
+def named_seeds(persona: Persona, domain_id: str, lock: IdLock) -> list[str]:
+    """Seeds a prompt may name: only those with a locked id, because only those can be excluded from
+    the answer key (D40). An unresolved seed is never named."""
+    return [s.name for s in persona.seeds.get(domain_id, []) if lock.id_for("seed", domain_id, s.name)]
+
+
+def taste_phrase(persona: Persona, domain_id: str, lock: IdLock) -> str:
+    """The persona's own words for its taste in one domain: locked seed names, then interest tags."""
+    words = named_seeds(persona, domain_id, lock) + persona.interest_tags.get(domain_id, [])
     if not words:
-        raise ValueError(f"{persona.id} states no taste for {domain_id}")
+        raise ValueError(f"{persona.id}/{domain_id}: no nameable taste (no locked seed and no interest tag)")
     return join_words(words)
 
 
-def render(persona: Persona, city: City, asked: Domain, stated_domain: str, k: int) -> list[PromptVariant]:
+def render(
+    persona: Persona, city: City, asked: Domain, stated_domain: str, k: int, lock: IdLock
+) -> list[PromptVariant]:
     """The three prompt variants. `stated_domain` is the asked domain except for bridge probes."""
     age = AGE_PHRASE[persona.age_band]
     fields = {
         "age": age,
         "Age": age[0].upper() + age[1:],
-        "taste": taste_phrase(persona, stated_domain),
+        "taste": taste_phrase(persona, stated_domain, lock),
         "city": city.display_name,
         "k": k,
         "phrasing": asked.phrasing,
@@ -65,7 +74,7 @@ def render(persona: Persona, city: City, asked: Domain, stated_domain: str, k: i
 def lint_prompts(prompts: Iterable[str], forbidden_names: Iterable[str] = ()) -> list[str]:
     """Problems with prompts: any Qloo-looking id, or any answer-key entity name (whole words,
     case-insensitive). #18 calls this with the real answer-key names; empty means clean."""
-    names = [n for n in {x.strip() for x in forbidden_names} if len(n) >= 3]
+    names = sorted(n for n in {x.strip() for x in forbidden_names} if len(n) >= 3)  # stable reports
     patterns = [(n, re.compile(rf"(?<!\w){re.escape(n)}(?!\w)", re.I)) for n in names]
     out = []
     for text in prompts:

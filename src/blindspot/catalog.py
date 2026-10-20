@@ -36,8 +36,9 @@ SignalKind = Literal["audience", "entity", "tag"]
 AgeBand = Literal["35_and_younger", "36_to_55", "55_and_older"]
 VERIFIED_AGE_BANDS = frozenset({"35_and_younger", "55_and_older"})  # recon E5
 
-# Checks the scenario generator (#16) implements. A `condition` naming anything else fails to load,
-# so a typo can't silently drop a guard such as D37's dining check.
+# Checks the answer-key build (#18) evaluates before a scenario is scored: they need answer keys, so
+# the generator (#16) only records them on the scenario. A `condition` naming anything else fails to
+# load, so a typo can't silently drop a guard such as D37's dining check.
 KNOWN_CONDITIONS = frozenset({"personas_distinct_in_city"})
 
 # Identity-based audiences (AGENTS §13) are opt-in. Matching is on whole tokens (split on anything
@@ -127,7 +128,6 @@ class ProbeType(_Strict):
     id: str = Field(pattern=r"^[a-z0-9_]+$")
     description: str = Field(min_length=10)
     domains: list[str] = Field(min_length=1)  # domains this probe is allowed in
-    scenarios_per_cell: int = Field(default=1, ge=1, le=5)
     max_scenarios: int = Field(ge=0, le=200)  # cap for the generator (#16)
     params: dict[str, Any] = Field(default_factory=dict)  # extra answer-key params, VERIFIED per domain
     requires_pairs: bool = False  # the taste is stated in another domain (bridge)
