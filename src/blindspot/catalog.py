@@ -79,6 +79,7 @@ class City(_Strict):
     country: str = Field(pattern=r"^[A-Z]{2}$")
     script_note: str = ""
     tier: int = Field(ge=1, le=3)
+    demo: bool = False  # in the hosted demo's precomputed subset (#16, #57); rich cities only
 
 
 class QueryShape(_Strict):

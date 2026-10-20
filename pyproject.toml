@@ -18,6 +18,9 @@ dependencies = [
   "pyyaml>=6,<7",
 ]
 
+[project.scripts]
+blindspot = "blindspot.cli:main"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=9.1.1",
