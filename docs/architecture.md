@@ -525,7 +525,8 @@ sequenceDiagram
 
 ## 12. Service API
 
-All routes are deadline-bound, budget-guarded, labeled with `served_from`, and never return secrets.
+Routes that return Qloo-derived data are deadline-bound, budget-guarded and labeled with `served_from`.
+Static routes (`/`, `/healthz`) touch no Qloo data and are exempt. No route ever returns secrets.
 
 | Route | Phase | Purpose |
 |---|---|---|

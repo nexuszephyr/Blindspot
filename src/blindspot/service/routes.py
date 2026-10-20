@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import time
 from typing import Annotated
 
@@ -30,11 +31,11 @@ ROOT_INFO = {
     "ok": True,
     "name": "Blindspot",
     "about": "Audits AI agents for cultural blindness using Qloo's taste graph as the answer key.",
-    "phase": "2: answer key (the web UI arrives in Phase 6)",
-    "links": {
+    "note": "JSON API; a web UI replaces this page in Phase 6.",
+    "links": {  # each opens as published (a test requests them and requires 200)
         "health": "/healthz",
         "status": "/api/qloo/status",
-        "search": "/api/qloo/search?q=",
+        "search": "/api/qloo/search?q=jazz",
     },
 }
 
@@ -42,7 +43,7 @@ ROOT_INFO = {
 @router.api_route("/", methods=["GET", "HEAD"])
 async def root():
     """What a judge sees at the bare hosted URL (#83); `/docs` stays disabled (D19)."""
-    return ROOT_INFO
+    return copy.deepcopy(ROOT_INFO)  # never hand out the shared constant
 
 
 @router.api_route("/healthz", methods=["GET", "HEAD"])
