@@ -327,7 +327,7 @@ flowchart LR
 | City | From `config/cities.yaml`; the exact Qloo location string that worked in recon |
 | Domain | `dining` (place), `music` (artist), `film_tv` (movie, tv_show), `brands` (brand); others possible |
 | Probe type | `core`, `swap`, `bridge`, `audience`, `freshness` (see below) |
-| Scenario | One exam question; content-hashed id `sc_…`; deterministic from config and lockfile |
+| Scenario | One exam question; content-hashed id `sc_…`; deterministic from config and the id lock. Fields and the build: [scenarios.md](scenarios.md#scenarios-the-generated-exam) |
 | Answer key | Local ranked list + global baseline list from Qloo, 20 deep, plus a top-50 membership pool (E12) |
 
 ### 7.2 Probe types

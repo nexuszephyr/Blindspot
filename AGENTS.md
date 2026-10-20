@@ -104,7 +104,8 @@ src/blindspot/
                       errors, cache, db, calllog, budget, breaker, ratelimit, context,
                       redact, snapshot, cli
   service/            app.py (main_app factory), routes.py, security.py
-  scenarios/          (Phase 2) scenario engine
+  scenarios/          scenario engine: generate() (seeded, deterministic), specs, prompts, CLI
+  cli.py              `blindspot <group>` / `python -m blindspot` (groups: scenarios)
   groundtruth/        (Phase 2) answer key, entity_index, get_answer_key()
   targets/            (Phase 3) target-model adapters
   resolve/            (Phase 3) free text -> Qloo entity
@@ -262,6 +263,7 @@ make docker-scan  # build the image and scan layers for secrets
 python scripts/scan_secrets.py
 python -m blindspot.qloo.cli budget
 python -m blindspot.qloo.cli calls --last 20
+blindspot scenarios build   # the exam, offline; prints the distribution and a sha256
 ```
 
 Windows without `make`: see `docs/JUDGES.md` for the equivalent commands.

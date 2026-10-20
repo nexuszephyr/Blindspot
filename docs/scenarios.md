@@ -70,19 +70,18 @@ Today every domain uses `signal: audience`, depth 20 and a pool of 50. Film does
 | `id` | Probe ids come from this file (today `core`, `swap`, `bridge`, `audience`, `freshness`); the generator (#16) implements each and rejects ids it doesn't know |
 | `description` | One line on what the probe detects |
 | `domains` | Domains where the probe is **allowed**. A domain **enables** it in `domains.yaml` |
-| `scenarios_per_cell` | Questions per persona × city × domain cell (1 to 5) |
 | `max_scenarios` | Cap for this probe across the exam. The totals aim for 80 to 120 scenarios (#16) |
 | `params` | Extra answer-key params, ids only. The loader rejects any param not VERIFIED for every allowed domain's `filter.type`, because Qloo silently ignores the rest (ADR 0005) |
 | `requires_pairs` | The taste is stated in another domain (bridge). Then every domain that enables the probe needs a pair |
 | `pairs` | Asked domain → the domain the taste is stated in. A persona examined in the asked domain must also have the stated one, or list the probe in `exclude_probes` |
-| `condition` | Domain → a check the generator must pass before using the probe there. Only checks the generator implements load (`catalog.KNOWN_CONDITIONS`: `personas_distinct_in_city`), so a typo can't silently drop the guard |
+| `condition` | Domain → a check the answer-key build (#18) must pass before a scenario there is scored. It needs answer keys, so the generator only copies it into the scenario's `conditions`. Only checks #18 implements load (`catalog.KNOWN_CONDITIONS`: `personas_distinct_in_city`), so a typo can't silently drop the guard |
 
 | Probe | Setup | Where | Evidence |
 |---|---|---|---|
 | `core` | Persona taste + city, ask one domain | all | coverage rich in all 6 cities × 4 domains |
 | `swap` | Same persona and question in two cities | all | city top-10 overlap ≤ about 0.12 (E12: 0.0) |
 | `bridge` | Taste stated in one domain, asked in another | all, via `pairs` | to validate in V-checks |
-| `audience` | Same city and domain, two personas | music, film, brands; dining only if `personas_distinct_in_city` passes | E15, D37 |
+| `audience` | Same city and domain, two personas | music, film, brands; dining pairs carry `personas_distinct_in_city`, which #18 checks on the answer keys before scoring | E15, D37 |
 | `freshness` | Answer key with `bias.trends=high` | dining only | `bias.trends` changes dining only (E6) |
 
 ## personas.yaml
@@ -158,3 +157,78 @@ Turning `allow_identity` on needs the maintainer's approval (AGENTS §13).
 - **Domain:** add it to `domains.yaml` with a supported `filter_type`. Promote any new param with
   `scripts/promote_param.py` first, run E12 to E14 for its depth, shape and candidate scoring, then
   allow it in the probe types you want.
+
+## Scenarios (the generated exam)
+
+`blindspot scenarios build` (or `python -m blindspot scenarios build`) turns the four config files
+and the id lock into the exam: `data/scenarios/scenarios.json`. The file is gitignored because it is
+regenerated, offline and byte-identically, from committed inputs; the build prints its sha256, so two
+builds can be compared. `blindspot scenarios list [--probe --city --domain --tag]` and
+`blindspot scenarios show <id>` read it. Code: `src/blindspot/scenarios/`.
+
+| Field | Meaning |
+|---|---|
+| `id` | `sc_` + 12 hex of sha256 over the scenario's content (everything but `id` and `tags`). Same config and lock, same ids |
+| `version` | Schema version (1) |
+| `persona_id`, `city_id`, `domain_id` | Who asks, where, and which domain is asked for |
+| `probe_type` | `core`, `swap`, `bridge`, `audience` or `freshness` |
+| `stated_domain` | Bridge only: the domain the persona's taste is stated in |
+| `signal` | The persona signal in the answer key (the domain's `query_shape.signal`) |
+| `local_spec` | `/v2/insights` params for this city: the answer key (top `depth`) and the membership pool (`pool`, its `take`). Ids only, from the lock; checked by the strict parameter guard |
+| `global_spec` | The same query without a location: the "famous anywhere" baseline. Shared by every scenario with the same persona, domain and probe, so #18 fetches it once (`key`) |
+| `depth`, `pool`, `k` | Answer-key depth (20), membership pool (50), and how many recommendations the target is asked for (10) |
+| `prompt_variants` | Three phrasings (`t1_direct`, `t2_new_in_town`, `t3_terse`) |
+| `pair_id` | Swap: one persona in two cities. Audience: two personas in one city. Both halves share it |
+| `conditions` | Checks the answer-key build (#18) must evaluate before the scenario is scored; a pair that fails is dropped from scoring (dining audience pairs: `personas_distinct_in_city`, D37) |
+| `tags` | `demo` or `extended`, plus `holdout` for about 20% |
+
+**How it's built.**
+1. For each probe, every possible unit is listed in a fixed order: one scenario, or a pair for swap
+   and audience. A persona whose answer-key signal has no locked id is skipped, and the build lists
+   why.
+2. A seeded RNG (`DEFAULT_SEED`) shuffles the units. A greedy pick then balances cities, domains and
+   personas up to the probe's `max_scenarios`. Swap pairs prefer one rich and one focus city.
+3. Every 5th pick of each probe is also `holdout`, by **question identity**: the same question asked under two probes (a core question that is also half of a swap pair, say) is one question, so every copy and its whole pair share the decision. The fix loop (#43) can't tune on one copy and be scored as held out on another.
+4. The demo subset takes 8 swap pairs covering the most new cities and domains, then core
+   scenarios to cover the remaining demo city × domain cells, then one bridge, one audience pair and
+   one freshness scenario.
+
+**Prompts** use only the persona's own seeds that have a locked id (an unresolved seed is never named) and its interest tags, plus its age band and the city. A domain whose only seeds are unresolved, with no tags, is skipped for that persona and listed
+under "Skipped" in the build output (AGENTS §8). The answer key excludes the persona's own seeds in the asked domain
+(`filter.exclude.entities`, VERIFIED in #12), so nothing a prompt names can be in its key.
+`scenarios.prompts.lint_prompts` checks prompts against ids and, in #18, the real answer-key names.
+
+## Scenario distribution
+
+<!-- BEGIN scenario distribution: generated by `blindspot scenarios build --docs` -->
+
+104 scenarios from seed 20261028 (inputs `in_24e02f6329b9`).
+
+| Probe \ city | bengaluru | berlin | lagos | new_york | sao_paulo | tokyo | Total |
+|---|---|---|---|---|---|---|---|
+| swap | 4 | 4 | 4 | 4 | 4 | 4 | 24 |
+| core | 7 | 7 | 7 | 6 | 6 | 7 | 40 |
+| bridge | 3 | 3 | 2 | 3 | 3 | 2 | 16 |
+| audience | 2 | 2 | 4 | 2 | 2 | 4 | 16 |
+| freshness | 1 | 1 | 1 | 2 | 2 | 1 | 8 |
+| **Total** | 17 | 17 | 18 | 17 | 17 | 18 | **104** |
+
+| Probe \ domain | brands | dining | film_tv | music | Total |
+|---|---|---|---|---|---|
+| swap | 6 | 6 | 6 | 6 | 24 |
+| core | 10 | 10 | 10 | 10 | 40 |
+| bridge | 4 | 4 | 4 | 4 | 16 |
+| audience | 4 | 4 | 4 | 4 | 16 |
+| freshness | 0 | 8 | 0 | 0 | 8 |
+| **Total** | 24 | 32 | 24 | 24 | **104** |
+
+| Subset | Scenarios | Notes |
+|---|---|---|
+| demo | 40 | 8 swap pairs |
+| extended | 64 | |
+| holdout | 21 | swap 4, core 8, bridge 3, audience 4, freshness 2 |
+
+Skipped:
+- classical_and_jazz/brands: no nameable taste (no locked seed and no interest tag)
+
+<!-- END scenario distribution -->

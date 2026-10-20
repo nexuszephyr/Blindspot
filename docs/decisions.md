@@ -188,3 +188,30 @@ and audience URNs, because it's functional config: judges need it for the no-key
 (hard rule 4). It holds ids only, never names, scores or popularity (D5). Documentation is
 different: an id there only illustrates, so it is labelled (`entity#<sha256[:6]>`, as in
 `docs/param_evidence.md`, #86), and test fixtures use synthetic ids.
+
+**D40. Scenario generation choices (#16, 2026-10-20).**
+- **Own seeds are excluded from the answer key.** The local and global specs carry
+  `filter.exclude.entities` with the persona's resolved seeds in the asked domain (VERIFIED, #12).
+  A prompt names those seeds, so an agent echoing them must not count as taste, and no prompt can
+  contain an answer-key entity.
+- **The target is asked for k = 10.** The key is 20 deep with a 50-item pool (D34), so recall has
+  room and picks outside the key can still be placed.
+- **One fetch per question.** The local spec's `take` is the pool (50), and its top 20 is the key.
+  The global baseline has the same params without a location and the same `take`.
+- **Balance, pairs and tags.** Seeded greedy balance per probe; swap and audience pairs are picked
+  and tagged as units. The holdout is every 5th pick per probe (about 20%). The demo is 30 to 40
+  scenarios with at least 8 swap pairs.
+- **`demo` is a city field** (all six today, all rich per the coverage matrix).
+- **Size.** 104 scenarios need 155 distinct queries (95 local, 60 global), 66 for the demo, which is
+  well within Phase 2's 1,200-call budget for #18.
+- **A prompt names only seeds with a locked id.** Only those can be excluded from the key. A
+  persona-domain whose only seeds are unresolved and that has no interest tags is skipped and
+  listed (today: classical_and_jazz/brands, until Steinway is replaced).
+- **Holdout follows the question, not the probe.** The same question can be asked under two probes
+  (5 such questions today), so the holdout decision is shared by every copy and by whole pairs.
+  Otherwise the fix loop could tune on one copy and be scored on another (review of #92).
+- **`conditions` are evaluated by #18, not the generator.** `personas_distinct_in_city` needs answer
+  keys, so the generator records it on the scenario, and the answer-key build must check it before
+  a scenario is scored.
+- **`scenarios_per_cell` is removed.** Its cap logic did the opposite of its description, and one
+  question per cell is all the exam needs (review of #92).
