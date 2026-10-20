@@ -17,6 +17,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from ..config import Settings
+from .builder import READABLE_STATUSES
 from .store import Store
 
 ServedFrom = Literal["cache", "snapshot"]
@@ -45,7 +46,7 @@ class RankedList(BaseModel):
 
 class AnswerKey(BaseModel):
     scenario_id: str
-    status: str  # done | thin | excluded (failed and pending keys can't be read)
+    status: str  # done | thin | excluded. pending, fetched (unchecked), failed and empty can't be read
     reason: str
     depth: int
     local: RankedList
@@ -102,7 +103,7 @@ def get_answer_key(scenario_id: str, store: Store | None = None) -> AnswerKey:
         if not rows:
             raise NotBuilt(f"unknown scenario {scenario_id!r}; run `blindspot groundtruth build`")
         r = rows[0]
-        if r["status"] not in ("done", "thin", "excluded") or store.run(r["local_key"]) is None:
+        if r["status"] not in READABLE_STATUSES or store.run(r["local_key"]) is None:
             raise NotBuilt(f"{scenario_id}: answer key not built ({r['status']}: {r['reason'] or 'pending'})")
         local = _ranked(store, r["local_key"], r["depth"])
         glob = _ranked(store, r["global_key"], r["depth"])
@@ -115,5 +116,15 @@ def get_answer_key(scenario_id: str, store: Store | None = None) -> AnswerKey:
             store.close()
 
 
-def open_store(path: Path | str | None = None) -> Store:
-    return Store(path or Settings().groundtruth_path)
+def default_store_path(config_dir: Path | str | None = None) -> Path:
+    """Where the answer keys live. A relative GROUNDTRUTH_PATH is taken from the repo root (the parent
+    of the config dir), the same for the build CLI and for every reader, whatever the working
+    directory."""
+    s = Settings()
+    if s.groundtruth_path.is_absolute():
+        return s.groundtruth_path
+    return Path(config_dir or s.config_dir).resolve().parent / s.groundtruth_path
+
+
+def open_store(path: Path | str | None = None, *, config_dir: Path | str | None = None) -> Store:
+    return Store(path or default_store_path(config_dir))

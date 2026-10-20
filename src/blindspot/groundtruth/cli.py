@@ -23,22 +23,16 @@ from pathlib import Path
 
 from ..catalog import load_catalog
 from ..config import Settings
+from ..console import utf8_console
 from ..idlock import load_lock
 from ..qloo.client import QlooClient
 from ..qloo.redact import install_log_redaction
 from ..scenarios.generator import generate
-from .api import NotBuilt, get_answer_key
-from .builder import Builder, Report
+from .api import NotBuilt, default_store_path, get_answer_key
+from .builder import Builder, Report, SpecError
 from .store import Store
 
 EXPORT_REL = Path("data/groundtruth/answer_keys.json")
-
-
-def _utf8_console() -> None:
-    for stream in (sys.stdout, sys.stderr):
-        reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure:
-            reconfigure(encoding="utf-8", errors="replace")
 
 
 def _scenarios(config: Path, tag: str):
@@ -73,7 +67,8 @@ def _status(store: Store) -> int:
     src = store.query("SELECT served_from, COUNT(*) n FROM ground_truth_runs GROUP BY served_from")
     print("fetched from: " + ", ".join(f"{r['served_from']} {r['n']}" for r in src))
     for r in store.query(
-        "SELECT status, reason, COUNT(*) n FROM scenario_status WHERE status IN ('thin','excluded','failed') "
+        "SELECT status, reason, COUNT(*) n FROM scenario_status "
+        "WHERE status IN ('thin','excluded','empty','fetched','failed') "
         "GROUP BY status, reason ORDER BY status, n DESC"
     ):
         print(f"  {r['status']}: {r['n']} x {r['reason']}")
@@ -96,15 +91,10 @@ def main(argv: list[str] | None = None) -> int:
     ex = sub.add_parser("export")
     ex.add_argument("--out", type=Path)
     a = ap.parse_args(argv)
-    _utf8_console()
+    utf8_console()
     install_log_redaction()
     root = a.config.resolve().parent
-    settings = Settings()
-    db = a.db or (
-        settings.groundtruth_path
-        if settings.groundtruth_path.is_absolute()
-        else root / settings.groundtruth_path
-    )
+    db = a.db or default_store_path(a.config)
     store = Store(db)
     try:
         if a.cmd == "status":
@@ -134,9 +124,13 @@ def main(argv: list[str] | None = None) -> int:
             builder = Builder(
                 client, store, concurrency=a.concurrency, max_calls=a.max_calls, location_words=words
             )
-            if a.dry_run:
-                _print_report(builder.plan(scenarios, resume=not a.fresh), dry=True)
-                return 0
+            try:
+                if a.dry_run:
+                    _print_report(builder.plan(scenarios, resume=not a.fresh), dry=True)
+                    return 0
+            except SpecError as exc:
+                print(exc, file=sys.stderr)
+                return 2
 
             async def run() -> Report:
                 try:
@@ -144,7 +138,11 @@ def main(argv: list[str] | None = None) -> int:
                 finally:
                     await client.aclose()  # same event loop as the requests
 
-            report = asyncio.run(run())
+            try:
+                report = asyncio.run(run())
+            except SpecError as exc:  # raised before any call is made
+                print(exc, file=sys.stderr)
+                return 2
             _print_report(report, dry=False)
             return 1 if report.stopped else 0
         finally:

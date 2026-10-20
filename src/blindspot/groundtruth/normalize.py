@@ -46,15 +46,32 @@ def _punct_to_space(s: str) -> str:
     return "".join(" " if unicodedata.category(ch)[0] in "PSZC" else ch for ch in s)
 
 
-def normalize_name(name: str, *, location_words: Iterable[str] = ()) -> str:
-    """Comparable form of a name. `location_words` (city names from config/, never hard-coded) are
-    removed when they trail the name after a separator ("X - Example City", "X, Example City")."""
+Places = tuple[tuple[str, ...], ...]
+
+
+def place_forms(location_words: Iterable[str]) -> Places:
+    """Location words (city names from config/) as normalized token tuples, computed once."""
+    forms = {tuple(normalize_name(w).split()) for w in location_words if w}
+    return tuple(sorted(f for f in forms if f))
+
+
+def _is_location_tail(segment: str, places: Places) -> bool:
+    """A trailing segment is a location only if it *ends with* a place as whole words: "example city"
+    and "old town example city" are; "example cityscape style" (a place inside a longer word) isn't."""
+    tokens = tuple(_plain(segment).split())
+    return any(len(tokens) >= len(p) and tokens[-len(p) :] == p for p in places)
+
+
+def normalize_name(name: str, *, location_words: Iterable[str] = (), places: Places | None = None) -> str:
+    """Comparable form of a name. Trailing location segments ("X - Example City", "X, Example City")
+    are removed when they end with one of the places (`location_words`, or `places` from
+    `place_forms` to avoid re-normalizing them per call). Places come from config/, never code."""
     s = unicodedata.normalize("NFKC", name or "").casefold()
     s = _BRACKETS.sub(" ", s)
-    places = [p for p in {normalize_name(w) for w in location_words if w} if p]
+    places = place_forms(location_words) if places is None else places
     if places:
         parts = _TAIL_SEP.split(s)
-        while len(parts) > 1 and any(p in _plain(parts[-1]) for p in places):
+        while len(parts) > 1 and _is_location_tail(parts[-1], places):
             parts.pop()
         s = " ".join(parts)
     s = _strip_latin_accents(s)
@@ -65,14 +82,15 @@ def _plain(s: str) -> str:
     return " ".join(_punct_to_space(_strip_latin_accents(s)).split())
 
 
-def aliases(name: str, *, location_words: Iterable[str] = ()) -> list[str]:
+def aliases(name: str, *, location_words: Iterable[str] = (), places: Places | None = None) -> list[str]:
     """Extra comparable forms: the full name with any bracketed part kept, without a leading article,
     and with "&" read as "and"."""
-    norm = normalize_name(name, location_words=location_words)
+    places = place_forms(location_words) if places is None else places
+    norm = normalize_name(name, places=places)
     out = {norm, _plain(unicodedata.normalize("NFKC", name or "").casefold())}  # brackets kept, too
     for article in ("the ", "a ", "la ", "le ", "el ", "les ", "los ", "die ", "der ", "das "):
         if norm.startswith(article):
             out.add(norm[len(article) :])
     if "&" in name:
-        out.add(normalize_name(name.replace("&", " and "), location_words=location_words))
+        out.add(normalize_name(name.replace("&", " and "), places=places))
     return sorted(x for x in out if x)

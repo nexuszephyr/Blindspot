@@ -691,7 +691,7 @@ serialized writer.
 `data/groundtruth.sqlite` (gitignored: it holds Qloo names), next to the Qloo cache. A run is keyed
 by its spec's content key, not by scenario, so a spec shared by many scenarios is fetched and stored
 once; `scenarios.local_key` and `global_key` point at runs. `scenario_status` is the per-scenario
-checkpoint and disposition (`pending | done | thin | failed | excluded`). Read only through
+checkpoint and disposition: `pending`, then `fetched` (runs stored, not yet checked, unreadable), then `done | thin | excluded | empty`, or `failed`. Only `done`, `thin` and `excluded` are readable. Read only through
 `groundtruth.get_answer_key()`. Decisions: D41.
 
 ---

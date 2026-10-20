@@ -21,10 +21,11 @@ from typing import Any
 from ..qloo.cache import cache_key, normalize_params
 from ..qloo.client import QlooClient
 from ..qloo.context import RequestContext
+from ..qloo.errors import IdFormatError, QlooParamError
 from ..qloo.params import check_ids, check_params
 from ..scenarios.models import QuerySpec, Scenario
 from ..scenarios.prompts import lint_prompts
-from .normalize import aliases, normalize_name
+from .normalize import aliases, normalize_name, place_forms
 from .store import Store, dumps
 
 # Coverage of one list against the answer-key depth (provisional thresholds from #13, for #24 too).
@@ -33,11 +34,18 @@ THIN_MIN, SPARSE_MIN = 10, 1
 # persona signal: without those the list would answer a different question.
 BROADEN_DROP = ("filter.exclude.entities", "bias.trends")
 PERSONAS_DISTINCT_MAX_JACCARD = 0.5  # E15: below 0.5 the audience probe is viable (D37)
-DONE_STATUSES = ("done", "thin", "excluded")
+# Statuses. `fetched`: both runs stored, not yet checked (lint, conditions); get_answer_key refuses it.
+# Final: done | thin | empty | excluded. `failed` is retried on the next run.
+STORED_STATUSES = ("fetched", "done", "thin", "empty", "excluded")  # runs stored: never refetched
+READABLE_STATUSES = ("done", "thin", "excluded")
 
 
 class Stop(Exception):
     """The live-call cap was reached before a lookup that would be live."""
+
+
+class SpecError(ValueError):
+    """Some specs would send an unverified parameter or a non-id value; nothing was sent."""
 
 
 def coverage(n: int, depth: int) -> str:
@@ -53,12 +61,32 @@ def jaccard(a: Iterable[str], b: Iterable[str]) -> float:
     return len(sa & sb) / len(sa | sb) if sa | sb else 1.0
 
 
+def _specs(scenarios: list[Scenario]) -> dict[str, QuerySpec]:
+    return {s.local_spec.key: s.local_spec for s in scenarios} | {
+        s.global_spec.key: s.global_spec for s in scenarios
+    }
+
+
+def validate_specs(scenarios: list[Scenario]) -> None:
+    """Param audit for the whole exam before any call: every param VERIFIED, ids where ids belong.
+    A config bug fails here, loudly and for every bad spec at once, never mid-build."""
+    bad = []
+    for key, spec in sorted(_specs(scenarios).items()):
+        try:
+            check_params("/v2/insights", spec.params, strict=True)
+            check_ids(spec.params)
+        except (QlooParamError, IdFormatError) as exc:
+            bad.append(f"{key}: {exc}")
+    if bad:
+        raise SpecError(f"{len(bad)} spec(s) can't be sent; nothing was fetched:\n" + "\n".join(bad))
+
+
 @dataclass
 class Report:
     scenarios: int = 0
     specs: int = 0
     fetched: int = 0  # specs fetched this run (from Qloo or its cache)
-    reused: int = 0  # specs already stored
+    reused: int = 0  # distinct specs already stored before this run
     live_calls: int = 0
     broadened: int = 0
     statuses: dict[str, int] = field(default_factory=dict)
@@ -82,9 +110,11 @@ class Builder:
         self.client, self.store = client, store
         self.sem = asyncio.Semaphore(max(1, concurrency))
         self.max_calls = max_calls
-        self.location_words = list(location_words)
+        self.places = place_forms(location_words)  # normalized once, not per entity
         self.ctx = ctx or RequestContext.script("groundtruth", purpose="groundtruth")
         self.start = self._used()
+        self.reserved = 0  # requests this builder started that weren't cache hits
+        self.stopping: str | None = None
         self.inflight: dict[str, asyncio.Task] = {}
         self.report = Report()
 
@@ -97,19 +127,32 @@ class Builder:
         return self.client.cache.get(key) is not None or self.client.snapshot.get(key) is not None
 
     def _guard(self, params: dict[str, Any]) -> None:
-        if (
-            self.max_calls is not None
-            and self._used() - self.start >= self.max_calls
-            and not self._cached(params)
-        ):
-            raise Stop(f"stopped at {self._used() - self.start} live calls (--max-calls {self.max_calls})")
+        """Reserve a live request, or stop. Called with a concurrency slot held, right before the
+        request. The count is this builder's own, taken here, so slot holders can't all pass at once
+        on a count the client hasn't written yet. (Client retries of a started request can add up to
+        qloo_max_attempts - 1 attempts each; they're reported in live_calls.)"""
+        if self._cached(params):
+            return
+        if self.stopping:
+            raise Stop(self.stopping)
+        if self.max_calls is not None and max(self.reserved, self._used() - self.start) >= self.max_calls:
+            self.stopping = f"stopped at {self.reserved} live requests (--max-calls {self.max_calls})"
+            raise Stop(self.stopping)
+        self.reserved += 1
 
     # ------------------------------------------------------------------ setup
     def register(self, scenarios: list[Scenario], *, resume: bool) -> list[Scenario]:
-        """Store the exam and return the scenarios still to build."""
+        """Store the exam and return the scenarios still to fetch. Scenarios no longer in the exam
+        (a config or prompt change gives new content-hash ids) are dropped; their runs, keyed by
+        spec, stay reusable."""
         if not resume:
             for t in ("ground_truth_runs", "ground_truth_items", "scenario_status", "scenarios"):
                 self.store.execute(f"DELETE FROM {t}")  # noqa: S608  (fixed table names)
+        ids = {s.id for s in scenarios}
+        stale = [r["id"] for r in self.store.query("SELECT id FROM scenarios") if r["id"] not in ids]
+        for sid in stale:
+            self.store.execute("DELETE FROM scenarios WHERE id = ?", (sid,))
+            self.store.execute("DELETE FROM scenario_status WHERE scenario_id = ?", (sid,))
         for s in scenarios:
             self.store.execute(
                 "INSERT OR REPLACE INTO scenarios VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -122,20 +165,14 @@ class Builder:
             self.store.execute(
                 "INSERT OR IGNORE INTO scenario_status(scenario_id, status) VALUES (?, 'pending')", (s.id,)
             )
-        done = {
-            r["scenario_id"]
-            for r in self.store.query(
-                "SELECT scenario_id FROM scenario_status WHERE status IN (?,?,?)", DONE_STATUSES
-            )
-        }
-        return [s for s in scenarios if s.id not in done]
+        stored = {r["scenario_id"]: r["status"] for r in self.store.query("SELECT * FROM scenario_status")}
+        return [s for s in scenarios if stored.get(s.id) not in STORED_STATUSES]
 
     # ------------------------------------------------------------------ fetching
     async def spec(self, spec: QuerySpec, kind: str, depth: int) -> dict[str, Any]:
         """The stored run for a spec, fetching it first if needed. Shared specs share one task."""
         row = self.store.run(spec.key)
         if row is not None and row["coverage"] != "failed":
-            self.report.reused += 1
             return dict(row)
         task = self.inflight.get(spec.key)
         if task is None:
@@ -144,12 +181,8 @@ class Builder:
         return await task
 
     async def _ask(self, params: dict[str, Any]):
-        check_params("/v2/insights", params, strict=True)  # param audit: every param VERIFIED
-        check_ids(params)
         async with self.sem:
-            # Checked once a slot is ours, right before the request: tasks queued behind the
-            # semaphore must not all pass the cap at once while nothing has been spent yet.
-            self._guard(params)
+            self._guard(params)  # with the slot held, right before the request
             return await self.client.insights(params, self.ctx)
 
     async def _fetch(self, spec: QuerySpec, kind: str, depth: int) -> dict[str, Any]:
@@ -207,14 +240,14 @@ class Builder:
                     (key, rank, e.entity_id, aff, int(aff is not None)),
                 )
             )
-            loc, words = e.location or {}, self.location_words
+            loc, places = e.location or {}, self.places
             ext = {k: v for k, v in (e.external or {}).items() if k == "google_place"} or None  # E10
             stmts.append(
                 (
                     "INSERT OR REPLACE INTO entity_index VALUES (?,?,?,?,?,?,?,?,?)",
                     (
-                        e.entity_id, e.name or "", normalize_name(e.name or "", location_words=words),
-                        e.kind, dumps(aliases(e.name or "", location_words=words)),
+                        e.entity_id, e.name or "", normalize_name(e.name or "", places=places),
+                        e.kind, dumps(aliases(e.name or "", places=places)),
                         dumps(ext) if ext else None, loc.get("lat"), loc.get("lon"), e.popularity,
                     ),
                 )
@@ -227,39 +260,43 @@ class Builder:
             self.spec(s.local_spec, "local", s.depth), self.spec(s.global_spec, "global", s.depth)
         )
         if "failed" in (local["coverage"], glob["coverage"]):
-            status = "failed"
             reason = local.get("reason") or glob.get("reason") or "fetch failed"
-        elif local["coverage"] != "rich":
-            status, reason = "thin", f"local {local['coverage']}: {local['reason']}"
-        else:
-            status = "done"
-            reason = f"global {glob['coverage']}" if glob["coverage"] != "rich" else ""
-        self.store.execute(  # the checkpoint: this scenario won't be fetched again on --resume
-            "UPDATE scenario_status SET status = ?, reason = ? WHERE scenario_id = ?", (status, reason, s.id)
+            self._set(s.id, "failed", reason)
+        else:  # the checkpoint: runs stored, never fetched again; finalize() decides the status
+            self._set(s.id, "fetched", "")
+
+    def _set(self, scenario_id: str, status: str, reason: str) -> None:
+        self.store.execute(
+            "UPDATE scenario_status SET status = ?, reason = ? WHERE scenario_id = ?",
+            (status, reason, scenario_id),
         )
 
     async def build(self, scenarios: list[Scenario], *, resume: bool = True) -> Report:
+        validate_specs(scenarios)  # before anything is written or sent
+        stored_before = {r["spec_key"] for r in self.store.query(
+            "SELECT spec_key FROM ground_truth_runs WHERE coverage != 'failed'")}  # fmt: skip
         todo = self.register(scenarios, resume=resume)
-        self.report.scenarios = len(scenarios)
-        self.report.specs = len(
-            {s.local_spec.key for s in scenarios} | {s.global_spec.key for s in scenarios}
-        )
+        specs = _specs(scenarios)
+        self.report.scenarios, self.report.specs = len(scenarios), len(specs)
+        self.report.reused = len(set(specs) & stored_before) if resume else 0
         tasks = [asyncio.ensure_future(self.scenario(s)) for s in todo]
         try:
-            for t in asyncio.as_completed(tasks):
-                await t
-        except Stop as exc:
-            self.report.stopped = str(exc)
-        finally:
-            for t in tasks:
+            # A Stop lets every request already sent finish and be stored (no call is paid twice);
+            # only fetches that hadn't started yet stop.
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            # A scenario ends as soon as one of its fetches raises Stop, but its other fetch may
+            # already be paid for and in flight: let every started fetch land before going on.
+            while pending := [t for t in self.inflight.values() if not t.done()]:
+                await asyncio.gather(*pending, return_exceptions=True)
+        finally:  # an outside cancel (a kill): nothing more to save
+            for t in [*tasks, *self.inflight.values()]:
                 t.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-            for t in self.inflight.values():
-                t.cancel()
-            await asyncio.gather(*self.inflight.values(), return_exceptions=True)
-        if not self.report.stopped:
-            self.apply_conditions(scenarios)
-            self.lint(scenarios)
+            await asyncio.gather(*tasks, *self.inflight.values(), return_exceptions=True)
+        errors = [r for r in results if isinstance(r, BaseException) and not isinstance(r, Stop)]
+        if errors:
+            raise errors[0]
+        self.report.stopped = self.stopping
+        self.finalize(scenarios)  # always: a stopped build still checks what it finished
         self.report.statuses = self.store.status_counts()
         self.report.live_calls = self._used() - self.start
         return self.report
@@ -268,55 +305,77 @@ class Builder:
     def _top_ids(self, key: str, depth: int) -> list[str]:
         return [r["qloo_id"] for r in self.store.items(key)[:depth]]
 
-    def apply_conditions(self, scenarios: list[Scenario]) -> None:
-        """Evaluate `conditions` (#16 records them; only answer keys can decide them)."""
-        pairs: dict[str, list[Scenario]] = {}
+    def finalize(self, scenarios: list[Scenario]) -> None:
+        """Turn `fetched` scenarios into a readable status, only after their checks have run:
+        the prompt lint against the real answer-key names, then `conditions`. A pair whose partner
+        isn't fetched yet stays `fetched` (unreadable) until a later run fetches it."""
+        status = {r["scenario_id"]: r["status"] for r in self.store.query("SELECT * FROM scenario_status")}
+        partners: dict[str, list[Scenario]] = {}
         for s in scenarios:
             for c in s.conditions:
                 if c != "personas_distinct_in_city":
                     raise ValueError(
                         f"unknown condition {c!r}; the builder implements personas_distinct_in_city"
                     )
-                pairs.setdefault(s.pair_id or s.id, []).append(s)
-        for members in pairs.values():
-            if len(members) != 2 or any(self.store.run(m.local_spec.key) is None for m in members):
-                continue
-            a, b = members
-            j = jaccard(self._top_ids(a.local_spec.key, a.depth), self._top_ids(b.local_spec.key, b.depth))
-            if j > PERSONAS_DISTINCT_MAX_JACCARD:
-                limit = PERSONAS_DISTINCT_MAX_JACCARD
-                why = f"personas_distinct_in_city failed: top-{a.depth} Jaccard {j:.2f} > {limit}"
-                for m in members:
-                    self._exclude(m.id, why)
-
-    def lint(self, scenarios: list[Scenario]) -> None:
-        """No prompt may contain an answer-key entity name (#16): check against the real names."""
+                partners.setdefault(s.pair_id or s.id, []).append(s)
         for s in scenarios:
-            names = [
-                r["name"]
-                for r in self.store.query(
-                    "SELECT e.name FROM ground_truth_items i JOIN entity_index e ON e.qloo_id = i.qloo_id "
-                    "WHERE i.spec_key = ? AND i.rank <= ?",
-                    (s.local_spec.key, s.depth),
-                )
-            ]
-            problems = lint_prompts([v.text for v in s.prompt_variants], names)
+            if status.get(s.id) != "fetched":
+                continue
+            problems = self.lint_one(s)
             if problems:
-                self.report.lint_problems += len(problems)
-                self._exclude(s.id, f"prompt names {len(problems)} answer-key entity name(s)")
+                self.report.lint_problems += problems
+                self._exclude(s.id, f"prompt names {problems} answer-key entity name(s)")
+                continue
+            if s.conditions:
+                pair = partners[s.pair_id or s.id]
+                if len(pair) != 2 or any(status.get(m.id) not in STORED_STATUSES for m in pair):
+                    self._set(
+                        s.id, "fetched", "waiting for its pair to be fetched (personas_distinct_in_city)"
+                    )
+                    continue
+                a, b = pair
+                j = jaccard(
+                    self._top_ids(a.local_spec.key, a.depth), self._top_ids(b.local_spec.key, b.depth)
+                )
+                if j > PERSONAS_DISTINCT_MAX_JACCARD:
+                    limit = PERSONAS_DISTINCT_MAX_JACCARD
+                    self._exclude(
+                        s.id, f"personas_distinct_in_city failed: top-{a.depth} Jaccard {j:.2f} > {limit}"
+                    )
+                    continue
+            self._disposition(s)
+
+    def _disposition(self, s: Scenario) -> None:
+        local, glob = self.store.run(s.local_spec.key), self.store.run(s.global_spec.key)
+        cov = local["coverage"]
+        if cov == "empty":  # never scored by accident: get_answer_key refuses it
+            self._set(s.id, "empty", f"local empty: {local['reason']}")
+        elif cov != "rich":
+            self._set(s.id, "thin", f"local {cov}: {local['reason']}")
+        else:
+            self._set(s.id, "done", f"global {glob['coverage']}" if glob["coverage"] != "rich" else "")
+
+    def lint_one(self, s: Scenario) -> int:
+        """No prompt may contain an answer-key entity name (#16): check against the real names."""
+        names = [
+            r["name"]
+            for r in self.store.query(
+                "SELECT e.name FROM ground_truth_items i JOIN entity_index e ON e.qloo_id = i.qloo_id "
+                "WHERE i.spec_key = ? AND i.rank <= ?",
+                (s.local_spec.key, s.depth),
+            )
+        ]
+        return len(lint_prompts([v.text for v in s.prompt_variants], names))
 
     def _exclude(self, scenario_id: str, why: str) -> None:
-        self.store.execute(
-            "UPDATE scenario_status SET status = 'excluded', reason = ? "
-            "WHERE scenario_id = ? AND status != 'failed'",
-            (why, scenario_id),
-        )
+        self._set(scenario_id, "excluded", why)
         self.report.excluded.append(scenario_id)
 
     # ------------------------------------------------------------------ dry run
     def plan(self, scenarios: list[Scenario], *, resume: bool = True) -> Report:
         """Specs still to fetch, and how many would be live (not in the Qloo cache or snapshot).
         Writes nothing and makes no calls."""
+        validate_specs(scenarios)
         done_keys = set()
         if resume:
             rows = self.store.query("SELECT spec_key FROM ground_truth_runs WHERE coverage != 'failed'")

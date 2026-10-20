@@ -220,10 +220,23 @@ different: an id there only illustrates, so it is labelled (`entity#<sha256[:6]>
 - **Store and keys.** A separate SQLite file, `data/groundtruth.sqlite` (gitignored). Runs are keyed
   by spec content key, so 104 scenarios need 155 stored runs, each fetched once (identical in-flight
   specs share one request).
-- **Checkpoint and resume.** A scenario's status row is written after both of its runs are stored,
-  and each run lands with its items in one transaction. `--resume` (the default) skips finished
-  scenarios and stored runs. A clean stop (`--max-calls`) repeats nothing. A hard kill can repeat only
-  the requests that were in flight, since their answers never landed (tested).
+- **Checkpoint and resume.** Each run lands with its items in one transaction. When both of a
+  scenario's runs are stored, its status becomes `fetched`: the checkpoint. `--resume` (the default)
+  skips stored runs and fetched scenarios, and drops scenarios no longer in the exam (their runs,
+  keyed by spec, stay reusable).
+- **Stops.** `--max-calls` is a hard stop on requests the builder starts. The builder reserves each
+  request itself, with the concurrency slot held, rather than reading the client's call count. On a
+  stop no new request starts, but every request already sent finishes and is stored, so a clean stop
+  repeats nothing. A hard kill can repeat only the requests in flight at the kill (tested).
+- **Validation first.** Every distinct spec passes the strict guard and the id check before anything
+  is written or sent. A config bug fails at once and lists every bad spec (`SpecError`).
+- **Readable only when checked.** After every build, stopped or not, `finalize()` lints each fetched
+  scenario and evaluates its `conditions`, and only then gives it a readable status: `done`, `thin` or
+  `excluded`. A dining audience half whose partner isn't fetched yet stays `fetched`, which
+  `get_answer_key` refuses. An empty local list gets status `empty`, which is also refused, so it can't
+  be scored by accident.
+- **One store path.** A relative `GROUNDTRUTH_PATH` resolves from the repo root (the parent of the
+  config dir) for both the build and every reader (`default_store_path`).
 - **Below threshold.** First a param audit: the strict guard and the id check run before every
   request. Then one broader retry that drops only the optional narrowing params (`filter.exclude.entities`,
   `bias.trends`). Never the location, the type or the persona signal: without those, the list
