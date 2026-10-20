@@ -529,6 +529,7 @@ All routes are deadline-bound, budget-guarded, labeled with `served_from`, and n
 
 | Route | Phase | Purpose |
 |---|---|---|
+| `GET /` | 2 | Static JSON: what Blindspot is and links to the routes below (#83); replaced by the UI in Phase 6 |
 | `GET /healthz` | 1 | Liveness |
 | `GET /api/qloo/status` | 1 | Mode, budgets per scope, cache size, snapshot, breaker state |
 | `GET /api/qloo/search?q=` | 1 | Guarded smoke endpoint |

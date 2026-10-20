@@ -25,6 +25,26 @@ def _ctx(request: Request, *, qloo: bool) -> RequestContext:
     )
 
 
+# Static on purpose: no external text and nothing dynamic. The Phase 6 web UI (#47) replaces it.
+ROOT_INFO = {
+    "ok": True,
+    "name": "Blindspot",
+    "about": "Audits AI agents for cultural blindness using Qloo's taste graph as the answer key.",
+    "phase": "2: answer key (the web UI arrives in Phase 6)",
+    "links": {
+        "health": "/healthz",
+        "status": "/api/qloo/status",
+        "search": "/api/qloo/search?q=",
+    },
+}
+
+
+@router.api_route("/", methods=["GET", "HEAD"])
+async def root():
+    """What a judge sees at the bare hosted URL (#83); `/docs` stays disabled (D19)."""
+    return ROOT_INFO
+
+
 @router.api_route("/healthz", methods=["GET", "HEAD"])
 async def healthz(request: Request):
     return {"ok": True, "mode": request.app.state.client.mode}

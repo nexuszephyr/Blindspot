@@ -325,3 +325,22 @@ async def test_fake_errors_are_recorded_for_the_harness(harness):
     errors, h.fake.errors[:] = list(h.fake.errors), []  # expected here; any other test fails at teardown
     assert r["served_from"] == "degraded"  # what the client sees looks like any failure...
     assert errors and "bad_requst" in errors[0]  # ...but the fake recorded it for the harness
+
+
+# --------------------------------------------------------------------------- root route (#83)
+async def test_root_says_the_api_is_running(harness):
+    h = await harness(http_rate_per_minute=1)
+    body = await h.json("/")
+    assert body["ok"] is True and body["name"] == "Blindspot"
+    assert set(body["links"]) == {"health", "status", "search"}
+    for _ in range(3):  # not under /api/: never rate-limited
+        r = await h.get("/")
+        assert r.status_code == 200
+    assert r.headers["cache-control"] == "no-store" and r.headers["x-content-type-options"] == "nosniff"
+    assert "default-src 'none'" in r.headers["content-security-policy"]
+    assert (await h.http.head("/")).status_code == 200  # uptime monitors use HEAD
+    assert FAKE_KEY not in r.text and HARNESS_SALT not in r.text
+    assert h.fake.count() == 0  # static: never touches Qloo
+    for link in body["links"].values():  # every advertised link answers (search with a query)
+        target = link + "x" if link.endswith("=") else link
+        assert (await h.get(target)).status_code in (200, 429)
