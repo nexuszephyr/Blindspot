@@ -299,3 +299,31 @@ The TestClient makes no network calls. `requirements.lock` is unchanged.
   off as a small attack surface. Left as is and raised in `docs/NEEDS_FROM_USER.md`.
 - **CLI.** `blindspot param promote` calls `scripts/promote_param.py`. `validity run` belongs to #21.
 
+
+**D46. Coverage probe for any location (#24, 2026-10-21).**
+- **Query.** Each domain's standard location-only query from `config/domains.yaml`, no persona signal:
+  dining is the location filter plus the restaurant tag (fast and complete, D43), the other domains the
+  location signal. `take` is the answer-key depth (20), not the recon `take` (10): the verdict asks
+  "is there an answer key here?", and at 10 no domain could ever be `rich`.
+- **Verdicts** reuse the builder's `coverage()` thresholds (`rich` ≥ depth, `thin` 10 to 19, `sparse` 1
+  to 9, `empty` 0) and add `unknown` for no usable answer (timeout, budget, breaker, kill switch, Qloo
+  error), never `empty` (D35). Confidence is `high` (rich or a definite empty), `medium` (short lists or
+  an unchecked location) or `low` (unknown).
+- **Empty 200 and short lists (AGENTS §10).** The client's strict guard is the param check. Below depth,
+  one broader retry drops the domain's fixed narrowing params (dining's restaurant tag) and keeps the
+  type and location. The verdict still comes from the standard query, the one the answer key uses; the
+  retry's count goes in the note, so "no restaurants tagged" reads differently from "no places at all".
+- **Ignored locations.** Qloo ignores what it can't use, so a `signal` domain is compared with its
+  no-location list (cached after one call, shared by every location). An identical top list means the
+  location was likely ignored: `unknown`, never `rich`. A filter domain's VERIFIED "unable to resolve to
+  a valid locality" 400 is `empty` with high confidence and `location_resolved: false`. No new
+  threshold: only identical lists count.
+- **At most 3 calls per domain** (standard, broader, no-location), 7 for a rich location today, run
+  concurrently under the 8 s request deadline and the caller's hourly and per-run budgets.
+- **Provenance.** Top-level `served_from` is the weakest source among the standard queries (snapshot,
+  then cache, then live), so cached data never reads as live; each call keeps its own label. Results
+  hold counts and outcomes only, no names or ids. A 400 isn't cached, so an unresolvable location costs
+  a call each time it's asked.
+- **Synthetic label.** `Snapshot.synthetic` is read from the `-SYNTHETIC` name suffix that
+  `export_snapshot.py --synthetic` writes; a coverage answer served from such a snapshot says
+  `synthetic: true`.

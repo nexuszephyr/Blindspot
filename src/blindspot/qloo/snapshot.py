@@ -17,6 +17,7 @@ from .cache import ResponseCache
 
 log = logging.getLogger("blindspot.snapshot")
 FORMAT = "blindspot-snapshot/1"
+SYNTHETIC_SUFFIX = "-SYNTHETIC"  # snapshot name suffix written by `export_snapshot.py --synthetic`
 NOTICE = (
     "Contains data derived from the Qloo API. Do not commit to a public repository "
     "(Qloo hackathon developer guide: 'Don't store Qloo response data in a public repository')."
@@ -66,9 +67,17 @@ def minimize_body(body: Any) -> Any:
 
 
 class Snapshot:
-    def __init__(self, entries: dict[str, dict[str, Any]] | None = None, path: Path | None = None):
+    def __init__(
+        self,
+        entries: dict[str, dict[str, Any]] | None = None,
+        path: Path | None = None,
+        *,
+        synthetic: bool = False,
+    ):
         self.entries = entries or {}
         self.path = path
+        # built from invented fixtures (`export_snapshot.py --synthetic`); responses say so (rule 2)
+        self.synthetic = synthetic
 
     @property
     def loaded(self) -> bool:
@@ -90,7 +99,7 @@ class Snapshot:
                 log.warning("snapshot %s has unknown format; ignoring", p)
                 return cls(path=p)
             entries = {e["key"]: e for e in doc.get("entries", []) if "key" in e and "body" in e}
-            return cls(entries, path=p)
+            return cls(entries, path=p, synthetic=str(doc.get("name", "")).endswith(SYNTHETIC_SUFFIX))
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
             log.warning("could not read snapshot %s: %s", p, type(exc).__name__)
             return cls(path=p)
