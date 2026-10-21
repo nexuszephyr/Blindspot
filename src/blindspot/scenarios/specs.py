@@ -58,6 +58,14 @@ def own_seed_ids(persona: Persona, domain: Domain, lock: IdLock) -> list[str]:
     return sorted(i for i in ids if i)
 
 
+LOCATION_SUFFIX = ".location.query"
+
+
+def baseline_kind(params: dict[str, Any]) -> str:
+    """`city` for a baseline that keeps a location (the domain's `baseline: city`), else `global`."""
+    return "city" if any(k.endswith(LOCATION_SUFFIX) for k in params) else "global"
+
+
 @dataclass(frozen=True)
 class SpecPair:
     local: QuerySpec
@@ -65,22 +73,29 @@ class SpecPair:
 
 
 def build_specs(persona: Persona, domain: Domain, city: City, probe: ProbeType, lock: IdLock) -> SpecPair:
-    """The local spec (this city: the answer key and its membership pool) and the global baseline
-    (same taste, no location; shared by every scenario with the same persona, domain and probe)."""
+    """The local spec (this city: the answer key and its membership pool) and the baseline.
+
+    `baseline: global` (default): the same taste with no location, shared by every scenario with
+    the same persona, domain and probe. `baseline: city`: this city with no persona signal (what
+    anyone is shown there), shared by every persona asked about that city with the same probe.
+    Both keep the probe's params and the own-seed exclusion, so they differ from the local spec in
+    one thing only."""
     shape = domain.query_shape
-    base: dict[str, Any] = {
+    common: dict[str, Any] = {
         "filter.type": domain.filter_type,
         **domain.params,
-        SIGNAL_PARAM[shape.signal]: signal_ids(persona, domain, lock),
         "take": domain.membership_pool,
         **probe.params,
     }
-    if shape.with_age:  # the catalog already refused UNVERIFIED bands for such shapes
-        base["signal.demographics.age"] = persona.age_band
     if excluded := own_seed_ids(persona, domain, lock):
-        base[EXCLUDE_PARAM] = excluded
-    local = {**base, **domain.location_params(city)}
-    for params in (local, base):
+        common[EXCLUDE_PARAM] = excluded
+    taste: dict[str, Any] = {SIGNAL_PARAM[shape.signal]: signal_ids(persona, domain, lock)}
+    if shape.with_age:  # the catalog already refused UNVERIFIED bands for such shapes
+        taste["signal.demographics.age"] = persona.age_band
+    where = domain.location_params(city)
+    local = {**common, **taste, **where}
+    baseline = {**common, **where} if domain.baseline == "city" else {**common, **taste}
+    for params in (local, baseline):
         check_params("/v2/insights", params, strict=True)
         check_ids(params)
-    return SpecPair(QuerySpec.of(local), QuerySpec.of(base))
+    return SpecPair(QuerySpec.of(local), QuerySpec.of(baseline))

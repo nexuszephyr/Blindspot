@@ -83,6 +83,8 @@ Sources: the official hackathon developer guide and live checks in `docs/qloo_ap
 | Restaurant queries take about 2.5 s (p50) with an audience signal; with an entity or tag signal p50 is 5 to 16 s and the slowest calls take 9 to 28 s (E13) | VERIFIED |
 | `take` 20, 30 and 50 return full lists in every domain; the top 10 doesn't change with `take`; ranks 11 to 50 stay city- and persona-specific. Answer-key depth 20, membership pool 50 (E12) | VERIFIED |
 | City-to-city top-10 overlap ≤ about 0.12, so city swap is the strongest probe | VERIFIED |
+| Restaurants with no location time out (audience signal, no location filter: every retry in the #18 build). A city's restaurants with no persona signal (location filter + restaurant tag) return a full 50 in about 3 s, unscored, so dining's famousness baseline is per city (D43) | VERIFIED (2026-10-21, #18 live run) |
+| Dining freshness answer keys (`bias.trends`) take 16 to 20 s; the build uses a 45 s timeout and 2 attempts | VERIFIED (2026-10-21, #18 live run) |
 | Candidate scoring (`filter.results.entities`) returns ≥ 24 of 25 with an entity, tag or audience signal in every domain (film + entity seed: partial); location alone returns 1 of N. Fallback: rank membership in the local top 50 (E14, E7) | VERIFIED |
 | Keys deactivate after judging; replay/snapshot is the long-term run path | Official |
 | Quota can be raised by asking in the Qloo Discord `#api-help` | Official |

@@ -15,7 +15,7 @@ from blindspot.qloo.params import check_ids, check_params
 from blindspot.scenarios import cli
 from blindspot.scenarios.generator import DEFAULT_SEED, generate
 from blindspot.scenarios.prompts import lint_prompts, named_seeds, taste_phrase
-from blindspot.scenarios.specs import EXCLUDE_PARAM, Unresolvable, build_specs
+from blindspot.scenarios.specs import EXCLUDE_PARAM, Unresolvable, baseline_kind, build_specs
 from tests.test_catalog import ROOT
 
 CFG = ROOT / "config"
@@ -57,8 +57,42 @@ def test_dining_spec_is_location_filter_plus_audience(cat, ss):
         and s.pool == dining.membership_pool
     )
     assert "signal.demographics.age" not in local  # age never changes places (E5)
-    assert not any("location" in k for k in glob)  # the global baseline has no location
-    assert {k: v for k, v in local.items() if "location" not in k} == glob
+    # Dining's baseline is this city with no persona signal (D43): it differs from the key in that only
+    assert dining.baseline == "city"
+    assert glob["filter.location.query"] == city.location
+    assert {k: v for k, v in local.items() if k != "signal.demographics.audiences"} == glob
+
+
+def test_city_baseline_is_shared_by_personas_in_a_city_not_across_cities(cat, ss):
+    dining = [s for s in ss.scenarios if s.domain_id == "dining" and s.probe_type == "core"]
+    by_city: dict[str, set[str]] = {}
+    for s in dining:
+        by_city.setdefault(s.city_id, set()).add(s.global_spec.key)
+    assert any(len({s.persona_id for s in dining if s.city_id == c}) > 1 for c in by_city)
+    for city_id, keys in by_city.items():  # every persona asked about one city gets one baseline
+        own = {
+            s.persona_id for s in dining if s.city_id == city_id and s.local_spec.params.get(EXCLUDE_PARAM)
+        }
+        assert len(keys) == 1 + len(own), city_id  # only an own-seed exclusion makes a separate one
+    assert len({k for keys in by_city.values() for k in keys}) >= len(by_city)
+
+
+@pytest.mark.parametrize("domain_id", ["music", "film_tv", "brands"])
+def test_global_baseline_is_the_same_taste_without_a_location(cat, ss, domain_id):
+    assert cat.domain(domain_id).baseline == "global"
+    for s in _by(ss, domain_id=domain_id):
+        local, glob = s.local_spec.params, s.global_spec.params
+        assert not any("location" in k for k in glob)
+        assert {k: v for k, v in local.items() if "location" not in k} == glob
+        assert baseline_kind(glob) == "global" and baseline_kind(local) == "city"
+
+
+def test_baseline_must_be_global_or_city():
+    with pytest.raises(ValueError, match="baseline"):
+        Domain(
+            id="x", filter_type="urn:entity:artist", take=10, phrasing="x", location_param="signal",
+            baseline="nowhere",
+        )  # fmt: skip
 
 
 @pytest.mark.parametrize("domain_id", ["music", "film_tv", "brands"])

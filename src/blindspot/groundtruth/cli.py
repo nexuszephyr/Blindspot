@@ -1,16 +1,18 @@
 """`blindspot groundtruth build|status|export` (#18).
 
     blindspot groundtruth build [--tag demo|extended|all] [--fresh] [--max-calls N] [--concurrency N]
-                                [--dry-run]
+                                [--timeout S] [--attempts N] [--dry-run]
     blindspot groundtruth status
     blindspot groundtruth export [--out data/groundtruth/answer_keys.json]
 
 `build` regenerates the exam from config/ and the id lock (#16; deterministic), then fetches every
 answer key it still lacks through QlooClient (purpose `groundtruth`). It is resumable: re-running
 skips finished scenarios, and `--fresh` starts over (the Qloo cache still saves the calls).
-`--max-calls` stops before a lookup that would be live once reached. `--dry-run` reports the specs
-to fetch and how many would be live, and touches nothing. Output is counts only; Qloo names stay in
-the store under data/ (gitignored).
+`--max-calls` stops before a lookup that would be live once reached. `--timeout` and `--attempts`
+replace the web defaults (10 s, 4 attempts) for this batch job: some answer-key queries take 16 to
+20 s (dining freshness), and retrying a slow query four times pays four calls for nothing.
+`--dry-run` reports the specs to fetch and how many would be live, and touches nothing. Output is
+counts only; Qloo names stay in the store under data/ (gitignored).
 """
 
 from __future__ import annotations
@@ -33,6 +35,15 @@ from .builder import Builder, Report, SpecError
 from .store import Store
 
 EXPORT_REL = Path("data/groundtruth/answer_keys.json")
+BUILD_TIMEOUT_S = 45.0  # the slowest answer-key queries took 16 to 20 s (freshness, #18 live run)
+BUILD_ATTEMPTS = 2  # one retry: a query that timed out twice won't be retried here again this run
+
+
+def live_settings(timeout: float, attempts: int) -> Settings:
+    """Client settings for the build: live, with the batch timeout and retry count."""
+    if timeout <= 0 or attempts < 1:
+        raise SystemExit("--timeout must be > 0 and --attempts >= 1")
+    return Settings(qloo_mode="live", qloo_timeout_s=timeout, qloo_max_attempts=attempts)
 
 
 def _scenarios(config: Path, tag: str):
@@ -86,6 +97,10 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--fresh", action="store_true", help="forget stored runs and start over")
     b.add_argument("--max-calls", type=int, default=450)
     b.add_argument("--concurrency", type=int, default=4)
+    b.add_argument("--timeout", type=float, default=BUILD_TIMEOUT_S, help="seconds per Qloo request")
+    b.add_argument(
+        "--attempts", type=int, default=BUILD_ATTEMPTS, help="tries per request (timeout, 5xx, 429)"
+    )
     b.add_argument("--dry-run", action="store_true")
     sub.add_parser("status")
     ex = sub.add_parser("export")
@@ -115,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         if a.dry_run:
             client = QlooClient(Settings(qloo_mode="replay"))  # never reaches the network
         else:
-            client = QlooClient(Settings(qloo_mode="live"))
+            client = QlooClient(live_settings(a.timeout, a.attempts))
             if not client.s.has_key:
                 client.db.close()
                 raise SystemExit("QLOO_API_KEY is missing: put it in .env (the build needs live Qloo access)")

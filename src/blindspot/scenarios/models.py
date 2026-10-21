@@ -55,7 +55,8 @@ class Scenario(BaseModel):
     stated_domain: str | None = None  # bridge: the domain the taste is stated in
     signal: str  # the persona signal in the answer key (query_shape.signal)
     local_spec: QuerySpec  # audience/taste + this city: the answer key and the membership pool
-    global_spec: QuerySpec  # same without a location: the "famous anywhere" baseline
+    global_spec: QuerySpec  # the baseline: same taste without a location, or (a domain with
+    # `baseline: city`) this city without the persona signal (D43)
     depth: int  # answer-key depth (E12, D34): the top `depth` of local_spec
     pool: int  # membership pool (E14, D36): local_spec's take
     k: int  # how many recommendations the target is asked for

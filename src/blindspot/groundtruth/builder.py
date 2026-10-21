@@ -1,10 +1,11 @@
 """Resumable answer-key build (#18).
 
-Every scenario (#16) names two specs: its local list and its global baseline. Many scenarios share
-a spec, so each spec is fetched once (identical specs share one in-flight request) and stored under
-its content key. After both of a scenario's specs are stored, the scenario's status row is written:
-that is the checkpoint. A re-run with resume skips done scenarios and stored specs; anything
-interrupted mid-way is simply fetched again (the Qloo cache makes that free).
+Every scenario (#16) names two specs: its local list and its baseline (global, or city: D43).
+Many scenarios share a spec, so each spec is fetched once (identical specs share one in-flight
+request) and stored under its content key. After both of a scenario's specs are stored, the
+scenario's status row is written: that is the checkpoint. A re-run with resume skips done
+scenarios and stored specs; anything interrupted mid-way is simply fetched again (the Qloo cache
+makes that free).
 
 Every call goes through QlooClient (cache, budgets, breaker, call log), purpose `groundtruth`.
 The answer key is Qloo, never an LLM (hard rule 8).
@@ -25,6 +26,7 @@ from ..qloo.errors import IdFormatError, QlooParamError
 from ..qloo.params import check_ids, check_params
 from ..scenarios.models import QuerySpec, Scenario
 from ..scenarios.prompts import lint_prompts
+from ..scenarios.specs import baseline_kind
 from .normalize import aliases, normalize_name, place_forms
 from .store import Store, dumps
 
@@ -257,7 +259,8 @@ class Builder:
     # ------------------------------------------------------------------ scenarios
     async def scenario(self, s: Scenario) -> None:
         local, glob = await asyncio.gather(
-            self.spec(s.local_spec, "local", s.depth), self.spec(s.global_spec, "global", s.depth)
+            self.spec(s.local_spec, "local", s.depth),
+            self.spec(s.global_spec, baseline_kind(s.global_spec.params), s.depth),
         )
         if "failed" in (local["coverage"], glob["coverage"]):
             reason = local.get("reason") or glob.get("reason") or "fetch failed"
@@ -353,7 +356,7 @@ class Builder:
         elif cov != "rich":
             self._set(s.id, "thin", f"local {cov}: {local['reason']}")
         else:
-            self._set(s.id, "done", f"global {glob['coverage']}" if glob["coverage"] != "rich" else "")
+            self._set(s.id, "done", f"baseline {glob['coverage']}" if glob["coverage"] != "rich" else "")
 
     def lint_one(self, s: Scenario) -> int:
         """No prompt may contain an answer-key entity name (#16): check against the real names."""

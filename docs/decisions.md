@@ -253,3 +253,25 @@ different: an id there only illustrates, so it is labelled (`entity#<sha256[:6]>
   rule 5).
 - **Purpose.** Build calls are logged with purpose `groundtruth` (new), so the budget report
   separates them from recon.
+
+**D43. Dining's famousness baseline is the city with no persona; answer-key builds use a 45 s timeout
+and 2 attempts (#18, 2026-10-21).**
+- **Why.** In the #18 live build every dining baseline (the restaurant query with the persona's audience
+  and no location) timed out, on every retry. A probe of the city with no persona (location filter +
+  restaurant tag, `take` 50) returned all 50 in 3.3 s, without affinity scores, as E11 predicts for a
+  place query with no signal.
+- **What `G` means.** Famousness counts picks in `G` but not in `L`. For music, film and brands `G` stays
+  the same taste with no location ("famous anywhere"). Restaurants belong to one city, so a no-location
+  list would hold places an agent here can't name, and famousness would read near 0 for every agent.
+  For dining `G` is the city's list without the persona ("what anyone is shown here"). The domain field
+  `baseline: city` selects it; `AnswerKey.baseline` and the stored run `kind` say which one a key has.
+- **Rejected.** Building `G` offline from the persona's other cities (famousness near 0 by
+  construction, and the own city would leak in); a smaller `take` (untested, about 20 calls to find out,
+  the same timeout risk); no dining baseline (loses V5 and famousness for a third of the exam).
+- **Shape.** The baseline differs from the local spec in one thing only: no persona signal. It keeps the
+  location filter, restaurant tag, `take`, the probe's params (freshness keeps `bias.trends`) and any
+  own-seed exclusion. Every persona asked about a city under the same probe shares one baseline: 12 for
+  the current exam, which replaces 19 global dining specs.
+- **Timeouts.** The build is a batch job, so `blindspot groundtruth build` sets `--timeout 45` and
+  `--attempts 2` instead of the web defaults (10 s, 4 attempts). Freshness keys took 16 to 20 s, and
+  four 10 s tries paid four calls for nothing.

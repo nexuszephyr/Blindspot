@@ -328,7 +328,7 @@ flowchart LR
 | Domain | `dining` (place), `music` (artist), `film_tv` (movie, tv_show), `brands` (brand); others possible |
 | Probe type | `core`, `swap`, `bridge`, `audience`, `freshness` (see below) |
 | Scenario | One exam question; content-hashed id `sc_…`; deterministic from config and the id lock. Fields and the build: [scenarios.md](scenarios.md#scenarios-the-generated-exam) |
-| Answer key | Local ranked list + global baseline list from Qloo, 20 deep, plus a top-50 membership pool (E12) |
+| Answer key | Local ranked list + a baseline list from Qloo, 20 deep, plus a top-50 membership pool (E12). The baseline is global (same taste, no location) for music, film and brands, and the city with no persona signal for dining (D43) |
 
 ### 7.2 Probe types
 
@@ -355,7 +355,7 @@ sequenceDiagram
     loop each scenario not yet checkpointed
         CLI->>QC: local spec (location filter + taste signal)
         QC-->>CLI: ranked list, served_from
-        CLI->>QC: global baseline spec (shared per persona and domain)
+        CLI->>QC: baseline spec (global: shared per persona and domain; dining: per city)
         QC-->>CLI: ranked list, served_from
         CLI->>DB: ground_truth_items + entity_index + checkpoint
     end
@@ -370,8 +370,8 @@ membership pool. An agent's own picks are scored with `filter.results.entities` 
 signal (E14); where that's only partial, rank membership in the top-50 pool is the fallback. The
 per-domain table is in `docs/qloo_api_reality.md` ("Standard query shape per domain").
 
-**Single read path:** `get_answer_key(scenario_id) -> AnswerKey` returns the local list, the global
-list, an entity lookup, metadata and `served_from`. Later phases never query Qloo for ground truth
+**Single read path:** `get_answer_key(scenario_id) -> AnswerKey` returns the local list, the baseline
+list (global, or city for dining: `AnswerKey.baseline`, D43), an entity lookup, metadata and `served_from`. Later phases never query Qloo for ground truth
 directly.
 
 ### 7.4 Validity suite
@@ -384,7 +384,7 @@ The answer key is only useful if it's stable and discriminating. Phase 2 must re
 | V2 Param effectiveness | Does each parameter change results? | Any parameter the design uses is INEFFECTIVE |
 | V3 Discrimination | Do city and persona changes change the answer? | Median swap Jaccard above 0.7 for a domain |
 | V4 Coverage | Enough results to score? | Cell below the recalibrated threshold |
-| V5 Local vs famous | Does the local list differ from the global baseline? | Near-identical lists |
+| V5 Local vs famous | Does the local list differ from the baseline (global; city for dining, D43)? | Near-identical lists |
 | V6 Score sanity | Scores present, monotonic, no duplicates, hub entities found | Broken ordering |
 | V7 Existence readiness | Do places carry coordinates or external IDs? | Low coverage weakens the phantom metric |
 | V8 Name round-trip | Does `/search` find an entity by its own name? | Sets the resolver's ceiling |
@@ -433,14 +433,14 @@ its realistic ceiling.
 ## 9. Metrics
 
 **Planned, Phase 3.** Formulas are the starting proposal; Phase 2's `docs/metrics_design.md` may adjust
-them with evidence. Notation: agent list `A` (resolved, top-k), local answer key `L`, global baseline
-`G`, `rank_L(x)` the 1-based rank of `x` in `L`.
+them with evidence. Notation: agent list `A` (resolved, top-k), local answer key `L`, baseline `G`
+(global for music, film and brands; for dining, the city's list without the persona, D43), `rank_L(x)` the 1-based rank of `x` in `L`.
 
 | Metric | Formula (proposal) | Range | Good |
 |---|---|---|---|
 | Overlap@k | `|A_k ∩ L_k| / k` | 0 to 1 | high |
 | Rank-weighted taste-fit | nDCG-style: `Σ_{x∈A_k∩L} 1/log2(1+rank_L(x))`, divided by the ideal sum | 0 to 1 | high |
-| Famousness | `|A_k ∩ G_k \ L_k| / |A_k|`: agent picks that are globally popular but not local favorites | 0 to 1 | low |
+| Famousness | `|A_k ∩ G_k \ L_k| / |A_k|`: agent picks that are popular with everyone (anywhere; for dining, in this city) but not favorites of this taste | 0 to 1 | low |
 | Local hit share | `|A_k ∩ (L_k \ G_k)| / |A_k|`: picks only a local would know | 0 to 1 | high |
 | Swap sameness gap | `J(A_city1, A_city2) − J(L_city1, L_city2)`, J = Jaccard | −1 to 1 | ≤ 0 |
 | Phantom rate | phantom candidates / all recommendations | 0 to 1 | low |

@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS scenarios (
 );
 CREATE TABLE IF NOT EXISTS ground_truth_runs (
   spec_key TEXT PRIMARY KEY,
-  kind TEXT NOT NULL,              -- local | global
+  kind TEXT NOT NULL,              -- local | global | city (the baseline kind, D43)
   params_json TEXT NOT NULL,       -- what was sent (after a broader retry, the broader params)
   served_from TEXT NOT NULL,       -- how the client got it: live | cache | snapshot
   outcome TEXT NOT NULL,

@@ -89,7 +89,9 @@ async def test_build_stores_every_key_at_depth_and_fetches_shared_specs_once(mak
         assert len(key.local.items) == s.depth and len(key.local.pool) == s.pool
         assert len(key.global_.items) == s.depth
         assert key.local.coverage == key.coverage == "rich"
-        assert not any("location" in k for k in key.global_.params)
+        kind = "city" if s.domain_id == "dining" else "global"  # D43
+        assert key.baseline == key.global_.kind == kind
+        assert any("location" in k for k in key.global_.params) == (kind == "city")
         excluded = set(s.local_spec.params.get("filter.exclude.entities", []))
         assert excluded.isdisjoint(key.local.pool)  # own seeds never in the key (D40)
     counts = store.table_counts()
@@ -273,6 +275,45 @@ def test_get_answer_key_is_the_only_public_read_path():
 
 
 # --------------------------------------------------------------------------- CLI
+def test_build_uses_the_batch_timeout_and_retry_count(monkeypatch):
+    from blindspot.groundtruth.cli import BUILD_ATTEMPTS, BUILD_TIMEOUT_S, live_settings
+
+    monkeypatch.setenv("QLOO_TIMEOUT_S", "3")  # the web default from .env must not leak into the build
+    s = live_settings(BUILD_TIMEOUT_S, BUILD_ATTEMPTS)
+    assert s.qloo_mode == "live" and s.qloo_timeout_s == BUILD_TIMEOUT_S >= 30 and s.qloo_max_attempts == 2
+    assert live_settings(60, 1).qloo_timeout_s == 60
+    for bad in ((0, 2), (45, 0)):
+        with pytest.raises(SystemExit):
+            live_settings(*bad)
+
+
+def test_cli_build_sends_its_timeout_and_attempts_to_the_client(tmp_path, monkeypatch):
+    from blindspot.groundtruth import cli
+
+    seen = []
+
+    class Spy:
+        def __init__(self, s):
+            seen.append(s)
+            raise SystemExit("spy: stop before any network")
+
+    monkeypatch.setattr(cli, "QlooClient", Spy)
+    argv = [
+        "--config",
+        str(CFG),
+        "--db",
+        str(tmp_path / "gt.sqlite"),
+        "build",
+        "--timeout",
+        "33",
+        "--attempts",
+        "1",
+    ]
+    with pytest.raises(SystemExit, match="spy"):
+        cli.main(argv)
+    assert seen[0].qloo_timeout_s == 33 and seen[0].qloo_max_attempts == 1 and seen[0].qloo_mode == "live"
+
+
 def test_cli_dry_run_and_status(tmp_path, capsys):
     from blindspot.groundtruth.cli import main
 

@@ -103,6 +103,10 @@ class Domain(_Strict):
     membership_pool: int = Field(default=50, ge=1, le=50)  # top-N pool for picks outside the key (E14)
     query_shape: QueryShape | None = None
     probes: list[str] = Field(default_factory=list)  # enabled probe types; each must allow this domain
+    # The answer key's baseline list (the "famous" side of famousness, V5): `global` is the same
+    # taste with no location; `city` is this city with no persona signal, for domains whose
+    # entities are tied to one place (dining: a no-location restaurant query times out, D43).
+    baseline: Literal["global", "city"] = "global"
 
     @field_validator("filter_type")
     @classmethod
