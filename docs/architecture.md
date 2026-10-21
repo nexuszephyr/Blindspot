@@ -555,7 +555,9 @@ its deadline is a 503. They read stored data and make no Qloo call. `/api/scenar
 `{items, total, limit, offset}`; its `served_from` is `disabled` (generated offline from config; no Qloo
 result is involved). `/api/groundtruth/{id}` returns the `AnswerKey` (local and global lists, `baseline`
 `global` or `city`), with `served_from` `cache` or `snapshot`, never `live`, and `synthetic` from the
-`GROUNDTRUTH_SYNTHETIC` setting. Names are HTML-escaped.
+`GROUNDTRUTH_SYNTHETIC` setting. Names are returned raw (JSON); the UI escapes them when rendering (D45).
+On these routes `served_from: disabled` means "no Qloo data involved", not the kill switch: the UI
+must not show the Qloo-off banner for it.
 
 Response envelope for Qloo-derived data (planned with the Phase 2 routes; Phase 1's `/api/qloo/search`
 returns `served_from`, `ok`, `reason`, `run_id`, `call_id`, `fetched_at` and `results`):

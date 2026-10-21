@@ -3,8 +3,6 @@ answer-key store built with the fake Qloo server. Offline, keyless, no real data
 
 from __future__ import annotations
 
-import html
-
 import pytest
 
 from blindspot.catalog import load_catalog
@@ -148,7 +146,7 @@ async def test_groundtruth_without_a_store_is_404_and_creates_nothing(harness, d
     assert r.status_code == 404 and not missing.exists() and not missing.parent.exists()
 
 
-async def test_groundtruth_names_are_escaped(harness, demo, built):
+async def test_groundtruth_names_are_raw_json_not_html(harness, demo, built):
     store = Store(built)
     try:
         qid = store.query("SELECT qloo_id FROM entity_index LIMIT 1")[0]["qloo_id"]
@@ -158,10 +156,13 @@ async def test_groundtruth_names_are_escaped(harness, demo, built):
     h = await harness(config_dir=CFG, groundtruth_path=built)
     texts = []
     for s in demo:
-        d = (await h.json(f"/api/groundtruth/{s.id}"))["data"]
+        r = await h.get(f"/api/groundtruth/{s.id}")
+        assert r.headers["content-type"].startswith("application/json")
+        assert r.headers["x-content-type-options"] == "nosniff"
+        d = r.json()["data"]
         texts += [i["name"] for k in ("local", "global") for i in d[k]["items"]]
-    assert any(t == html.escape("<script>x</script> & co") for t in texts)
-    assert not any("<" in t for t in texts)
+    # the name as stored, unaltered: the UI escapes when it renders it into HTML (D45)
+    assert "<script>x</script> & co" in texts and not any("&amp;" in t for t in texts)
 
 
 async def test_routes_obey_the_request_deadline(harness, demo, built):

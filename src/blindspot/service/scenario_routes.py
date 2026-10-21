@@ -3,13 +3,12 @@
 Both read stored data only (the scenario engine is offline; answer keys come through
 `get_answer_key`), so they make no Qloo calls and spend no live budget. They still carry the
 request context, run under its deadline and the per-client rate limit, and return the standard
-envelope. Names from Qloo are HTML-escaped (rule 10).
+envelope. Names are returned as stored: JSON isn't HTML, and the UI escapes when it renders (D45).
 """
 
 from __future__ import annotations
 
 import asyncio
-import html
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -137,7 +136,7 @@ async def get_scenario(request: Request, scenario_id: ScenarioId):
 
 
 def _read_key(path: Path, config_dir: Path, scenario_id: str) -> dict[str, Any]:
-    """The answer key as plain data, names escaped. Raises NotBuilt if there is none."""
+    """The answer key as plain data. Raises NotBuilt if there is none."""
     if not path.is_absolute():  # same rule as the build CLI: relative to the repo root
         path = config_dir.resolve().parent / path
     if not path.is_file():  # opening a Store would create an empty database
@@ -148,9 +147,6 @@ def _read_key(path: Path, config_dir: Path, scenario_id: str) -> dict[str, Any]:
     finally:
         store.close()
     data = key.model_dump(mode="json")
-    for lst in (data["local"], data["global_"]):
-        for item in lst["items"]:
-            item["name"] = html.escape(item["name"])
     data["global"] = data.pop("global_")
     return data
 
