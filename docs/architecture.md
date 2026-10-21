@@ -547,6 +547,16 @@ Static routes (`/`, `/healthz`) touch no Qloo data and are exempt. No route ever
 | `GET /api/audits/{id}/export` | 5 | Prompt + MCP config |
 | `GET /api/leaderboard` | 7 | Precomputed model comparison |
 
+Built in #25: the three scenario and answer-key routes return exactly this envelope (`data`,
+`served_from`, `synthetic`, `degraded_reason`, `run_id`), including errors: an unknown scenario or an
+unbuilt answer key is a 404 with `data: null`, `served_from: "degraded"` and a reason; a request past
+its deadline is a 503. They read stored data and make no Qloo call. `/api/scenarios` takes `city`,
+`domain`, `probe`, `demo`, `limit` (1 to 200, default 50) and `offset`, and returns
+`{items, total, limit, offset}`; its `served_from` is `disabled` (generated offline from config; no Qloo
+result is involved). `/api/groundtruth/{id}` returns the `AnswerKey` (local and global lists, `baseline`
+`global` or `city`), with `served_from` `cache` or `snapshot`, never `live`, and `synthetic` from the
+`GROUNDTRUTH_SYNTHETIC` setting. Names are HTML-escaped.
+
 Response envelope for Qloo-derived data (planned with the Phase 2 routes; Phase 1's `/api/qloo/search`
 returns `served_from`, `ok`, `reason`, `run_id`, `call_id`, `fetched_at` and `results`):
 

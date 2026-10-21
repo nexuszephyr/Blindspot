@@ -282,3 +282,16 @@ Starlette 1.9 warns that `starlette.testclient` with `httpx` is deprecated and p
 (maintained by Pydantic Services). `httpx2` is added to the `dev` extra only and to
 `requirements-dev.lock`; the app and the Qloo client still use `httpx`, and `respx` still mocks it.
 The TestClient makes no network calls. `requirements.lock` is unchanged.
+
+**D44. Scenario and answer-key routes (#25, 2026-10-21).**
+- **Provenance of the exam.** `/api/scenarios` serves scenarios generated offline from config and the id
+  lock; no Qloo result is in them, so `served_from` is `disabled` (no Qloo involved), not `cache` or
+  `snapshot`. Answer keys keep the stored key's `cache` or `snapshot`.
+- **Synthetic label.** The store has no marker of its own, so `GROUNDTRUTH_SYNTHETIC=true` labels the
+  answer-key responses `synthetic: true`. Set it wherever the store was built from synthetic data.
+- **No budget spend.** Both routes read stored data. They run under the request deadline and the
+  per-client rate limit, and use `qloo=False` contexts, so a live call cannot happen from them.
+- **OpenAPI stays off (D19).** The issue asks for the routes in `/docs`; D19 keeps `/docs` and the schema
+  off as a small attack surface. Left as is and raised in `docs/NEEDS_FROM_USER.md`.
+- **CLI.** `blindspot param promote` calls `scripts/promote_param.py`. `validity run` belongs to #21.
+
