@@ -1,6 +1,6 @@
-# The Claude loop, step 2 of 2: review a Claude PR in a fresh run, fix what's wrong, and turn on
-# auto-merge once a round finds nothing (docs/automation.md). Auto-merge still waits for every
-# required check, including "Protected paths", so a PR touching sensitive files needs a human.
+# The Claude loop, step 2 of 2: review a Claude PR in a fresh run, fix what's wrong, and label it
+# ready-to-merge once a round finds nothing (docs/automation.md). The maintainer merges by hand,
+# after every required check (including "Protected paths") is green.
 # Off switch: set the repository variable CLAUDE_LOOP to "off".
 name: Claude loop - review
 
@@ -29,7 +29,8 @@ jobs:
     if: >-
       vars.CLAUDE_LOOP != 'off' && !github.event.pull_request.draft &&
       contains(github.event.pull_request.labels.*.name, 'claude') &&
-      !contains(github.event.pull_request.labels.*.name, 'needs-human')
+      !contains(github.event.pull_request.labels.*.name, 'needs-human') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'claude')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -97,5 +98,7 @@ jobs:
                  VERDICT: NEEDS-HUMAN  it needs an AGENTS.md section 13 decision, live Qloo calls,
                                        or a judgement you can't make; also run
                                        `gh pr edit ${{ env.PR }} --add-label needs-human`
-            5. Only on READY, run: gh pr merge ${{ env.PR }} --auto --squash
-               GitHub merges once every required check is green. Never merge any other way.
+            5. Only on READY, run:
+                 gh pr comment ${{ env.PR }} --body 'Ready to merge: review clean. Merge when CI is green.'
+                 gh pr edit ${{ env.PR }} --add-label ready-to-merge
+               Never merge, and never enable auto-merge.

@@ -1,5 +1,5 @@
 # The Claude loop, step 1 of 2: pick the next ready issue, build it, open a PR (docs/automation.md).
-# Step 2 (review, fix, auto-merge) is claude-review.yml. No Qloo key is stored in GitHub: issues
+# Step 2 (review, fix, ready-to-merge) is claude-review.yml. No Qloo key is stored in GitHub: issues
 # that need live calls are labelled `needs-live` and skipped.
 # Off switch: set the repository variable CLAUDE_LOOP to "off".
 name: Claude loop - next issue
