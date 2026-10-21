@@ -1,0 +1,41 @@
+# A required check for every PR: changes to sensitive files can't merge (or auto-merge) until a
+# human has read them and added the label `human-approved`. Files under data/ never merge.
+# Part of the Claude loop's safety gates (docs/automation.md), but it applies to all PRs.
+name: Protected paths
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  protected:
+    name: Protected paths
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check changed files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'human-approved') }}
+        run: |
+          set -euo pipefail
+          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
+          # Real Qloo results live in data/ and are never committed, approved or not (hard rule 2).
+          if echo "$files" | grep -E '^data/'; then
+            echo "::error::files under data/ are never committed"
+            exit 1
+          fi
+          pattern='^(\.github/|AGENTS\.md$|CLAUDE\.md$|docs/adr/|render\.yaml$|Dockerfile$|pyproject\.toml$|config/personas\.yaml$|config/resolved_ids\.lock\.json$|src/blindspot/qloo/(params|client|budget|redact)\.py$|src/blindspot/service/security\.py$|scripts/scan_secrets\.py$)'
+          hits=$(echo "$files" | grep -E "$pattern" || true)
+          if [ -n "$hits" ] && [ "$APPROVED" != "true" ]; then
+            echo "These files need a human review. Read them, then add the label human-approved:"
+            echo "$hits"
+            echo "::error::protected files changed without the human-approved label"
+            exit 1
+          fi
+          echo "OK: no protected files changed, or a human approved them"
