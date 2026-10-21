@@ -1,4 +1,5 @@
-"""HTTP routes. All output is JSON; external text is returned as data, never interpreted."""
+"""HTTP routes. API output is JSON; external text is returned as data, never interpreted. `/` serves
+the static web UI page, which holds no data of its own."""
 
 from __future__ import annotations
 
@@ -7,9 +8,11 @@ import time
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request
+from fastapi.responses import FileResponse
 
 from ..qloo.context import RequestContext, hash_client_ip
 from ..qloo.models import SEARCH_TYPES
+from ..web import STATIC_DIR
 from .security import client_ip
 
 router = APIRouter()
@@ -26,13 +29,14 @@ def _ctx(request: Request, *, qloo: bool) -> RequestContext:
     )
 
 
-# Static on purpose: no external text and nothing dynamic. The Phase 6 web UI (#47) replaces it.
+# Static on purpose: no external text and nothing dynamic. Served at /api since the web UI took / (#47).
 ROOT_INFO = {
     "ok": True,
     "name": "Blindspot",
     "about": "Audits AI agents for cultural blindness using Qloo's taste graph as the answer key.",
-    "note": "JSON API; a web UI replaces this page in Phase 6.",
+    "note": "JSON API; the web UI is at /.",
     "links": {  # each opens as published (a test requests them and requires 200)
+        "ui": "/",
         "health": "/healthz",
         "status": "/api/qloo/status",
         "search": "/api/qloo/search?q=jazz",
@@ -41,8 +45,14 @@ ROOT_INFO = {
 
 
 @router.api_route("/", methods=["GET", "HEAD"])
-async def root():
-    """What a judge sees at the bare hosted URL (#83); `/docs` stays disabled (D19)."""
+async def ui():
+    """The web UI shell (#47). Its assets are under /static; HEAD keeps uptime monitors working."""
+    return FileResponse(STATIC_DIR / "index.html", media_type="text/html; charset=utf-8")
+
+
+@router.api_route("/api", methods=["GET", "HEAD"])
+async def api_info():
+    """What the API is and where its routes are (#83); `/docs` stays disabled (D19)."""
     return copy.deepcopy(ROOT_INFO)  # never hand out the shared constant
 
 

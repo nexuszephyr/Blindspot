@@ -190,6 +190,7 @@ blindspot/
 │   │   ├── cache.py   db.py      calllog.py budget.py  breaker.py  ratelimit.py
 │   │   ├── context.py redact.py  snapshot.py cli.py
 │   ├── service/               # app.py (main_app factory), routes.py, security.py
+│   ├── web/                   # the web UI (#47): static/ HTML, CSS, JS, labels.json, mock/
 │   ├── scenarios/             # Planned (Phase 2)
 │   ├── groundtruth/           # Planned (Phase 2)
 │   ├── targets/               # Planned (Phase 3)
@@ -197,7 +198,6 @@ blindspot/
 │   ├── metrics/               # Planned (Phase 3)
 │   ├── auditor/               # Planned (Phase 4)
 │   └── fix/                   # Planned (Phase 5)
-├── web/                       # Planned (Phase 6)
 ├── scripts/                   # dev (task runner), _common, smoke, recon, coverage_matrix, warm_cache,
 │                              # export_snapshot, scan_secrets, promote_param
 ├── tests/                     # offline by default; fixtures tiny and synthetic or trimmed
@@ -536,11 +536,12 @@ sequenceDiagram
 ## 12. Service API
 
 Routes that return Qloo-derived data are deadline-bound, budget-guarded and labeled with `served_from`.
-Static routes (`/`, `/healthz`) touch no Qloo data and are exempt. No route ever returns secrets.
+Static routes (`/`, `/static/*`, `/api`, `/healthz`) touch no Qloo data and are exempt. No route ever returns secrets.
 
 | Route | Phase | Purpose |
 |---|---|---|
-| `GET /` | 2 | Static JSON: what Blindspot is and links to the routes below (#83); replaced by the UI in Phase 6 |
+| `GET /` | 6 | The web UI page (#47); its assets are under `/static/` |
+| `GET /api` | 2 | Static JSON: what Blindspot is and links to the routes below (#83; at `/` until #47) |
 | `GET /healthz` | 1 | Liveness |
 | `GET /api/qloo/status` | 1 | Mode, budgets per scope, cache size, snapshot, breaker state |
 | `GET /api/qloo/search?q=` | 1 | Guarded smoke endpoint |
@@ -598,7 +599,21 @@ returns `served_from`, `ok`, `reason`, `run_id`, `call_id`, `fetched_at` and `re
 
 ## 13. Web UI
 
-**Planned, Phase 6.** Built in this order, so the most important views exist first.
+**Phase 6.** The shell is built (#47, D48): static HTML, CSS and JS in `src/blindspot/web/static/`,
+no build step, served by the app at `/` with assets under `/static/`. It has the persistent data label,
+the cold-start state, design tokens (light and dark) and a sample view rendered from synthetic mock
+JSON shaped like the real envelope. The views below are planned and slot into it, in this order, so the
+most important exist first.
+
+**Content Security Policy.** `/` and `/static/*` get a self-only policy (`default-src 'self'`, no
+`'unsafe-inline'`, `frame-ancestors 'none'`, `base-uri 'none'`); every other path, `/api/*` included,
+keeps `default-src 'none'`. So the UI has no inline script, `<style>`, `style=` or `on*=`, and renders
+API text with `textContent` only (rule 10).
+
+**Data label.** One table, `web/static/labels.json`, read by a pure function in `labels.js`:
+`synthetic: true` is "Synthetic sample data"; else `live` is "Live Qloo data", `cache` and `snapshot`
+are "Qloo data (stored)", `disabled` is "Qloo off" ("No Qloo data" on the scenario routes, D45),
+`degraded` is "Qloo unavailable" plus the reason; anything else is "Data source unknown", never live.
 
 ```mermaid
 flowchart LR
@@ -619,7 +634,7 @@ flowchart LR
 | Truth Receipts | Every Qloo call behind a number: endpoint, params, result count, `served_from` |
 | Kill switch | Toggling it grays out scores for this viewer only |
 | Before and after | Per-cell and overall delta, held-out result too |
-| Data label | "Live Qloo data" or "Synthetic sample data" always visible |
+| Data label | Always visible; from `served_from` and `synthetic` (above), never "live" for stored data |
 
 Mobile width works, with no horizontal scroll. Cold start shows a "waking up" state, not a blank page.
 

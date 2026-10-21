@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Blindspot audits AI agents for cultural blindness using Qloo's taste graph as the answer key.">
+  <title>Blindspot</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/labels.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="bar">
+    <div class="wrap bar-inner">
+      <a class="brand" href="/">Blindspot</a>
+      <p id="data-label" class="label" data-tone="unknown" role="status" aria-live="polite">
+        Checking data source…
+      </p>
+    </div>
+  </header>
+
+  <div id="wake" class="wake" role="status" aria-live="polite" hidden>
+    <div class="wrap wake-inner">
+      <p id="wake-text">Waking up the demo…</p>
+      <button id="wake-retry" class="button" type="button" hidden>Try again</button>
+    </div>
+  </div>
+
+  <main id="main" class="wrap" tabindex="-1">
+    <section class="intro" aria-labelledby="intro-title">
+      <h1 id="intro-title">Is your AI agent culturally blind?</h1>
+      <p>
+        Blindspot asks an AI agent for local recommendations, checks them against Qloo's taste graph
+        for that audience and place, and shows where it misses.
+      </p>
+    </section>
+
+    <section aria-labelledby="exam-title">
+      <h2 id="exam-title">Sample exam</h2>
+      <p id="exam-note" class="muted">Loading…</p>
+      <ul id="exam" class="cards"></ul>
+    </section>
+
+    <noscript>
+      <p class="notice">This page needs JavaScript. The JSON API is at <a href="/api">/api</a>.</p>
+    </noscript>
+  </main>
+
+  <footer class="wrap foot">
+    <p>
+      Server: <span id="mode">checking…</span>
+      · <a href="/api">API</a>
+      · <a href="/healthz">Health</a>
+    </p>
+  </footer>
+</body>
+</html>

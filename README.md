@@ -76,7 +76,8 @@ visible: flip the **Qloo kill switch** and every score grays out.
 **https://blindspot-tva4.onrender.com** ([health check](https://blindspot-tva4.onrender.com/healthz))
 
 Right now the hosted service is the API foundation (`/healthz`, `/api/qloo/status`, `/api/qloo/search`),
-serving live Qloo data within daily limits; the web UI lands in Phase 6. It runs on a free instance, so
+serving live Qloo data within daily limits, and the start of the web UI at `/`: a shell with the data
+label and a sample exam from synthetic data, while the Phase 6 views are built. It runs on a free instance, so
 the first load after a long idle period can take up to about a minute; after that it responds normally.
 No key needed.
 
@@ -249,6 +250,8 @@ cached or sample data off as live.
 
 | Route | Available | Purpose |
 |---|---|---|
+| `GET /` | Now | The web UI (a shell on sample data until the Phase 6 views land) |
+| `GET /api` | Now | What the API is, with links to its routes |
 | `GET /healthz` | Now | Liveness |
 | `GET /api/qloo/status` | Now | Mode, remaining budgets, cache, breaker state (no secrets) |
 | `GET /api/qloo/search?q=` | Now | Guarded Qloo search |
@@ -275,7 +278,7 @@ src/blindspot/
   metrics/         scoring                          (Phase 3)
   auditor/         the auditing agent               (Phase 4)
   fix/             Qloo-grounded re-run             (Phase 5)
-web/               UI                               (Phase 6)
+  web/             the web UI, static files         (Phase 6)
 scripts/           recon, coverage, snapshots, secret scan
 tests/             offline by default
 docs/              architecture, ADRs, references, reports
