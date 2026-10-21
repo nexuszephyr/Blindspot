@@ -260,7 +260,17 @@ def test_every_named_seed_is_locked_and_excluded_from_the_key(cat, lock, ss):
                 assert seed_id is None  # a locked seed is always named
 
 
-def test_unlocked_seeds_are_never_named_and_unnameable_cells_are_skipped(cat, lock, ss):
+def test_unlocked_seeds_are_never_named_and_unnameable_cells_are_skipped(cat, lock):
+    # Unlock one seed whose cell has no other taste, so both properties are exercised whatever the
+    # committed lock holds (every seed resolves since #18).
+    d0, s0 = next(
+        (d, seeds[0])
+        for p in cat.personas
+        for d, seeds in p.seeds.items()
+        if len(seeds) == 1 and not p.interest_tags.get(d) and lock.id_for("seed", d, seeds[0].name)
+    )
+    lock = IdLock(items={k: v for k, v in lock.items.items() if k != lock_key("seed", d0, s0.name)})
+    ss = generate(cat, lock)
     unlocked = [
         (p, d, sd.name)
         for p in cat.personas

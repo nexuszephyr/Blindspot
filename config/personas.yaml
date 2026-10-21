@@ -150,11 +150,10 @@ personas:
     age_band: 55_and_older
     audiences: [{name: museums, type: leisure}]
     domains: [dining, music, film_tv, brands]
-    interest_tags: {dining: [french]}
+    interest_tags: {dining: [french], brands: [classical music]}
     seeds:
       music: [{name: Lang Lang, type: urn:entity:artist}, {name: John Coltrane, type: urn:entity:artist}]
       film_tv: [{name: Amadeus, type: urn:entity:movie}]
-      brands: [{name: Yamaha, type: urn:entity:brand}]
 
   - id: gamer
     descriptor: Plays story-driven video games and follows game soundtracks

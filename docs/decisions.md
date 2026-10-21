@@ -253,3 +253,16 @@ different: an id there only illustrates, so it is labelled (`entity#<sha256[:6]>
   rule 5).
 - **Purpose.** Build calls are logged with purpose `groundtruth` (new), so the budget report
   separates them from recon.
+
+**D42. classical_and_jazz states its brands taste as a tag, not a seed (#18, 2026-10-21).** No
+instrument or audio brand resolved as a seed. `Steinway` (#15), `Kawai`, `Bösendorfer` and
+`Fazioli` returned no brand hits. `Yamaha` resolved to the motor company, not the instrument maker,
+so the persona's brands key would have excluded the wrong entity (D40). `Steinway & Sons` resolved
+only weakly (0.3), with no music or instrument tag on any of its top 5 hits. `Bang & Olufsen`
+matched by name, but its popularity (0.933) fell just below the other locked seeds' range (0.934 to
+1.0). The test for a brand seed was: the top hit's normalized name equals ours, and its popularity is
+in that range. So the brands seed is removed and `interest_tags.brands: [classical music]` added; it
+resolves cleanly (1.0) to a `keyword:qloo` tag. The exam keeps all 104 cells: only that persona's 4
+brands scenarios get new ids, and 3 new specs replace 3 stored ones. Without a nameable taste the
+generator would have skipped the cell, and the seeded balanced selection would have reshuffled the
+exam (155 specs, only 60 built).

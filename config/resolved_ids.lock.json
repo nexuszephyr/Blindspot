@@ -325,17 +325,6 @@
       "search_type": "urn:entity:brand",
       "status": "resolved"
     },
-    "seed:brands:yamaha": {
-      "ambiguous": true,
-      "confidence": 0.7,
-      "domain": "brands",
-      "id": "90BB3F03-0DCB-4A77-8C77-0C586A93DE4F",
-      "kind": "seed",
-      "query": "Yamaha",
-      "reason": "top hit is a partial name match",
-      "search_type": "urn:entity:brand",
-      "status": "resolved"
-    },
     "seed:film_tv:amadeus": {
       "ambiguous": true,
       "confidence": 1.0,
@@ -752,6 +741,16 @@
       "query": "The Weeknd",
       "reason": "",
       "search_type": "urn:entity:artist",
+      "status": "resolved"
+    },
+    "tag:brands:classical music": {
+      "ambiguous": false,
+      "confidence": 1.0,
+      "domain": "brands",
+      "id": "urn:tag:keyword:qloo:classical_music",
+      "kind": "tag",
+      "query": "classical music",
+      "reason": "",
       "status": "resolved"
     },
     "tag:dining:bakery": {
