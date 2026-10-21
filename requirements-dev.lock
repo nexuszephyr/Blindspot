@@ -11,6 +11,7 @@ annotated-types==0.8.0
 anyio==4.15.1
     # via
     #   httpx
+    #   httpx2
     #   starlette
 boolean-py==5.0
     # via license-expression
@@ -46,17 +47,23 @@ filelock==4.1.1
 h11==0.16.0
     # via
     #   httpcore
+    #   httpcore2
     #   uvicorn
 httpcore==1.0.9
     # via httpx
+httpcore2==2.16.0
+    # via httpx2
 httpx==0.28.1
     # via
     #   blindspot (pyproject.toml)
     #   respx
+httpx2==2.16.0
+    # via blindspot (pyproject.toml)
 idna==3.20
     # via
     #   anyio
     #   httpx
+    #   httpx2
     #   requests
 iniconfig==2.3.1
     # via pytest
@@ -140,11 +147,16 @@ tomli==2.5.0
     # via pip-audit
 tomli-w==1.2.0
     # via pip-audit
+truststore==0.10.5
+    # via
+    #   httpcore2
+    #   httpx2
 typing-extensions==4.16.0
     # via
     #   anyio
     #   cyclonedx-python-lib
     #   fastapi
+    #   httpx2
     #   opentelemetry-api
     #   pydantic
     #   pydantic-core

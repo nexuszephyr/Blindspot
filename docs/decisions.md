@@ -275,3 +275,10 @@ and 2 attempts (#18, 2026-10-21).**
 - **Timeouts.** The build is a batch job, so `blindspot groundtruth build` sets `--timeout 45` and
   `--attempts 2` instead of the web defaults (10 s, 4 attempts). Freshness keys took 16 to 20 s, and
   four 10 s tries paid four calls for nothing.
+
+## D44: `httpx2` as a dev dependency for Starlette's TestClient (#69)
+
+Starlette 1.9 warns that `starlette.testclient` with `httpx` is deprecated and prefers `httpx2`
+(maintained by Pydantic Services). `httpx2` is added to the `dev` extra only and to
+`requirements-dev.lock`; the app and the Qloo client still use `httpx`, and `respx` still mocks it.
+The TestClient makes no network calls. `requirements.lock` is unchanged.
