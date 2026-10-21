@@ -135,6 +135,18 @@ async def test_unresolvable_location_is_empty_or_unknown_never_rich(cov):
     assert "location likely ignored" in body["degraded_reason"]
 
 
+async def test_location_rejected_by_every_domain_is_an_answer_not_a_503(cov):
+    # If a location signal also gets the 400 (UNVERIFIED), every domain has an answer: empty
+    h = await cov()
+    h.fake.unresolvable.add(PLACE)
+    h.fake.unresolvable_signal_400 = True
+    body = await _coverage(h)
+    assert body["data"]["location_resolved"] is False
+    assert {d["verdict"] for d in body["data"]["domains"]} == {"empty"}
+    assert body["served_from"] == "degraded" and "could not resolve" in body["degraded_reason"]
+    assert h.fake.count() == len(DOMAINS)  # no broader or no-location calls after a 400
+
+
 # --------------------------------------------------------------------------- failures and budgets
 async def test_failures_are_unknown_and_explained(cov):
     h = await cov(qloo_max_attempts=1)
@@ -241,7 +253,7 @@ NASTY = [
     "filter.location.query=elsewhere&take=50",
     "{{7*7}}",
     "東京都 渋谷区",
-    "São Paulo-ish",
+    "Vila Ação-ish",
     "\U0001f30d\U0001f5fa",
     "\x1b[31mred",
 ]

@@ -74,6 +74,7 @@ class FakeQloo:
         # Locations Qloo can't place: a location filter gets the VERIFIED 400 (E4); a location signal
         # is silently ignored (the pitfall the coverage probe guards against; UNVERIFIED for signals)
         self.unresolvable: set[str] = set()
+        self.unresolvable_signal_400 = False  # the other UNVERIFIED case: a signal gets the 400 too
 
     @property
     def behaviour(self) -> str:
@@ -102,6 +103,11 @@ class FakeQloo:
                 params = dict(parse_qsl(scope["query_string"].decode()))
                 if params.get("filter.location.query") in self.unresolvable:
                     status, body = 400, json.dumps({"errors": [{"message": UNRESOLVED_LOCALITY}]}).encode()
+                elif (
+                    self.unresolvable_signal_400 and params.get("signal.location.query") in self.unresolvable
+                ):
+                    msg = UNRESOLVED_LOCALITY.replace("filter.", "signal.")
+                    status, body = 400, json.dumps({"errors": [{"message": msg}]}).encode()
                 else:
                     if params.get("signal.location.query") in self.unresolvable:
                         params.pop("signal.location.query")

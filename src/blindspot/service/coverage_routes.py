@@ -53,5 +53,6 @@ async def get_coverage(
         served_from=served,
         synthetic=synthetic,
         degraded_reason=report.degraded_reason,
-        status=503 if served == "degraded" else 200,
+        # 503 only when no domain got an answer: "Qloo can't place this" (a 400) is an answer
+        status=503 if served == "degraded" and all(d.verdict == "unknown" for d in report.domains) else 200,
     )
