@@ -252,7 +252,7 @@ NASTY = [
     "../../etc/passwd",
     "filter.location.query=elsewhere&take=50",
     "{{7*7}}",
-    "東京都 渋谷区",
+    "架空町 三丁目",  # invented CJK place (rule 9)
     "Vila Ação-ish",
     "\U0001f30d\U0001f5fa",
     "\x1b[31mred",
