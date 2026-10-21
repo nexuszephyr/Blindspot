@@ -1,0 +1,256 @@
+/* Blindspot UI shell (#47). Design tokens first; light by default, dark from the OS setting. */
+:root {
+  --bg: #ffffff;
+  --surface: #f5f6f8;
+  --fg: #16181d;
+  --muted: #545b66;
+  --border: #d6d9df;
+  --accent: #2f4fd6;
+  --focus: #2f4fd6;
+
+  --tone-live-bg: #dff3e4;
+  --tone-live-fg: #10512a;
+  --tone-stored-bg: #e3ebfb;
+  --tone-stored-fg: #1d3c8a;
+  --tone-synthetic-bg: #fdf0d2;
+  --tone-synthetic-fg: #6b4a00;
+  --tone-off-bg: #e9eaee;
+  --tone-off-fg: #3a3f48;
+  --tone-degraded-bg: #fbe1df;
+  --tone-degraded-fg: #8a1f17;
+
+  --gutter: 16px;
+  --max-width: 960px;
+  --radius: 8px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111318;
+    --surface: #1b1e25;
+    --fg: #eceef2;
+    --muted: #a5abb6;
+    --border: #343944;
+    --accent: #8ea6ff;
+    --focus: #8ea6ff;
+
+    --tone-live-bg: #133622;
+    --tone-live-fg: #a8e6bb;
+    --tone-stored-bg: #1a2a52;
+    --tone-stored-fg: #bccdff;
+    --tone-synthetic-bg: #43330b;
+    --tone-synthetic-fg: #f6d98d;
+    --tone-off-bg: #2a2e36;
+    --tone-off-fg: #cfd3da;
+    --tone-degraded-bg: #4a1b17;
+    --tone-degraded-fg: #ffc2bc;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: var(--text-md) / 1.5 var(--font);
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.wrap {
+  width: 100%;
+  max-width: var(--max-width);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.skip {
+  position: absolute;
+  left: var(--gutter);
+  top: -100px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  z-index: 10;
+}
+
+.skip:focus {
+  top: var(--space-2);
+}
+
+/* The header, with the data label, stays on screen. */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.bar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+}
+
+.brand {
+  color: var(--fg);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.label {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: var(--tone-off-bg);
+  color: var(--tone-off-fg);
+}
+
+.label[data-tone="live"] {
+  background: var(--tone-live-bg);
+  color: var(--tone-live-fg);
+}
+
+.label[data-tone="stored"] {
+  background: var(--tone-stored-bg);
+  color: var(--tone-stored-fg);
+}
+
+.label[data-tone="synthetic"] {
+  background: var(--tone-synthetic-bg);
+  color: var(--tone-synthetic-fg);
+}
+
+.label[data-tone="degraded"] {
+  background: var(--tone-degraded-bg);
+  color: var(--tone-degraded-fg);
+}
+
+/* Cold start banner. */
+.wake {
+  background: var(--tone-synthetic-bg);
+  color: var(--tone-synthetic-fg);
+  border-bottom: 1px solid var(--border);
+}
+
+.wake-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-block: var(--space-2);
+}
+
+.wake-inner p {
+  margin: 0;
+}
+
+.button {
+  font: inherit;
+  padding: var(--space-1) var(--space-3);
+  min-height: 44px;
+  border-radius: var(--radius);
+  border: 1px solid currentColor;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+main {
+  padding-block: var(--space-4);
+}
+
+main:focus {
+  outline: none;
+}
+
+h1 {
+  font-size: var(--text-lg);
+  line-height: 1.25;
+  margin: 0 0 var(--space-2);
+}
+
+h2 {
+  font-size: 1.125rem;
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.notice {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+
+.card {
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.card h3 {
+  font-size: var(--text-md);
+  margin: 0 0 var(--space-1);
+}
+
+.card p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.foot {
+  padding-block: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}

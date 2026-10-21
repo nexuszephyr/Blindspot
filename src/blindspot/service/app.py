@@ -3,20 +3,23 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from ..config import Settings, get_settings
 from ..qloo.client import QlooClient
 from ..qloo.redact import install_log_redaction
+from ..web import STATIC_DIR
 from .coverage_routes import router as coverage_router
 from .routes import router
 from .scenario_routes import router as scenario_router
-from .security import SECURITY_HEADERS, SlidingWindowLimiter, client_ip
+from .security import SECURITY_HEADERS, SlidingWindowLimiter, client_ip, security_headers
 
 log = logging.getLogger("blindspot.service")
 
@@ -75,7 +78,7 @@ def create_app(settings: Settings | None = None, client: QlooClient | None = Non
         except Exception:
             log.exception("unhandled error")
             resp = JSONResponse({"ok": False, "reason": "internal error"}, status_code=500)
-        resp.headers.update(SECURITY_HEADERS)
+        resp.headers.update(security_headers(request.url.path))
         return resp
 
     @app.exception_handler(RequestValidationError)
@@ -86,6 +89,10 @@ def create_app(settings: Settings | None = None, client: QlooClient | None = Non
     app.include_router(router)
     app.include_router(scenario_router)
     app.include_router(coverage_router)
+    # The Windows registry can map .js to text/plain, which nosniff then refuses to run: pin the types.
+    for ext, mime in ((".js", "text/javascript"), (".css", "text/css"), (".json", "application/json")):
+        mimetypes.add_type(mime, ext)
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")  # the web UI's assets (#47)
     return app
 
 

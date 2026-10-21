@@ -1,0 +1,53 @@
+{
+  "data": {
+    "items": [
+      {
+        "id": "sc_000000000001",
+        "persona_id": "sample_vinyl_digger",
+        "city_id": "sample_city_a",
+        "domain_id": "music",
+        "probe_type": "core",
+        "stated_domain": null,
+        "pair_id": null,
+        "tags": ["demo"]
+      },
+      {
+        "id": "sc_000000000002",
+        "persona_id": "sample_vinyl_digger",
+        "city_id": "sample_city_b",
+        "domain_id": "music",
+        "probe_type": "swap",
+        "stated_domain": null,
+        "pair_id": "pr_000000000001",
+        "tags": ["demo"]
+      },
+      {
+        "id": "sc_000000000003",
+        "persona_id": "sample_street_food_fan",
+        "city_id": "sample_city_a",
+        "domain_id": "dining",
+        "probe_type": "core",
+        "stated_domain": null,
+        "pair_id": null,
+        "tags": ["demo"]
+      },
+      {
+        "id": "sc_000000000004",
+        "persona_id": "sample_late_night_viewer",
+        "city_id": "sample_city_b",
+        "domain_id": "film_tv",
+        "probe_type": "bridge",
+        "stated_domain": "music",
+        "pair_id": null,
+        "tags": ["holdout"]
+      }
+    ],
+    "total": 4,
+    "limit": 50,
+    "offset": 0
+  },
+  "served_from": "disabled",
+  "synthetic": true,
+  "degraded_reason": null,
+  "run_id": "run_sample000000"
+}

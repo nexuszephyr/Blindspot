@@ -1,0 +1,13 @@
+{
+  "about": "The data label (rule 5, #47). One table for the UI and the tests. Order: a synthetic envelope is always 'Synthetic sample data'; otherwise served_from picks the row; a route that marks itself no_qloo_route reads 'disabled' as 'no Qloo data involved' (D45), not the kill switch; anything else is 'unknown', never live.",
+  "synthetic": { "text": "Synthetic sample data", "tone": "synthetic" },
+  "served_from": {
+    "live": { "text": "Live Qloo data", "tone": "live" },
+    "cache": { "text": "Qloo data (stored)", "tone": "stored" },
+    "snapshot": { "text": "Qloo data (stored)", "tone": "stored" },
+    "disabled": { "text": "Qloo off", "tone": "off" },
+    "degraded": { "text": "Qloo unavailable", "tone": "degraded", "with_reason": true }
+  },
+  "no_qloo_route_disabled": { "text": "No Qloo data", "tone": "none" },
+  "unknown": { "text": "Data source unknown", "tone": "unknown" }
+}

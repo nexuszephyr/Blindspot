@@ -373,3 +373,35 @@ The TestClient makes no network calls. `requirements.lock` is unchanged.
   `pending (#21)`. Reports hold counts only.
 - **Left for the maintainer:** match rate against the V8 ceiling (needs #21) and the 50 hand-labelled
   precision check (local, gitignored).
+
+**D48. Web UI shell: static files in the package, a CSP split and one label table (#47, 2026-10-21).**
+- **Stack.** Plain HTML, CSS and JS, no build step, no npm, no CDN. The files live in
+  `src/blindspot/web/static/` and ship as package data (`pyproject.toml`), so the Docker image, which
+  copies only `src/` and `config/`, needs no change. Every asset is same-origin, so the UI works offline
+  and in all three run modes.
+- **Routes.** `GET /` (and `HEAD /`) serves the page; assets are under `/static/`. The #83 JSON moved to
+  `GET /api` with a `ui` link added. The UI is served from the API's origin, so `ALLOWED_ORIGINS` stays
+  empty (CORS closed).
+- **CSP split (amends D19).** `/` and `/static/*` get `default-src 'self'; script-src 'self'; style-src
+  'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none';
+  form-action 'self'`, with no `'unsafe-inline'`: no inline `<script>`, `<style>`, `style=` or `on*=`.
+  Every other path, `/api/*` and `/healthz` included, keeps `default-src 'none'`. The split is by exact
+  path or prefix in `service/security.py`; the other headers (`nosniff`, `X-Frame-Options DENY`,
+  `no-store`) are unchanged everywhere.
+- **The data label.** `web/static/labels.json` is the one table; `labels.js` is a pure function over
+  it (tests run it under Node). `synthetic: true` always reads **Synthetic sample data**; otherwise
+  `served_from` picks **Live Qloo data** (`live` only), **Qloo data (stored)** (`cache`, `snapshot`),
+  **Qloo off** (`disabled`) or **Qloo unavailable** plus `degraded_reason`. A view on a route where
+  `disabled` means "no Qloo data involved" (the scenario routes, D45) passes `noQlooRoute` and reads
+  **No Qloo data**, not the kill switch. A missing or unknown value reads **Data source unknown**,
+  never live; so does a failure to load the table.
+- **Untrusted text.** Data goes into the page with `textContent` only; a test fails on `innerHTML`,
+  `insertAdjacentHTML`, `document.write` or `eval` in the scripts.
+- **Cold start.** The page polls `/healthz` (8 s per try, backoff 2 to 15 s, six retries, then a
+  "Try again" button) and shows "Waking up the demo…" once a check takes over 1.5 s or fails. The page
+  itself is never blank: its static text renders before any script runs.
+- **Mock data.** The shell renders `web/static/mock/scenarios.json`: synthetic (`synthetic: true`),
+  invented ids and names, shaped exactly like the `/api/scenarios` envelope (a test compares its keys
+  with the real route's). The views (#48 onward) swap it for the real routes.
+- **Left for the maintainer:** desktop and 360 px screenshots in light and dark from a real device, the
+  keyboard-only pass and the Lighthouse-style check.

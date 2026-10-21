@@ -35,6 +35,10 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# the web UI's static files ship inside the package, so the Docker image needs no extra COPY (#47)
+"blindspot.web" = ["static/*", "static/mock/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

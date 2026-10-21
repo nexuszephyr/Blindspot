@@ -61,10 +61,29 @@ class SlidingWindowLimiter:
             return True, 0.0
 
 
+# The API and anything not on the UI list: nothing may load, run or frame (D19).
+API_CSP = "default-src 'none'; frame-ancestors 'none'"
+# The web UI (#47): same-origin assets only and no 'unsafe-inline', so no inline script, style= or on*=.
+UI_CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+)
+UI_PATHS = ("/",)
+UI_PREFIXES = ("/static/",)
+
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
-    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "Content-Security-Policy": API_CSP,
     "Cache-Control": "no-store",
 }
+
+
+def security_headers(path: str) -> dict[str, str]:
+    """Headers for a response to `path`. Only the UI page and its assets get the self-only CSP;
+    every other path, `/api/*` included, keeps `default-src 'none'`."""
+    headers = dict(SECURITY_HEADERS)
+    if path in UI_PATHS or path.startswith(UI_PREFIXES):
+        headers["Content-Security-Policy"] = UI_CSP
+    return headers

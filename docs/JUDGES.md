@@ -6,13 +6,18 @@ There are three ways to run it. The first needs no setup at all.
 
 | Path | You need | First run | What you get |
 |---|---|---|---|
-| 1. Hosted demo | A browser | Up to about a minute if the free server was asleep, then normal | The API with live Qloo data within daily limits (the UI arrives in Phase 6) |
+| 1. Hosted demo | A browser | Up to about a minute if the free server was asleep, then normal | The API with live Qloo data within daily limits, and the web UI shell at `/` (sample data until the Phase 6 views land) |
 | 2. Local, your own Qloo key | Python 3.11+, git, a hackathon key | About 80 s (dependency install), then about 3 s | Everything, live, on your quota |
 | 3. Local, no key | Python 3.11+, git | About 80 s, then about 3 s | Runs offline; anything not cached comes back `degraded` |
 
 ## 1. Hosted demo
 
 URL: **https://blindspot-tva4.onrender.com**. Open [https://blindspot-tva4.onrender.com/healthz](https://blindspot-tva4.onrender.com/healthz) first. If the server was asleep, give it up to a minute.
+
+The page at `/` is the web UI. Its badge at the top always says where the data on screen came from:
+**Live Qloo data**, **Qloo data (stored)**, **Synthetic sample data**, **No Qloo data**, **Qloo off** or
+**Qloo unavailable**. While the full views are being built it shows a sample exam from synthetic data. If
+the server is waking up, it says so and retries. The JSON API's index is at `/api`.
 
 The hosted daily live-call caps are deliberately low (150 a day, 100 of them for ad-hoc queries), because the
 key's 10,000-calls/month quota is shared with development ([decisions D33](decisions.md)). When a cap is hit,
@@ -41,6 +46,8 @@ make demo                   # Windows: mingw32-make demo, or: python scripts/dev
 With no key, the app starts in **replay mode** and never contacts Qloo. It serves only what is in the local cache or snapshot. The public repo ships **no Qloo data**, because Qloo's terms say not to store response data in a public repository, so a fresh clone answers most queries with `served_from: "degraded"` and a message pointing you to the hosted demo or your own key. That's expected behavior, not a crash.
 
 ### Try it
+
+Open http://127.0.0.1:8000/ in a browser for the web UI (it needs no key and no network). Or from a shell:
 
 ```bash
 curl http://127.0.0.1:8000/healthz
