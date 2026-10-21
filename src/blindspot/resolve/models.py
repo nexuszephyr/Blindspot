@@ -34,7 +34,7 @@ class Resolution(BaseModel):
     method: Method = "none"
     status: Status
     reason: Reason = ""
-    # Where the evidence came from: `cache` for the stored index (never `live`, like answer keys),
+    # Where the evidence came from: the key's label (`cache` or `snapshot`, never `live`) for the index,
     # the `/search` result's own label after a search, `disabled` or `degraded` when nothing was asked.
     served_from: ServedFrom
 

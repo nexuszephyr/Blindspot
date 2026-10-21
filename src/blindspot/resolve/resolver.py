@@ -93,6 +93,9 @@ class _Scope:
     rank: dict[str, int]  # id -> 1-based rank in the local list (key and pool)
     depth: int
     centre: tuple[float, float] | None
+    # The label for anything read from the store: the answer key's own (`snapshot` when the key and
+    # its index rows came from a snapshot), `cache` without a key. Never `live`.
+    stored: ServedFrom = "cache"
 
     def far(self, c: _Cand) -> bool:
         if self.centre is None or c.lat is None or c.lon is None or c.qloo_id in self.rank:
@@ -174,7 +177,7 @@ class Resolver:
             ]
             if len(pts) >= MIN_CENTRE_POINTS:
                 centre = (statistics.median(p[0] for p in pts), statistics.median(p[1] for p in pts))
-        return _Scope(domain, rank, key.depth if key else 0, centre)
+        return _Scope(domain, rank, key.depth if key else 0, centre, key.served_from if key else "cache")
 
     def _types(self, domain: Domain) -> list[str]:
         return domain.search_types or [domain.filter_type]
@@ -200,9 +203,9 @@ class Resolver:
         if hits:
             out = self._pick([self._from_index(e, norm) for e in hits], scope)
             if out.pick:
-                return self._matched(base, out, scope, "cache")
+                return self._matched(base, out, scope, scope.stored)
             if out.reason == "ambiguous":
-                return Resolution(**base, status="unresolved", reason="ambiguous", served_from="cache")
+                return Resolution(**base, status="unresolved", reason="ambiguous", served_from=scope.stored)
             pending = out.reason  # elsewhere: try the rest before saying so
 
         # 2. index, fuzzy
@@ -215,13 +218,14 @@ class Resolver:
             if cands:
                 out = self._pick(cands, scope)
                 if out.pick:
-                    return self._matched(base, out, scope, "cache")
+                    return self._matched(base, out, scope, scope.stored)
                 pending = pending or out.reason
 
         # 3. /search
         if self.client is None or not scope.domain.search_types:
-            why = pending or "no_search"
-            return Resolution(**base, status="unresolved", reason=why, served_from="disabled")
+            if pending:  # the evidence is the stored index; nothing was asked of Qloo
+                return Resolution(**base, status="unresolved", reason=pending, served_from=scope.stored)
+            return Resolution(**base, status="unresolved", reason="no_search", served_from="disabled")
         res, why = await self._search(norm, scope.domain.search_types, ctx)
         if why:
             return Resolution(**base, status="unresolved", reason=why, served_from=res.served_from)

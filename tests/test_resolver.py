@@ -82,6 +82,9 @@ def world(make_settings, tmp_path, picked, catalog):
         store = Store(tmp_path / "gt.sqlite")
         fake = FakeQloo()
 
+        def city(self, domain: str) -> str:
+            return picked[domain].city_id
+
         def client(self, **kw) -> QlooClient:
             return client_for(self.fake, "resolve", **kw)
 
@@ -103,6 +106,7 @@ def world(make_settings, tmp_path, picked, catalog):
             )  # fmt: skip
 
     w = World()
+    w.catalog = catalog
     build_fake = FakeQloo()
     _places_with_coordinates(build_fake)
     words = [x for c in catalog.cities for x in (c.display_name, c.location)]
@@ -144,6 +148,27 @@ async def test_exact_name_in_the_key_is_matched_in_key_offline(built):
     assert (r.status, r.method, r.qloo_id, r.rank) == ("matched_in_key", "index_exact", top3.qloo_id, 3)
     assert r.confidence == 1.0 and r.served_from == "cache"  # stored data is never "live"
     assert built.searches() == 0 and res.searches == 0
+
+
+async def test_index_matches_carry_the_keys_snapshot_label(built):
+    key = built.key("music").model_copy(update={"served_from": "snapshot"})
+    s = Resolver(built.catalog, built.store)  # no client: index only
+    res = await s.resolve(
+        [key.local.items[0].name], domain_id="music", city_id=built.city("music"), key=key,
+        ctx=RequestContext.script("resolve-test", purpose="audit"),
+    )  # fmt: skip
+    assert (res.items[0].status, res.items[0].served_from) == ("matched_in_key", "snapshot")
+
+
+async def test_elsewhere_without_a_client_is_labelled_as_stored_data(built):
+    far = _hit(_id(1), "Corner Noodle House", "urn:entity:place", location={"lat": FAR[0], "lon": FAR[1]})
+    add_search_hits([Entity.parse(far)], store=built.store)
+    res = await built.resolve(
+        ["Corner Noodle House"], domain="dining", resolver=Resolver(built.catalog, built.store)
+    )
+    r = res.items[0]
+    assert (r.status, r.reason, r.served_from) == ("unresolved", "elsewhere", "cache")
+    assert built.searches() == 0
 
 
 async def test_pool_and_index_entities_outside_the_key_are_matched_outside_key(built):

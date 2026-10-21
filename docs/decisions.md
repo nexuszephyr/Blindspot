@@ -328,7 +328,6 @@ The TestClient makes no network calls. `requirements.lock` is unchanged.
   `export_snapshot.py --synthetic` writes; a coverage answer served from such a snapshot says
   `synthetic: true`.
 
-
 **D47. Entity resolver (#29, 2026-10-21).**
 - **Order.** Index exact or alias, then index fuzzy, then one budgeted `/search`. Normalization is
   `groundtruth.normalize` with every configured city's words, the same as the answer-key build, so
@@ -363,8 +362,9 @@ The TestClient makes no network calls. `requirements.lock` is unchanged.
   match and no same-name entity anywhere), `unresolved` with a reason (`ambiguous`, `elsewhere`,
   `budget`, `deadline`, `offline`, `disabled`, `error`, `no_search`, `empty`). `unresolved` is never a
   phantom. No `/entities` calls (out of scope for #29).
-- **Provenance.** An index match is `served_from: cache` (stored data, never `live`, like answer keys);
-  a search result keeps the client's label.
+- **Provenance.** An index match, or an `ambiguous` or `elsewhere` read from the index, carries the
+  answer key's label (`cache`, or `snapshot` when the key came from one; `cache` with no key), never
+  `live`; a search result keeps the client's label.
 - **Match rate** is reported per domain and script (`script_of`, from Unicode names; kana folded into
   one), with unresolved reasons, and compared with a V8 ceiling when one is given; until #21 it reads
   `pending (#21)`. Reports hold counts only.
