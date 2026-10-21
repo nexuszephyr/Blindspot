@@ -327,3 +327,46 @@ The TestClient makes no network calls. `requirements.lock` is unchanged.
 - **Synthetic label.** `Snapshot.synthetic` is read from the `-SYNTHETIC` name suffix that
   `export_snapshot.py --synthetic` writes; a coverage answer served from such a snapshot says
   `synthetic: true`.
+
+
+**D47. Entity resolver (#29, 2026-10-21).**
+- **Order.** Index exact or alias, then index fuzzy, then one budgeted `/search`. Normalization is
+  `groundtruth.normalize` with every configured city's words, the same as the answer-key build, so
+  forms compare equal. The resolver reads and extends `entity_index` only through `groundtruth`'s
+  public functions (`find_entities`, `list_entities`, `entities_by_id`, `add_search_hits`).
+- **Fuzzy, standard library.** A token-set ratio on `difflib` (no `rapidfuzz`), made stricter: a
+  name inside a longer one counts only if it covers 60% of it ("cafe" is not "cafe coffee day"), and
+  when each name has a word the other lacks, those words must be spellings of one another ("Studio 54
+  Band" is not "Studio 84 Band"). Names under 4 characters are matched exactly or not at all.
+- **Thresholds are provisional.** `FUZZY_THRESHOLD` 0.9, the 0.6 subset cover, the 0.75 word-variant
+  line, the confidences and the 60 km city radius are named constants marked PROVISIONAL. **Retune them
+  on V8 data from #21** (pending, live). No V8 number is assumed.
+- **Never guess a tie.** `/search` gives no confidence, and same-name films are common (#15). Several
+  candidates are separated only by the answer key, then the pool, then an exact (not alias) name, then,
+  for places, being in the city; anything still tied is `unresolved` (`ambiguous`). An exact tie in the
+  index is final and makes no search: a search can only add same-name hits, and it keeps re-runs
+  offline. A tie-broken match keeps 0.9 of its confidence.
+- **`/search`** goes through `QlooClient` with the caller's `RequestContext` (per-run budget, deadline,
+  cache, breaker, call log) and sends only `query` (the normalized name), `types` and `take` 5. There is
+  no VERIFIED city hint, so none is sent. `max_live_searches` caps the resolver's own live searches;
+  past it, searches still read the cache. Hits go into `entity_index` (an existing row is kept: the
+  build's insights row is richer), so a re-run resolves them with no `/search` call.
+- **Search types are data.** `search_types` in `config/domains.yaml`, validated against the `/search`
+  type list (rule 9). `film_tv` searches `movie` and `tv_show`: a TV pick is real even though the key
+  holds films. Index lookups use the same types.
+- **The city without coordinates in config.** For a domain localized by a filter (places), the city's
+  centre is the median of the answer-key pool's coordinates (E10). A same-name place farther than the
+  radius is not this one; if every candidate is far, the pick is `unresolved` (`elsewhere`): it exists,
+  so it isn't a phantom.
+- **Statuses.** `matched_in_key` (in the top `depth`), `matched_outside_key` (in the pool or the index
+  or found by search, outside the key), `phantom_candidate` (a clean search, ok or empty, with no name
+  match and no same-name entity anywhere), `unresolved` with a reason (`ambiguous`, `elsewhere`,
+  `budget`, `deadline`, `offline`, `disabled`, `error`, `no_search`, `empty`). `unresolved` is never a
+  phantom. No `/entities` calls (out of scope for #29).
+- **Provenance.** An index match is `served_from: cache` (stored data, never `live`, like answer keys);
+  a search result keeps the client's label.
+- **Match rate** is reported per domain and script (`script_of`, from Unicode names; kana folded into
+  one), with unresolved reasons, and compared with a V8 ceiling when one is given; until #21 it reads
+  `pending (#21)`. Reports hold counts only.
+- **Left for the maintainer:** match rate against the V8 ceiling (needs #21) and the 50 hand-labelled
+  precision check (local, gitignored).

@@ -193,7 +193,7 @@ blindspot/
 │   ├── scenarios/             # Planned (Phase 2)
 │   ├── groundtruth/           # Planned (Phase 2)
 │   ├── targets/               # Planned (Phase 3)
-│   ├── resolve/               # Planned (Phase 3)
+│   ├── resolve/               # entity resolver (#29): resolver, match, report
 │   ├── metrics/               # Planned (Phase 3)
 │   ├── auditor/               # Planned (Phase 4)
 │   └── fix/                   # Planned (Phase 5)
@@ -427,6 +427,16 @@ flowchart TD
 Outputs per recommendation: `qloo_id` or none, confidence, method, and status (`matched_in_key`,
 `matched_outside_key`, `phantom_candidate`, `unresolved`). The match rate is always reported; V8 sets
 its realistic ceiling.
+
+Built in #29 (D47): `resolve.Resolver.resolve(texts, domain_id, city_id, key, ctx)` returns one
+`Resolution` per pick with `qloo_id`, `name`, `rank`, `confidence`, `method`
+(`index_exact | index_alias | index_fuzzy | search_exact | search_alias | search_fuzzy | none`), `status`,
+an unresolved `reason` and `served_from`. `/search` sends only `query`, `types` (the domain's
+`search_types`) and `take`; there is no verified location hint, so the city is used locally: for places,
+a same-name entity far from the median of the answer-key pool's coordinates is not this city's.
+Unbroken ties are `unresolved` (`ambiguous`). Search hits are added to `entity_index` through
+`groundtruth.add_search_hits`, so a re-run resolves offline. `resolve.match_rates()` reports the match rate
+per domain and script against the V8 ceiling (pending #21). Fuzzy thresholds are provisional until V8.
 
 ---
 

@@ -12,10 +12,13 @@
 # probes: probe types enabled for this domain; each must allow the domain in probe_types.yaml.
 # baseline: the famousness baseline list. global (default): the same taste with no location.
 #   city: this city with no persona signal (D43).
+# search_types: /search types the resolver (#29) uses for an agent's picks in this domain; /search has
+#   its own type list, different from filter.type (E1). They also select index entries by type.
 # Field reference: docs/scenarios.md.
 domains:
   - id: dining
     filter_type: urn:entity:place
+    search_types: [urn:entity:place]
     take: 10
     phrasing: "restaurants"
     location_param: filter
@@ -31,6 +34,7 @@ domains:
     baseline: city  # restaurants belong to one city; the no-location query times out (D43)
   - id: music
     filter_type: urn:entity:artist
+    search_types: [urn:entity:artist]
     take: 10
     phrasing: "music artists"
     location_param: signal
@@ -44,6 +48,7 @@ domains:
     probes: [core, swap, bridge, audience]
   - id: film_tv
     filter_type: urn:entity:movie
+    search_types: [urn:entity:movie, urn:entity:tv_show]
     take: 10
     phrasing: "films"
     location_param: signal
@@ -57,6 +62,7 @@ domains:
     probes: [core, swap, bridge, audience]
   - id: brands
     filter_type: urn:entity:brand
+    search_types: [urn:entity:brand]
     take: 10
     phrasing: "brands"
     location_param: signal

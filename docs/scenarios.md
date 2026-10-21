@@ -60,6 +60,7 @@ the rules flagged in `docs/seed_review.md`; run `--dry-run` first to see which l
 | `query_shape.with_age` | Also send the persona's age band (default `false`). Rejected for places (age has no effect, E5), and refused for any persona whose band is UNVERIFIED | E5 |
 | `probes` | Probe types enabled for this domain; each must allow the domain in `probe_types.yaml` | E15, D37 |
 | `baseline` | The famousness baseline list: `global` (default; the same taste with no location) or `city` (this city with no persona signal, for domains whose entities belong to one place) | D43 |
+| `search_types` | `/search` types the resolver uses for an agent's picks in this domain, and for index lookups. `/search` has its own type list, different from `filter_type` (`film_tv`: `movie` and `tv_show`) | E1, D47 |
 
 Today every domain uses `signal: audience`, depth 20 and a pool of 50. Film doesn't list `entity` under
 `candidate_scoring` because entity scoring was partial for the seed tested (D36).

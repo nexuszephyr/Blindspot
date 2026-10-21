@@ -1,4 +1,6 @@
-"""The one read path for answer keys (#18): `get_answer_key(scenario_id)`.
+"""The one read path for answer keys (#18): `get_answer_key(scenario_id)`. The entity index has a
+small read and write API here too, for the resolver (#29): `find_entities`, `list_entities`,
+`entities_by_id` and `add_search_hits`.
 
 Later phases never query Qloo for ground truth themselves, and never read the store's tables
 directly (a test checks nothing outside this package imports `groundtruth.store`).
@@ -17,8 +19,10 @@ from typing import Literal
 from pydantic import BaseModel
 
 from ..config import Settings
+from ..qloo.models import Entity
 from .builder import READABLE_STATUSES
-from .store import Store
+from .normalize import Places, aliases, normalize_name
+from .store import Store, dumps
 
 ServedFrom = Literal["cache", "snapshot"]
 
@@ -115,6 +119,121 @@ def get_answer_key(scenario_id: str, store: Store | None = None) -> AnswerKey:
     finally:
         if own:
             store.close()
+
+
+# --------------------------------------------------------------------------- entity index (#29)
+class IndexEntity(BaseModel):
+    """One `entity_index` row, for the resolver. Stored data: served as `cache`, never `live`."""
+
+    qloo_id: str
+    name: str
+    norm_name: str
+    type: str | None = None
+    aliases: list[str]
+    external: dict | None = None
+    lat: float | None = None
+    lon: float | None = None
+
+    @property
+    def has_existence_evidence(self) -> bool:
+        """Coordinates or an external id (E10): the place exists somewhere."""
+        return (self.lat is not None and self.lon is not None) or bool(self.external)
+
+
+_INDEX_COLS = "e.qloo_id, e.name, e.norm_name, e.type, e.aliases_json, e.external_json, e.lat, e.lon"
+
+
+def _entity(r) -> IndexEntity:
+    return IndexEntity(
+        qloo_id=r["qloo_id"], name=r["name"], norm_name=r["norm_name"], type=r["type"],
+        aliases=json.loads(r["aliases_json"] or "[]"),
+        external=json.loads(r["external_json"]) if r["external_json"] else None, lat=r["lat"], lon=r["lon"],
+    )  # fmt: skip
+
+
+def _type_clause(types: list[str] | None) -> tuple[str, list[str]]:
+    if not types:
+        return "", []
+    return f" AND e.type IN ({','.join('?' * len(types))})", list(types)
+
+
+def _with_store(store: Store | None, fn):
+    own = store is None
+    store = store or open_store()
+    try:
+        return fn(store)
+    finally:
+        if own:
+            store.close()
+
+
+def find_entities(
+    forms: list[str], *, types: list[str] | None = None, store: Store | None = None
+) -> list[IndexEntity]:
+    """Index entries whose normalized name or one of whose aliases is one of `forms`, optionally only
+    of these Qloo types. Sorted by id, so the order never depends on insert order."""
+    forms = sorted({f for f in forms if f})
+    if not forms:
+        return []
+    marks = ",".join("?" * len(forms))
+    tsql, targs = _type_clause(types)
+    sql = (
+        f"SELECT DISTINCT {_INDEX_COLS} FROM entity_index e LEFT JOIN json_each(e.aliases_json) a "  # noqa: S608
+        f"WHERE (e.norm_name IN ({marks}) OR a.value IN ({marks})){tsql} ORDER BY e.qloo_id"
+    )
+    return _with_store(store, lambda s: [_entity(r) for r in s.query(sql, [*forms, *forms, *targs])])
+
+
+def list_entities(*, types: list[str] | None = None, store: Store | None = None) -> list[IndexEntity]:
+    """Every index entry (of these types), for fuzzy matching."""
+    tsql, targs = _type_clause(types)
+    sql = f"SELECT {_INDEX_COLS} FROM entity_index e WHERE 1=1{tsql} ORDER BY e.qloo_id"  # noqa: S608
+    return _with_store(store, lambda s: [_entity(r) for r in s.query(sql, targs)])
+
+
+def entities_by_id(ids: list[str], *, store: Store | None = None) -> list[IndexEntity]:
+    """Index entries for these ids (unknown ids are skipped)."""
+    ids = sorted(set(ids))
+    if not ids:
+        return []
+    sql = (
+        f"SELECT {_INDEX_COLS} FROM entity_index e WHERE e.qloo_id IN ({','.join('?' * len(ids))}) "  # noqa: S608
+        "ORDER BY e.qloo_id"
+    )
+    return _with_store(store, lambda s: [_entity(r) for r in s.query(sql, ids)])
+
+
+def add_search_hits(entities: list[Entity], *, places: Places = (), store: Store | None = None) -> int:
+    """Add `/search` hits to `entity_index`, so later runs resolve them offline. An entity already in
+    the index keeps its row: the answer-key build's insights row carries scores, coordinates and
+    external ids that a search hit may lack. Returns how many rows were added."""
+    stmts: list[tuple[str, tuple]] = []
+    for e in entities:
+        if not e.entity_id or not e.name:
+            continue
+        loc = e.location or {}
+        ext = {k: v for k, v in (e.external or {}).items() if k == "google_place"} or None  # E10
+        stmts.append(
+            (
+                "INSERT OR IGNORE INTO entity_index VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    e.entity_id, e.name, normalize_name(e.name, places=places), e.kind,
+                    dumps(aliases(e.name, places=places)), dumps(ext) if ext else None,
+                    _float(loc.get("lat")), _float(loc.get("lon")), e.popularity,
+                ),
+            )
+        )  # fmt: skip
+
+    def write(s: Store) -> int:
+        before = s.table_counts()["entity_index"]
+        s.transaction(stmts)
+        return s.table_counts()["entity_index"] - before
+
+    return _with_store(store, write) if stmts else 0
+
+
+def _float(v) -> float | None:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def default_store_path(config_dir: Path | str | None = None) -> Path:
