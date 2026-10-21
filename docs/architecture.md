@@ -406,6 +406,10 @@ The answer key is only useful if it's stable and discriminating. Phase 2 must re
 - Bring-your-own endpoint is optional and off by default: it blocks private, loopback and link-local
   addresses to prevent server-side request forgery, and has its own strict limits.
 
+Preloaded targets (decisions D49): Gemini 3.8 Flash (Google AI Studio; the fix-loop agent), GPT-OSS
+120B and GPT-OSS 20B, and optionally Qwen3.8 27B (all on Groq), all on free tiers. Only GPT-OSS 20B is
+called live from the hosted demo, behind caps; the rest are precomputed.
+
 ### 8.2 Resolver
 
 ```mermaid
