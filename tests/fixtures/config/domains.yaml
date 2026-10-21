@@ -1,6 +1,7 @@
 domains:
   - id: dining
     filter_type: urn:entity:place
+    search_types: [urn:entity:place]
     take: 5
     phrasing: "restaurants"
     location_param: filter
@@ -12,6 +13,7 @@ domains:
     probes: [core, freshness]
   - id: music
     filter_type: urn:entity:artist
+    search_types: [urn:entity:artist]
     take: 5
     phrasing: "artists"
     location_param: signal

@@ -107,12 +107,25 @@ class Domain(_Strict):
     # taste with no location; `city` is this city with no persona signal, for domains whose
     # entities are tied to one place (dining: a no-location restaurant query times out, D43).
     baseline: Literal["global", "city"] = "global"
+    # `/search` types for resolving an agent's picks in this domain (#29). /search has its own type
+    # list, different from insights `filter.type` (E1). Empty: the resolver never searches.
+    search_types: list[str] = Field(default_factory=list)
 
     @field_validator("filter_type")
     @classmethod
     def _official(cls, v: str) -> str:
         if v not in INSIGHTS_TYPES:
             raise ValueError(f"{v!r} is not an insights filter.type; valid: {sorted(INSIGHTS_TYPES)}")
+        return v
+
+    @field_validator("search_types")
+    @classmethod
+    def _search_types(cls, v: list[str]) -> list[str]:
+        bad = [t for t in v if t not in SEARCH_TYPES]
+        if bad:
+            raise ValueError(f"{bad} aren't /search types; valid: {sorted(SEARCH_TYPES)}")
+        if len(set(v)) != len(v):
+            raise ValueError("duplicate type in search_types")
         return v
 
     @model_validator(mode="after")
