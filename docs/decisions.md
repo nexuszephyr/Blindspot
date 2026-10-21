@@ -349,7 +349,10 @@ The TestClient makes no network calls. `requirements.lock` is unchanged.
   cache, breaker, call log) and sends only `query` (the normalized name), `types` and `take` 5. There is
   no VERIFIED city hint, so none is sent. `max_live_searches` caps the resolver's own live searches;
   past it, searches still read the cache. Hits go into `entity_index` (an existing row is kept: the
-  build's insights row is richer), so a re-run resolves them with no `/search` call.
+  build's insights row is richer), so a re-run resolves them with no `/search` call. Not when the
+  answer key came from a snapshot (the hosted demo): live hits would sit beside snapshot rows and be
+  served as `snapshot`, possibly real names in the synthetic store (rules 2 and 5). There the hits
+  serve only the current run, and the client cache keeps a re-run free of live calls.
 - **Search types are data.** `search_types` in `config/domains.yaml`, validated against the `/search`
   type list (rule 9). `film_tv` searches `movie` and `tv_show`: a TV pick is real even though the key
   holds films. Index lookups use the same types.

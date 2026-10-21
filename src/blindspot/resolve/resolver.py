@@ -8,7 +8,9 @@ Order, cheapest first:
 3. **`/search`**, through `QlooClient` with the caller's `RequestContext`, so the per-run budget,
    deadline, cache and breaker apply; `max_live_searches` caps this resolver's own live searches on
    top. Only `query`, `types` and `take` are sent: there's no verified city hint, and Qloo silently
-   ignores unknown params. Hits go into `entity_index`, so a re-run resolves them offline.
+   ignores unknown params. Hits go into `entity_index`, so a re-run resolves them offline, except
+   when the key came from a snapshot: live hits never join snapshot rows (they'd read `snapshot`),
+   and the client cache still makes that re-run free.
 
 Choosing between several entities: `/search` gives no confidence and same-name films are common
 (qloo_api_reality, #15). A tie is broken only by the answer key, then the pool, then an exact
@@ -226,7 +228,8 @@ class Resolver:
             if pending:  # the evidence is the stored index; nothing was asked of Qloo
                 return Resolution(**base, status="unresolved", reason=pending, served_from=scope.stored)
             return Resolution(**base, status="unresolved", reason="no_search", served_from="disabled")
-        res, why = await self._search(norm, scope.domain.search_types, ctx)
+        keep = scope.stored != "snapshot"  # never mix live hits into a snapshot-built store
+        res, why = await self._search(norm, scope.domain.search_types, ctx, keep=keep)
         if why:
             return Resolution(**base, status="unresolved", reason=why, served_from=res.served_from)
         cands = [c for e in res.entities if (c := self._from_hit(e, norm, forms, types))]
@@ -305,8 +308,11 @@ class Resolver:
         )  # fmt: skip
 
     # ------------------------------------------------------------------ search
-    async def _search(self, norm: str, types: list[str], ctx: RequestContext) -> tuple[QlooResult, Reason]:
-        """One budgeted /search. Returns the result and, when it can't be used, why."""
+    async def _search(
+        self, norm: str, types: list[str], ctx: RequestContext, *, keep: bool = True
+    ) -> tuple[QlooResult, Reason]:
+        """One budgeted /search. Returns the result and, when it can't be used, why. `keep` writes
+        the hits to `entity_index`."""
         assert self.client is not None
         capped = self.max_live_searches is not None and self.live_searches >= self.max_live_searches
         sctx = dataclasses.replace(ctx, allow_live=False) if capped and ctx.allow_live else ctx
@@ -316,7 +322,7 @@ class Resolver:
             self.live_searches += 1
         if res.ok or res.outcome == "empty":
             hits = [e for e in res.entities if e.entity_id and e.name]
-            if hits and add_search_hits(hits, places=self.places, store=self.store):
+            if keep and hits and add_search_hits(hits, places=self.places, store=self.store):
                 self._index.clear()  # the fuzzy list is stale now
             return res, ""
         return res, _why(res, capped=capped and ctx.allow_live, allow_live=ctx.allow_live)

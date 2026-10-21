@@ -276,6 +276,21 @@ async def test_search_match_is_stored_and_a_rerun_makes_no_search(built):
     assert again.searches == 0 and built.searches() == 1
 
 
+async def test_search_hits_are_not_written_into_a_snapshot_built_store(built):
+    # A live hit stored beside snapshot rows would later be served as `snapshot` (rules 2 and 5).
+    built.fake.search_body = _search_hits(_hit(_id(6), "Quiet Harbour Band"))
+    key = built.key("music").model_copy(update={"served_from": "snapshot"})
+    ctx = RequestContext.script("resolve-test", purpose="audit")
+    res = await built.resolver().resolve(
+        ["Quiet Harbour Band"], domain_id="music", city_id=built.city("music"), key=key, ctx=ctx
+    )
+    r = res.items[0]
+    assert (r.status, r.method, r.qloo_id, r.served_from) == (
+        "matched_outside_key", "search_exact", _id(6), "live"
+    )  # fmt: skip
+    assert not find_entities(["quiet harbour band"], store=built.store)  # this run only
+
+
 async def test_search_sends_only_query_types_and_take(built):
     await built.resolve(["Someone Unknown"], domain="film_tv")
     (seen,) = [s for s in built.fake.seen if s.path == "/search"]

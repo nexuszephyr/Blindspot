@@ -435,8 +435,8 @@ an unresolved `reason` and `served_from`. `/search` sends only `query`, `types` 
 `search_types`) and `take`; there is no verified location hint, so the city is used locally: for places,
 a same-name entity far from the median of the answer-key pool's coordinates is not this city's.
 Unbroken ties are `unresolved` (`ambiguous`). Search hits are added to `entity_index` through
-`groundtruth.add_search_hits`, so a re-run resolves offline. `resolve.match_rates()` reports the match rate
-per domain and script against the V8 ceiling (pending #21). Fuzzy thresholds are provisional until V8.
+`groundtruth.add_search_hits`, so a re-run resolves offline (not into a snapshot-built store, D47).
+`resolve.match_rates()` reports the match rate per domain and script against the V8 ceiling (pending #21). Fuzzy thresholds are provisional until V8.
 
 ---
 
