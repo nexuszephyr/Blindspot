@@ -10,6 +10,8 @@
 #   query_shape.candidate_scoring: signals that score an agent's own picks via
 #   filter.results.entities (E14, D36); anything else uses the membership pool.
 # probes: probe types enabled for this domain; each must allow the domain in probe_types.yaml.
+# baseline: the famousness baseline list. global (default): the same taste with no location.
+#   city: this city with no persona signal (D43).
 # Field reference: docs/scenarios.md.
 domains:
   - id: dining
@@ -26,6 +28,7 @@ domains:
       signal: audience
       candidate_scoring: [entity, tag, audience]
     probes: [core, swap, bridge, audience, freshness]  # audience: conditional, see probe_types.yaml
+    baseline: city  # restaurants belong to one city; the no-location query times out (D43)
   - id: music
     filter_type: urn:entity:artist
     take: 10

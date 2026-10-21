@@ -33,7 +33,7 @@ class KeyItem(BaseModel):
 
 
 class RankedList(BaseModel):
-    kind: Literal["local", "global"]
+    kind: Literal["local", "global", "city"]
     items: list[KeyItem]  # the answer key: the top `depth`
     pool: list[str]  # ids of the whole membership pool (top `pool`), for picks outside the key
     served_from: ServedFrom
@@ -50,8 +50,9 @@ class AnswerKey(BaseModel):
     reason: str
     depth: int
     local: RankedList
-    global_: RankedList
+    global_: RankedList  # the baseline: `global_.kind` is "global" or "city" (D43)
     served_from: ServedFrom  # the local list's
+    baseline: Literal["global", "city"]  # what the famousness baseline is (D43)
     coverage: str  # the local list's
 
 
@@ -109,7 +110,7 @@ def get_answer_key(scenario_id: str, store: Store | None = None) -> AnswerKey:
         glob = _ranked(store, r["global_key"], r["depth"])
         return AnswerKey(
             scenario_id=scenario_id, status=r["status"], reason=r["reason"], depth=r["depth"], local=local,
-            global_=glob, served_from=local.served_from, coverage=local.coverage,
+            global_=glob, served_from=local.served_from, coverage=local.coverage, baseline=glob.kind,
         )  # fmt: skip
     finally:
         if own:
