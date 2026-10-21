@@ -72,15 +72,22 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           allowed_bots: "claude[bot],claude"
           claude_args: >-
+            --model claude-opus-5-5
             --max-turns 80
             --allowedTools "Bash,Read,Edit,Write,Glob,Grep"
           prompt: |
             You are the Blindspot review loop, running unattended. Review PR #${{ env.PR }} of
             ${{ github.repository }} as a strict reviewer who did not write it.
 
-            1. Read AGENTS.md (ignore CLAUDE.md's notes about the maintainer's Windows machine),
-               the linked issue's acceptance criteria, earlier comments on this PR
-               (`gh pr view ${{ env.PR }} --comments`) and the diff (`git diff origin/main...HEAD`).
+            1. Read, in order (ignore CLAUDE.md's notes about the maintainer's Windows machine):
+               AGENTS.md; docs/architecture.md; docs/decisions.md (D34 onward are the Phase 2
+               decisions); docs/scenarios.md; docs/qloo_api_reality.md; docs/issues-guide.md; the
+               newest docs/phase*_report.md (Phase 2's isn't written yet, so decisions.md is the
+               source of truth); the linked issue
+               with comments (`gh issue view <issue> --comments`) and its acceptance criteria; the PRs
+               that closed its blockers (`gh pr list --state merged --search "<blocker number>"`);
+               then earlier comments on this PR (`gh pr view ${{ env.PR }} --comments`) and the
+               diff (`git diff origin/main...HEAD`).
             2. Check: every acceptance criterion met; the hard rules (no key, no real Qloo data,
                nothing under data/, no city names in src/ or tests, truthful served_from, only
                qloo/ talks to Qloo); tests that would fail if the change were reverted; docs per
