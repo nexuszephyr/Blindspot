@@ -44,6 +44,7 @@ SIMPLE = {
     "server_500", "server_502", "server_503", "slow", "malformed", "html", "oversized", "reset",
 }  # fmt: skip
 RETRY_AFTER = re.compile(r"^rate_limited:\d+$")
+UNRESOLVED_LOCALITY = "filter.location.query is unable to resolve to a valid locality."  # E4
 BEHAVIOUR_HEADER = "x-fake-qloo-behaviour"  # added by the transport after recording the request
 
 
@@ -70,6 +71,9 @@ class FakeQloo:
         self.errors: list[str] = []  # anything unexpected at request time; must stay empty
         # /v2/insights answers with this many synthetic entities (default: `take`); see insights_body
         self.insights_size = None
+        # Locations Qloo can't place: a location filter gets the VERIFIED 400 (E4); a location signal
+        # is silently ignored (the pitfall the coverage probe guards against; UNVERIFIED for signals)
+        self.unresolvable: set[str] = set()
 
     @property
     def behaviour(self) -> str:
@@ -96,7 +100,12 @@ class FakeQloo:
             status, body, out_headers = await self._answer(check_behaviour(b))
             if scope["path"] == "/v2/insights" and status == 200 and b in ("ok", "slow"):
                 params = dict(parse_qsl(scope["query_string"].decode()))
-                body = json.dumps(self.insights_body(params), ensure_ascii=False).encode()
+                if params.get("filter.location.query") in self.unresolvable:
+                    status, body = 400, json.dumps({"errors": [{"message": UNRESOLVED_LOCALITY}]}).encode()
+                else:
+                    if params.get("signal.location.query") in self.unresolvable:
+                        params.pop("signal.location.query")
+                    body = json.dumps(self.insights_body(params), ensure_ascii=False).encode()
         except Exception as exc:  # recorded for the harness to fail on, then a 500 like a broken server
             self.errors.append(f"{type(exc).__name__}: {exc}")
             status, body, out_headers = 500, b'{"message": "fake failed"}', {}

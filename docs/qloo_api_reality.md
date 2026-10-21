@@ -88,6 +88,7 @@ Sources:
 | **Non-place domains are localized by `signal.location.query`.** Music, film and brands gave completely different results across three cities (Jaccard 0.0 for every pair) | VERIFIED |
 | Places with `signal.location.query` + `filter.tags`: 2 of 6 cities returned (28 s and 4.7 s); 4 timed out. Use `filter.location.query` for places | VERIFIED |
 | Using both filter and signal on places | UNVERIFIED (not run this pass) |
+| What `signal.location.query` does with a locality Qloo can't resolve (a 400 like the filter, or silently ignored so the no-location list comes back). The coverage probe (#24) handles both: a 400 is `empty`, a list identical to the no-location list is `unknown` | UNVERIFIED (to check in the #24 live run) |
 
 ## E5. Audiences and demographics
 

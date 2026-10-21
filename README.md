@@ -252,7 +252,7 @@ cached or sample data off as live.
 | `GET /healthz` | Now | Liveness |
 | `GET /api/qloo/status` | Now | Mode, remaining budgets, cache, breaker state (no secrets) |
 | `GET /api/qloo/search?q=` | Now | Guarded Qloo search |
-| `GET /api/coverage?location=` | Phase 2 | Does Qloo have enough data for this place? |
+| `GET /api/coverage?location=` | Now | Does Qloo have enough data for this place? |
 | `GET /api/scenarios`, `/api/groundtruth/{id}` | Phase 2 | The exam and its answer key |
 | `POST /api/audits`, `GET /api/audits/{id}` | Phase 4 | Run and read an audit |
 | `POST /api/audits/{id}/fix` | Phase 5 | Run the Qloo-grounded fix |

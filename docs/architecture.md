@@ -559,6 +559,18 @@ result is involved). `/api/groundtruth/{id}` returns the `AnswerKey` (local and 
 On these routes `served_from: disabled` means "no Qloo data involved", not the kill switch: the UI
 must not show the Qloo-off banner for it.
 
+Built in #24: `/api/coverage?location=` takes any location string (1 to 200 characters raw; after
+NFC, removing control and format characters and collapsing whitespace, 1 to 100, else a 400 envelope)
+and an optional `qloo=false` kill switch. For each domain in `config/domains.yaml` it asks the standard
+location-only query (`filter.type`, the domain's fixed params, its `location_param`, `take` = depth)
+and returns `{location, location_resolved, domains: [{domain, verdict, confidence, note, count, depth,
+served_from, calls}]}`. Verdicts are the builder's (`rich` ≥ depth, `thin` 10 to 19, `sparse` 1 to 9,
+`empty`) plus `unknown` when Qloo gave no usable answer; `calls` lists each query's kind, `served_from`,
+outcome and count, never names or ids. Calls go through `QlooClient` under the caller's budgets and
+the request deadline, purpose `coverage`. Top-level `served_from` is the weakest source among the
+standard queries, `degraded` with a 503 when no domain got an answer; `degraded_reason` names each
+domain without one and why (D46).
+
 Response envelope for Qloo-derived data (planned with the Phase 2 routes; Phase 1's `/api/qloo/search`
 returns `served_from`, `ok`, `reason`, `run_id`, `call_id`, `fetched_at` and `results`):
 

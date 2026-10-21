@@ -19,7 +19,7 @@ from _common import DATA, ROOT
 from blindspot.config import Settings
 from blindspot.qloo.cache import cache_key
 from blindspot.qloo.client import QlooClient
-from blindspot.qloo.snapshot import Snapshot, build_snapshot
+from blindspot.qloo.snapshot import SYNTHETIC_SUFFIX, Snapshot, build_snapshot
 
 
 def main() -> int:
@@ -57,7 +57,7 @@ def main() -> int:
             entries.append({**hit[0], "label": q["label"]})
         else:
             missing.append(q["label"])
-    snap = build_snapshot(entries, a.name + ("-SYNTHETIC" if a.synthetic else ""))
+    snap = build_snapshot(entries, a.name + (SYNTHETIC_SUFFIX if a.synthetic else ""))
     if a.synthetic:
         snap["notice"] = "SYNTHETIC: built from invented test fixtures, not Qloo data. Dev/testing only."
     out = Path(a.out) if a.out else DATA / "snapshot" / ("synthetic.json" if a.synthetic else "snapshot.json")

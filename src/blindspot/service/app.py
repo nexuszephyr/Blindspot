@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from ..config import Settings, get_settings
 from ..qloo.client import QlooClient
 from ..qloo.redact import install_log_redaction
+from .coverage_routes import router as coverage_router
 from .routes import router
 from .scenario_routes import router as scenario_router
 from .security import SECURITY_HEADERS, SlidingWindowLimiter, client_ip
@@ -84,6 +85,7 @@ def create_app(settings: Settings | None = None, client: QlooClient | None = Non
 
     app.include_router(router)
     app.include_router(scenario_router)
+    app.include_router(coverage_router)
     return app
 
 
