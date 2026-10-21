@@ -14,6 +14,7 @@ from ..config import Settings, get_settings
 from ..qloo.client import QlooClient
 from ..qloo.redact import install_log_redaction
 from .routes import router
+from .scenario_routes import router as scenario_router
 from .security import SECURITY_HEADERS, SlidingWindowLimiter, client_ip
 
 log = logging.getLogger("blindspot.service")
@@ -82,6 +83,7 @@ def create_app(settings: Settings | None = None, client: QlooClient | None = Non
         return JSONResponse({"ok": False, "reason": "invalid input", "fields": fields}, status_code=422)
 
     app.include_router(router)
+    app.include_router(scenario_router)
     return app
 
 

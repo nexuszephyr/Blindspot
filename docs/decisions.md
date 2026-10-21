@@ -276,9 +276,26 @@ and 2 attempts (#18, 2026-10-21).**
   `--attempts 2` instead of the web defaults (10 s, 4 attempts). Freshness keys took 16 to 20 s, and
   four 10 s tries paid four calls for nothing.
 
-## D44: `httpx2` as a dev dependency for Starlette's TestClient (#69)
+**D44. `httpx2` as a dev dependency for Starlette's TestClient (#69, 2026-10-21).**
 
 Starlette 1.9 warns that `starlette.testclient` with `httpx` is deprecated and prefers `httpx2`
 (maintained by Pydantic Services). `httpx2` is added to the `dev` extra only and to
 `requirements-dev.lock`; the app and the Qloo client still use `httpx`, and `respx` still mocks it.
 The TestClient makes no network calls. `requirements.lock` is unchanged.
+
+**D45. Scenario and answer-key routes (#25, 2026-10-21).**
+- **Provenance of the exam.** `/api/scenarios` serves scenarios generated offline from config and the id
+  lock; no Qloo result is in them, so `served_from` is `disabled` (no Qloo involved), not `cache` or
+  `snapshot`. Answer keys keep the stored key's `cache` or `snapshot`.
+- **Names are returned as Qloo gives them.** JSON is not HTML: the response is `application/json`
+  with `nosniff` and CSP `default-src 'none'`, so escaping here would only corrupt names ("A & B"
+  would read "A &amp; B" while `norm_name` stays raw) and differ from `/api/qloo/search`. Whatever
+  renders a name into HTML (the Phase 6 UI) escapes it there.
+- **Synthetic label.** The store has no marker of its own, so `GROUNDTRUTH_SYNTHETIC=true` labels the
+  answer-key responses `synthetic: true`. Set it wherever the store was built from synthetic data.
+- **No budget spend.** Both routes read stored data. They run under the request deadline and the
+  per-client rate limit, and use `qloo=False` contexts, so a live call cannot happen from them.
+- **OpenAPI stays off (D19).** The issue asks for the routes in `/docs`; D19 keeps `/docs` and the schema
+  off as a small attack surface. Left as is and raised in `docs/NEEDS_FROM_USER.md`.
+- **CLI.** `blindspot param promote` calls `scripts/promote_param.py`. `validity run` belongs to #21.
+

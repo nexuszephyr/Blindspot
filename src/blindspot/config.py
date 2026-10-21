@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     qloo_snapshot_path: Path = Path("data/snapshot/snapshot.json")
     qloo_raw_dir: Path = Path("data/raw")
     groundtruth_path: Path = Path("data/groundtruth.sqlite")  # answer keys (#18); holds Qloo names
+    # True when the store was built from synthetic data (the public demo store): the answer-key
+    # route labels every response `synthetic: true` (rule 2, ADR 0002)
+    groundtruth_synthetic: bool = False
 
     qloo_timeout_s: float = 10.0
     qloo_max_concurrency: int = 4

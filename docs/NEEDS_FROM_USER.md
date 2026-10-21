@@ -31,3 +31,8 @@ These steps need your accounts. Nothing here is automated, and no step needs the
   > Also, is the 10,000 calls/month limit on hackathon keys final for the judging period, or can it be raised for a public demo? Thanks!
 
 - [ ] **5. (Optional) Decide on the `video_game` spelling.** The live API accepts `urn:entity:videogame` and rejects `urn:entity:video_game`, the opposite of the guide. I updated `CLAUDE.md` to match the real API (decisions D29). Revert that line if you disagree.
+
+- [ ] **#25: OpenAPI at `/docs`.** The issue's acceptance criteria want the new routes listed at `/docs`, but D19 keeps
+  `/docs`, `/redoc` and the OpenAPI schema off (small attack surface, `CSP default-src 'none'` also blocks the Swagger UI assets).
+  Options: (a) keep it off and document the routes in architecture Section 12 (done; my recommendation);
+  (b) serve only `/api/openapi.json` (schema, no UI); (c) enable `/docs` and relax the CSP for that path.
