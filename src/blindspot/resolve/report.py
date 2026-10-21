@@ -78,7 +78,7 @@ def match_rates(
     rows = []
     for (domain, script), items in sorted(groups.items()):
         st = Counter(i.status for i in items)
-        matched = st["matched_in_key"] + st["matched_outside_key"]
+        matched = sum(i.matched for i in items)
         reasons = Counter(i.reason for i in items if i.status == "unresolved")
         rate = matched / len(items)
         ceiling = None

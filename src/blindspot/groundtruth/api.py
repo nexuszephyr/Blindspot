@@ -134,11 +134,6 @@ class IndexEntity(BaseModel):
     lat: float | None = None
     lon: float | None = None
 
-    @property
-    def has_existence_evidence(self) -> bool:
-        """Coordinates or an external id (E10): the place exists somewhere."""
-        return (self.lat is not None and self.lon is not None) or bool(self.external)
-
 
 _INDEX_COLS = "e.qloo_id, e.name, e.norm_name, e.type, e.aliases_json, e.external_json, e.lat, e.lon"
 
