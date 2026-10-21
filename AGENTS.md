@@ -281,7 +281,10 @@ Windows without `make`: see `docs/JUDGES.md` for the equivalent commands.
 - Conventional commits referencing the issue: `feat(groundtruth): resumable build (#14)`.
 - One issue per PR where practical; complete the PR template checklist.
 - Never push to or force-push `main`. Never rewrite history without the maintainer's approval.
-- Don't merge your own PR; the maintainer reviews and merges.
+- Don't merge your own PR; the maintainer reviews and merges. One exception: the Claude loop
+  (docs/automation.md) may turn on auto-merge for its own `claude`-labelled PRs after a review
+  round that finds nothing. GitHub then merges only when every required check passes,
+  including **Protected paths** (sensitive files need the `human-approved` label).
 - CI must pass: secret scan, lint and tests on Ubuntu and Windows, fresh-clone demo, Docker scan.
 
 ---

@@ -1,0 +1,101 @@
+# The Claude loop, step 2 of 2: review a Claude PR in a fresh run, fix what's wrong, and turn on
+# auto-merge once a round finds nothing (docs/automation.md). Auto-merge still waits for every
+# required check, including "Protected paths", so a PR touching sensitive files needs a human.
+# Off switch: set the repository variable CLAUDE_LOOP to "off".
+name: Claude loop - review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  QLOO_MODE: replay
+  QLOO_ENABLED: "false"
+  PYTHONUTF8: "1"
+  MAX_ROUNDS: "4"
+
+jobs:
+  review:
+    if: >-
+      vars.CLAUDE_LOOP != 'off' && !github.event.pull_request.draft &&
+      contains(github.event.pull_request.labels.*.name, 'claude') &&
+      !contains(github.event.pull_request.labels.*.name, 'needs-human')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      GH_TOKEN: ${{ secrets.BOT_PAT }}
+    steps:
+      - name: Round limit
+        id: rounds
+        run: |
+          set -euo pipefail
+          n=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" --paginate \
+                | jq -s 'add | map(select(.body | contains("<!-- claude-review -->"))) | length')
+          echo "Review rounds so far: $n"
+          if [ "$n" -ge "$MAX_ROUNDS" ]; then
+            gh pr edit "$PR" --add-label needs-human
+            gh pr comment "$PR" --body "The Claude loop reviewed this PR $n times without a clean round. Over to the maintainer."
+            echo "stop=1" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.rounds.outputs.stop != '1'
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.BOT_PAT }} # pushes made with a PAT start CI again
+      - uses: actions/setup-python@v7
+        if: steps.rounds.outputs.stop != '1'
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        if: steps.rounds.outputs.stop != '1'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" ruff
+      - name: Claude reviews, fixes, and decides
+        if: steps.rounds.outputs.stop != '1'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: >-
+            --max-turns 80
+            --allowedTools "Bash,Read,Edit,Write,Glob,Grep"
+          prompt: |
+            You are the Blindspot review loop, running unattended. Review PR #${{ env.PR }} of
+            ${{ github.repository }} as a strict reviewer who did not write it.
+
+            1. Read AGENTS.md (ignore CLAUDE.md's notes about the maintainer's Windows machine),
+               the linked issue's acceptance criteria, earlier comments on this PR
+               (`gh pr view ${{ env.PR }} --comments`) and the diff (`git diff origin/main...HEAD`).
+            2. Check: every acceptance criterion met; the hard rules (no key, no real Qloo data,
+               nothing under data/, no city names in src/ or tests, truthful served_from, only
+               qloo/ talks to Qloo); tests that would fail if the change were reverted; docs per
+               the definition of done; no dead code. Run these yourself:
+                 ruff check . && ruff format --check .
+                 python -m pytest -q -m "not live"
+                 python scripts/scan_secrets.py
+            3. Fix every must-fix problem on this branch, with a test where it's a bug. Commit
+               ("fix(<area>): address review (#<issue>)") and `git push`. Never rewrite history,
+               never edit files under .github/.
+            4. Post one PR comment (`gh pr comment ${{ env.PR }} --body-file <file>`) whose first
+               line is `<!-- claude-review -->`. List what you found and what you changed, and end
+               with exactly one verdict line:
+                 VERDICT: READY        you found nothing to fix and pushed nothing this round
+                 VERDICT: FIXED        you pushed fixes; the next round re-reviews them
+                 VERDICT: NEEDS-HUMAN  it needs an AGENTS.md section 13 decision, live Qloo calls,
+                                       or a judgement you can't make; also run
+                                       `gh pr edit ${{ env.PR }} --add-label needs-human`
+            5. Only on READY, run: gh pr merge ${{ env.PR }} --auto --squash
+               GitHub merges once every required check is green. Never merge any other way.

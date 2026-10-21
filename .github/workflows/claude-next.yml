@@ -1,0 +1,144 @@
+# The Claude loop, step 1 of 2: pick the next ready issue, build it, open a PR (docs/automation.md).
+# Step 2 (review, fix, auto-merge) is claude-review.yml. No Qloo key is stored in GitHub: issues
+# that need live calls are labelled `needs-live` and skipped.
+# Off switch: set the repository variable CLAUDE_LOOP to "off".
+name: Claude loop - next issue
+
+on:
+  schedule:
+    - cron: "23 */3 * * *" # every 3 hours; a merged Claude PR also starts the next issue (below)
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: "Issue number to build (blank = pick the next ready one)"
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-loop
+  cancel-in-progress: false
+
+env:
+  QLOO_MODE: replay
+  QLOO_ENABLED: "false"
+  PYTHONUTF8: "1"
+
+jobs:
+  pick:
+    if: >-
+      vars.CLAUDE_LOOP != 'off' &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'claude')))
+    runs-on: ubuntu-latest
+    outputs:
+      issue: ${{ steps.pick.outputs.issue }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          REPO: ${{ github.repository }}
+          FORCED: ${{ inputs.issue }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FORCED:-}" ]; then
+            echo "issue=$FORCED" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          open=$(gh pr list --repo "$REPO" --label claude --state open --json number --jq length)
+          if [ "$open" != "0" ]; then
+            echo "A Claude PR is still open; the loop waits for it to merge."
+            exit 0
+          fi
+          # Ready = labelled claude-ready, no open blockers (GitHub's "Blocked by" links), and not
+          # waiting on the maintainer or on live Qloo calls. Order: critical-path first, then
+          # P0 < P1 < P2, then issue number.
+          n=$(gh api "repos/$REPO/issues?state=open&labels=claude-ready&per_page=100" --paginate \
+            | jq -s 'add
+              | map(select(.pull_request == null))
+              | map(select([.labels[].name] as $l
+                  | ($l | index("needs-live") | not) and ($l | index("needs-user") | not)
+                    and ($l | index("needs-human") | not) and ($l | index("claude-working") | not)))
+              | map(select((.issue_dependencies_summary.blocked_by // 0) == 0))
+              | sort_by([.labels[].name] as $l
+                  | [(if ($l | index("critical-path")) then 0 else 1 end),
+                     (if ($l | index("P0")) then 0 elif ($l | index("P1")) then 1 else 2 end),
+                     .number])
+              | (first // {}) | .number // empty')
+          if [ -z "$n" ]; then
+            echo "No ready issue."
+            exit 0
+          fi
+          echo "Next issue: #$n"
+          echo "issue=$n" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: pick
+    if: needs.pick.outputs.issue != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ISSUE: ${{ needs.pick.outputs.issue }}
+      GH_TOKEN: ${{ secrets.BOT_PAT }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.BOT_PAT }} # a PAT, so the PR and its pushes start CI
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" ruff
+      - name: Claim the issue
+        run: gh issue edit "$ISSUE" --add-label claude-working
+      - name: Claude builds the issue
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: >-
+            --max-turns 120
+            --allowedTools "Bash,Read,Edit,Write,Glob,Grep"
+          prompt: |
+            You are the Blindspot build loop, running unattended in GitHub Actions. Build issue
+            #${{ env.ISSUE }} of ${{ github.repository }} end to end, then open a pull request.
+
+            1. Read AGENTS.md (ignore CLAUDE.md's notes about the maintainer's Windows machine),
+               docs/architecture.md, the latest docs/phase*_report.md, and the issue:
+               `gh issue view ${{ env.ISSUE }} --comments`. Follow AGENTS.md exactly.
+            2. Stop instead of building, and say why in an issue comment, if any of these hold:
+               - the issue needs live Qloo calls (there is no key here): add the label `needs-live`
+                 and put in the comment the exact Claude Code prompt the maintainer should run
+                 locally;
+               - it needs anything in AGENTS.md section 13 (ask the maintainer before), or the
+                 acceptance criteria are unclear: add the label `needs-human` and put the question,
+                 the options and your recommendation in the comment.
+               In every stop case remove the label `claude-working` and end.
+            3. Otherwise create a branch named as AGENTS.md section 12 says, build the issue with
+               tests (failing test first for bugs and security properties), update the docs the
+               definition of done lists, and repeat until all of these are clean:
+                 ruff check . && ruff format --check .
+                 python -m pytest -q -m "not live"
+                 python scripts/scan_secrets.py
+               Commit with conventional messages that reference #${{ env.ISSUE }}.
+            4. Push the branch and open the PR:
+                 gh pr create --base main --label claude --title "<conventional title> (#${{ env.ISSUE }})" --body-file <file>
+               The body says what changed, the checks you ran, live Qloo calls used (always 0
+               here), and ends with "Closes #${{ env.ISSUE }}". Then remove the issue's
+               `claude-working` label.
+            Never read or create .env, never add real Qloo data or anything under data/, never
+            push to main, never merge, and never edit files under .github/.
+      - name: On failure, hand the issue back to the maintainer
+        if: failure()
+        run: |
+          gh issue edit "$ISSUE" --remove-label claude-working --add-label needs-human || true
+          gh issue comment "$ISSUE" --body "The Claude loop failed while building this issue: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
