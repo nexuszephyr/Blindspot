@@ -194,7 +194,8 @@ blindspot/
 │   ├── web/                   # the web UI (#47): static/ HTML, CSS, JS, labels.json, mock/
 │   ├── scenarios/             # Planned (Phase 2)
 │   ├── groundtruth/           # Planned (Phase 2)
-│   ├── targets/               # target models (#27): protocol, OpenAI-compatible client, parse, cache, CLI
+│   ├── targets/               # target models (#27): protocol, OpenAI-compatible client, parse, cache, CLI;
+│   │                          #   calibration targets and the id lookup (registry) (#30)
 │   ├── resolve/               # entity resolver (#29): resolver, match, report
 │   ├── metrics/               # Planned (Phase 3)
 │   ├── auditor/               # Planned (Phase 4)
@@ -395,7 +396,7 @@ The answer key is only useful if it's stable and discriminating. Phase 2 must re
 
 ## 8. Targets and entity resolution
 
-Phase 3. Built: target adapters (#27, D50) and the resolver (#29, D47).
+Phase 3. Built: target adapters (#27, D50), calibration targets (#30, D51) and the resolver (#29, D47).
 
 ### 8.1 Target adapters
 
@@ -423,6 +424,16 @@ limit, and bounded retries on 429 and 5xx that honour `Retry-After`. Answers are
 lines) and replayable ones are stored in `target_responses_cache` (`data/targets.sqlite`), keyed by
 target, model, prompt hash, temperature and `max_tokens`. `blindspot target ask --target <id>
 --scenario <id>` prints the parsed names (local use only).
+
+Built in #30 (D51): four calibration targets with known answers implement the same protocol and are
+picked by id through `targets.open_target` (also `blindspot target ask --target calib:<name>`):
+`calib:qloo-copy` (the local answer key's top `k`), `calib:global-top` (one fixed list per domain:
+the entities most frequent across the domain's baseline lists, ties by id; for dining the city
+baselines, D43), `calib:random-real` (seeded random index entities of the domain's types, outside the
+scenario's pool) and `calib:invented` (seeded fake names, each checked against the index). They read
+stored answer keys through the `groundtruth` read API only, make no network call, and answer
+`served_from: cache` with zero usage; a scenario without a built key is `outcome: error`. Section 9's
+calibration tests (#32) run the metrics on them.
 
 ### 8.2 Resolver
 
@@ -483,7 +494,8 @@ them with evidence. Notation: agent list `A` (resolved, top-k), local answer key
 - A cell is a **confirmed blindspot** when the upper bound of its bootstrap 90% confidence interval is
   below the threshold (Section 10).
 
-**Calibration tests (must pass before any score is shown):**
+**Calibration tests (must pass before any score is shown).** The four targets are built (#30, D51):
+`calib:qloo-copy`, `calib:global-top`, `calib:random-real`, `calib:invented`.
 
 | Synthetic target | Expected |
 |---|---|
