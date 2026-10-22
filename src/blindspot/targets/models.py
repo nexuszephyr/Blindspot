@@ -64,7 +64,8 @@ class Target(Protocol):
 
     id: str
 
-    async def recommend(self, prompt: str, k: int, *, scenario_id: str | None = None) -> TargetResponse: ...
+    async def recommend(self, prompt: str, k: int, *, scenario_id: str | None = None) -> TargetResponse:
+        """Up to `k` recommendations for `prompt`. Never raises for a bad answer: the outcome says."""
 
 
 __all__ = ["Outcome", "ParseMethod", "Recommendation", "Target", "TargetResponse", "Usage"]

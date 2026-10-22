@@ -456,6 +456,8 @@ def test_cli_list_never_prints_values(tmp_path, monkeypatch, capsys):
     assert main(["--config", str(cfgdir), "list"]) == 0
     out = capsys.readouterr().out
     assert GROQ_KEY not in out and "gpt-oss-20b" in out and "GEMINI_API_KEY not set" in out
+    groq_rows = [line for line in out.splitlines() if line.startswith("gpt-oss-20b")]
+    assert groq_rows and "configured" in groq_rows[0]  # only the fact that it's set, never the value
 
 
 def test_cli_ask_prints_parsed_names(tmp_path, monkeypatch, capsys):
