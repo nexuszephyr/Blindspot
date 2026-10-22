@@ -27,7 +27,9 @@ MAX_NAME, MAX_WHY = 200, 500
 MAX_DECODE_TRIES = 50  # opening braces tried before giving up on finding a JSON object
 
 _FENCE = re.compile(r"```[A-Za-z0-9_-]*\s*\n?(.*?)```", re.S)
-_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f​-‏ -‮⁦-⁩﻿]")
+# C0/C1 controls, zero-width and bidi marks, line/paragraph separators, bidi embeddings and
+# isolates, BOM. Written as escapes: literal bidi characters in source are a Trojan Source risk.
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]")
 _OBJECT = re.compile(r"\{[^{}]*\}")  # a flat object: a complete item inside truncated JSON
 _LIST_LINE = re.compile(r"^\s*(?:\d{1,2}\s*[.)]|[-*•])\s+(.+?)\s*$")
 _SPLIT_WHY = re.compile(r"\s+[-–—]\s+|:\s+")

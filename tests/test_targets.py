@@ -434,8 +434,12 @@ def test_parser_units():
     assert parse.items_from_json(["A", "B"], 1)[0].name == "A"
     assert parse.items_from_json({"recommendations": [1, 2]}, 3) is None
     assert parse.items_from_json({"a": 1}, 3) is None
-    name = parse.items_from_json({"recommendations": [{"name": "A‮\x00B  C", "why": "w" * 900}]}, 3)[0]
+    name = parse.items_from_json({"recommendations": [{"name": "A\u202e\x00B  C", "why": "w" * 900}]}, 3)[0]
     assert name.name == "A B C" and len(name.why) == parse.MAX_WHY
+    # every edge of the stripped ranges: zero-width, bidi marks and overrides, isolates, BOM (rule 10)
+    for ch in "​‏ ‮⁦⁩﻿\x9f":
+        assert parse.clean(f"A{ch}B", 10) == "A B", repr(ch)
+    assert parse.clean("A‰B", 10) == "A‰B"  # ordinary punctuation (per mille) is kept
     assert parse.looks_refused("Sorry, I can't do that.") and not parse.looks_refused("Sorrento Bistro")
 
 
