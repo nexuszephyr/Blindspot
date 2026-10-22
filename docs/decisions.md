@@ -577,7 +577,8 @@ targets:
   is the city list with no persona (D43), so dining's list is built from the city baselines; it is
   still one list for every dining scenario, whatever the city. It is never hand-written.
 - **random-real:** `k` index entities of the domain's `search_types`, outside the scenario's own
-  membership pool (so a hit is never luck), one per normalized name, drawn with
+  membership pool (so a hit is never luck), and never sharing a normalized name or alias with a pool
+  entity (the resolver would match that name to the pool), one per normalized name, drawn with
   `random.Random(f"{seed}:{scenario_id}")` from the id-sorted index: the same per scenario and seed.
 - **invented:** "{adjective} {noun} {domain word}" from neutral English word lists in code (the domain
   word by the domain's `filter_type`; never a real name or a configured city, rule 9), drawn with the

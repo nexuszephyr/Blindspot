@@ -187,6 +187,20 @@ async def test_random_real_is_real_outside_the_pool_and_seeded(catalog, exam, st
         assert names(again) == names(r) and names(other) != names(r)
 
 
+async def test_random_real_skips_a_namesake_of_a_pool_entity(catalog, exam, store, picked):
+    """Another entity named like a pool entity would resolve to the pool (the resolver's tie-break),
+    so it's a lucky hit: never drawn."""
+    sc = next(s for s in picked if s.domain_id == "music")
+    key = get_answer_key(sc.id, store)
+    twin_name = key.local.items[0].name
+    twin = Entity(
+        entity_id="00000000-0000-4000-8000-0000000ca1f5", name=twin_name, types=["urn:entity:artist"]
+    )
+    assert add_search_hits([twin], store=store) == 1
+    r = await ask(target("calib:random-real", catalog, exam, store), sc, k=100_000)  # the whole draw
+    assert r.items and twin_name not in names(r)
+
+
 async def test_invented_names_are_never_in_the_index(catalog, exam, store, picked):
     for sc in picked:
         r = await ask(target("calib:invented", catalog, exam, store, seed=7), sc)

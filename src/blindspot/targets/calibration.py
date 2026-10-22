@@ -156,9 +156,12 @@ class CalibrationTarget:
 
     def _random_real(self, domain: Domain, pool: set[str], rng: random.Random, k: int) -> list[str]:
         types = domain.search_types or [domain.filter_type]
-        cands, forms = [], set()
-        for e in list_entities(types=types, store=self.store):  # sorted by id: a stable population
-            if e.qloo_id not in pool and e.name and e.norm_name not in forms:
+        index = list_entities(types=types, store=self.store)  # sorted by id: a stable population
+        # A namesake of a pool entity would resolve to the pool (the resolver's tie-break): skip it too.
+        forms = {f for e in index if e.qloo_id in pool for f in (e.norm_name, *e.aliases)}
+        cands = []
+        for e in index:
+            if e.qloo_id not in pool and e.name and e.norm_name not in forms and not forms & set(e.aliases):
                 forms.add(e.norm_name)
                 cands.append(e.name)
         return rng.sample(cands, min(k, len(cands)))
