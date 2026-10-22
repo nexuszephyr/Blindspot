@@ -417,7 +417,7 @@ Qwen3.8 27B. The ids below name the real models.
 | | gemini-flash | gpt-oss-120b | gpt-oss-20b | qwen-27b (optional) |
 |---|---|---|---|---|
 | Display name | Gemini 3.8 Flash | GPT-OSS 120B | GPT-OSS 20B | Qwen3.8 27B |
-| Role | Big closed model; fix-loop agent (tool calling) | Large open model; tool-calling backup (was llama-70b) | Small open model (was llama-8b) | Multilingual, non-US lab (was qwen-32b) |
+| Role | Big closed model; audited target, precomputed in batches | Large open model; fix-loop agent (tool calling) (was llama-70b) | Small open model (was llama-8b) | Multilingual, non-US lab (was qwen-32b) |
 | Provider | Google AI Studio, OpenAI-compatible | Groq | Groq | Groq |
 | Base URL | `https://generativelanguage.googleapis.com/v1beta/openai/` | `https://api.groq.com/openai/v1` | same | same |
 | Model id | `models/gemini-3.8-flash` as listed; sent as `gemini-3.8-flash` | `openai/gpt-oss-120b` | `openai/gpt-oss-20b` | `qwen/qwen3.8-27b` (a Groq **Preview** model) |
@@ -435,6 +435,11 @@ audits per hour and a global cap of 300 target requests per day (well under Groq
 enforced in #38. Every other target is precomputed (#57). There is no paid model: the keys are free-tier
 keys with no billing attached, so a judge can't create a bill.
 
+- **Fix-loop agent.** gpt-oss-120b is the tool-calling agent for #42/#43: ~1 s per tool round trip and
+  1,000 requests/day (VERIFIED). Gemini is too slow on the free tier (15 to 62 s) and its daily limit
+  is unknown, so it stays an audited target, precomputed in batches (#57); check its daily request
+  limit in AI Studio before precomputing. gpt-oss-20b is the tool-calling backup.
+
 **Data.** Google's pricing page says free-tier content is used to improve Google's products (outside
 the EU, UK and EEA). Our prompts hold only a persona's interests, an age band and a city (AGENTS
 section 8), never personal data.
@@ -443,6 +448,8 @@ section 8), never personal data.
 for this lineup.
 
 **Quirks, for #27 and #42.**
+- **Set `max_tokens` to at least 1,000 for every target** (reasoning tokens count against it; a 400-token
+  tool follow-up ended `length`). Try `reasoning_effort: low` on GPT-OSS too (UNVERIFIED on Groq here).
 - **Gemini thinks by default, and thinking counts against `max_tokens`.** With 400, about 380 hidden
   thinking tokens left 16 visible ones: finish `length`, truncated JSON. The usage block doesn't report
   them (total minus prompt minus completion is the hidden part). `reasoning_effort: "low"` fixed it:
@@ -471,6 +478,8 @@ targets:
     model: gemini-3.8-flash
     live_in_demo: false
     tool_calling: true
+    fix_loop_agent: false
+    max_tokens: 1000
     seed: false                     # Gemini rejects it
     extra_body: {reasoning_effort: low}
     timeout_s: 90
@@ -481,6 +490,8 @@ targets:
     model: openai/gpt-oss-120b
     live_in_demo: false
     tool_calling: true
+    fix_loop_agent: true            # #42/#43
+    max_tokens: 1000
   - id: gpt-oss-20b
     display_name: GPT-OSS 20B
     base_url_env: GROQ_BASE_URL
@@ -488,6 +499,8 @@ targets:
     model: openai/gpt-oss-20b
     live_in_demo: true              # capped in #38
     tool_calling: true
+    fix_loop_agent: false           # tool-calling backup
+    max_tokens: 1000
   - id: qwen-27b                    # optional; a Groq Preview model
     display_name: Qwen3.8 27B
     base_url_env: GROQ_BASE_URL
@@ -495,4 +508,6 @@ targets:
     model: qwen/qwen3.8-27b
     live_in_demo: false
     tool_calling: false             # not tested
+    fix_loop_agent: false
+    max_tokens: 1000
 ```
