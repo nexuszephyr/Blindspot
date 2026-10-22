@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
             # Only whether the variable is set ever leaves this loop: the value is reduced to a bool
             # here and nothing derived from it is printed (CodeQL py/clear-text-logging).
             configured = bool(env(t.api_key_env))
-            state = "configured" if configured else f"{t.api_key_env} not set"
+            state = "configured" if configured else "not configured"
             flags = [f for f in ("live_in_demo", "tool_calling", "fix_loop_agent") if getattr(t, f)]
             _out(f"{t.id:<14} {t.model:<24} {state:<22} {','.join(flags)}")
         return 0
