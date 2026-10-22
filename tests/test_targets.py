@@ -475,9 +475,11 @@ def test_cli_list_never_prints_values(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     assert main(["--config", str(cfgdir), "list"]) == 0
     out = capsys.readouterr().out
-    assert GROQ_KEY not in out and "gpt-oss-20b" in out and "GEMINI_API_KEY not set" in out
-    groq_rows = [line for line in out.splitlines() if line.startswith("gpt-oss-20b")]
-    assert groq_rows and "configured" in groq_rows[0]  # only the fact that it's set, never the value
+    assert GROQ_KEY not in out and "gpt-oss-20b" in out
+    rows = {line.split()[0]: line for line in out.splitlines() if line.strip()}
+    # only whether a key is set, never its value or anything derived from it (CodeQL autofix on #106)
+    assert "not configured" not in rows["gpt-oss-20b"] and "configured" in rows["gpt-oss-20b"]
+    assert "not configured" in rows["gemini-flash"]
 
 
 def test_cli_ask_prints_parsed_names(tmp_path, monkeypatch, capsys):
