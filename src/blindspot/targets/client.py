@@ -149,22 +149,27 @@ class OpenAICompatTarget:
             )
 
         start = time.perf_counter()
-        resp = await self._answer(messages, k, phash)
+        resp, replayable = await self._answer(messages, k, phash)
         resp.latency_ms = round((time.perf_counter() - start) * 1000, 1)
         resp = self._scrubbed(resp)
-        if self.cache is not None:
+        if self.cache is not None and replayable:
             self.cache.put(resp, self.cfg.model, TEMPERATURE, self.cfg.max_tokens, scenario_id)
         return resp
 
-    async def _answer(self, messages: list[dict[str, str]], k: int, phash: str) -> TargetResponse:
+    async def _answer(
+        self, messages: list[dict[str, str]], k: int, phash: str
+    ) -> tuple[TargetResponse, bool]:
+        """The answer, and whether it may be replayed from the cache. A failed repair request says
+        nothing about the model, so an answer that needed one is returned but not replayed."""
         first = await self._chat(messages)
         if first.failure:
-            return self._response(phash, first.failure, detail=first.detail, usage=first.usage)
+            return self._response(phash, first.failure, detail=first.detail, usage=first.usage), True
 
         def done(outcome: Outcome, items=(), method: ParseMethod = "none", detail="", usage=first.usage):
-            return self._response(
+            resp = self._response(
                 phash, outcome, items=list(items), method=method, detail=detail, reply=first, usage=usage
             )
+            return resp, True
 
         text = first.text
         if first.refusal or first.finish_reason == "content_filter":
@@ -201,8 +206,12 @@ class OpenAICompatTarget:
                 return done("ok", items, "repair", usage=usage)
         lines = parse.items_from_lines(text, k)
         if lines:
-            return done("ok", lines, "lines", usage=usage)
-        return done("malformed", detail="no JSON object or list lines in the answer", usage=usage)
+            resp, _ = done("ok", lines, "lines", usage=usage)
+        else:
+            resp, _ = done("malformed", detail="no JSON object or list lines in the answer", usage=usage)
+        if repair.failure:
+            resp.detail = "; ".join(filter(None, [resp.detail, f"repair request failed: {repair.detail}"]))
+        return resp, not repair.failure
 
     def _response(
         self,

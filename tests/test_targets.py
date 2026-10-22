@@ -152,6 +152,26 @@ async def test_malformed_falls_back_to_lines(api, make_target):
     ]
 
 
+@pytest.mark.parametrize("text", ["{{{ nothing useful here", "1. Place A - cozy"])
+@pytest.mark.parametrize("failure", [httpx.ReadTimeout("slow"), httpx.Response(500)])
+async def test_failed_repair_is_not_cached(api, make_target, text, failure):
+    # the repair request failing says nothing about the model: the answer is returned, never
+    # replayed, so the next run asks again instead of keeping a transient malformed or lines parse
+    route = api.post(URL).mock(
+        side_effect=[httpx.Response(200, json=completion(text)), failure, failure, failure]
+    )
+    t = make_target()
+    r = await t.recommend("p", 3)
+    assert r.outcome in {"malformed", "ok"} and r.served_from == "live"
+    assert t.cache.count() == 0
+    route.side_effect = [
+        httpx.Response(200, json=completion(text)),
+        httpx.Response(200, json=completion(json.dumps(GOOD))),
+    ]
+    again = await t.recommend("p", 3)
+    assert again.served_from == "live" and again.parse_method == "repair" and t.cache.count() == 1
+
+
 async def test_unparseable_is_malformed_not_a_crash(api, make_target):
     api.post(URL).mock(return_value=httpx.Response(200, json=completion("{{{ nothing useful here")))
     r = await make_target().recommend("p", 3)

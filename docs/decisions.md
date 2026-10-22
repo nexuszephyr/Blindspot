@@ -547,7 +547,8 @@ targets:
   `data/targets.sqlite`, gitignored), keyed by (target id, model id, prompt hash, temperature,
   max_tokens). The prompt hash is sha256 over the system and user messages, so `k` is in it. Only
   `ok`, `empty`, `malformed` and `refused` are stored; a timeout or HTTP error says nothing about the
-  model and is retried next time. A hit is returned with `served_from: cache` and its original usage
+  model and is retried next time. So is an answer whose repair request failed (its lines parse or
+  `malformed` is returned, not stored). A hit is returned with `served_from: cache` and its original usage
   and latency, and makes no network call.
 - **Secrets.** The client registers its key with `qloo.redact` at construction (the targets package
   imports only that module from `qloo/`; it never reaches Qloo), the header pattern now covers
