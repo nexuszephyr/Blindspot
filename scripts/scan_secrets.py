@@ -3,7 +3,8 @@
     python scripts/scan_secrets.py                 # working tree + git history
     python scripts/scan_secrets.py --docker IMAGE  # also the image's history, config and layers
 
-Looks for (1) the literal values of QLOO_API_KEY / IP_HASH_SALT from .env or the environment,
+Looks for (1) the literal values of QLOO_API_KEY / IP_HASH_SALT and the target-model keys
+(GROQ_API_KEY / GEMINI_API_KEY, #27) from .env or the environment,
 and (2) common key patterns. Exit code 1 if anything is found.
 """
 
@@ -20,7 +21,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SECRET_VARS = ("QLOO_API_KEY", "IP_HASH_SALT")
+SECRET_VARS = ("QLOO_API_KEY", "IP_HASH_SALT", "GROQ_API_KEY", "GEMINI_API_KEY")
 PATTERNS = {
     "generic-api-key-assignment": re.compile(
         rb"(?i)(api[_-]?key|secret|token|passwd|password)[\"']?\s*[:=]\s*[\"']([A-Za-z0-9_\-]{24,})[\"']"
@@ -33,6 +34,8 @@ PATTERNS = {
     "aws-access-key": re.compile(rb"AKIA[0-9A-Z]{16}"),
     "private-key": re.compile(rb"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     "github-token": re.compile(rb"gh[pousr]_[A-Za-z0-9]{36,}"),
+    "groq-api-key": re.compile(rb"gsk_[A-Za-z0-9]{40,}"),
+    "google-api-key": re.compile(rb"AIza[0-9A-Za-z_\-]{35}"),
 }
 IGNORE_MARK = b"scan-secrets: ignore"
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "data", "__pycache__", ".ruff_cache", ".pytest_cache"}

@@ -181,6 +181,7 @@ blindspot/
 │   ├── demo_queries.json      # query list for warm_cache.py / export_snapshot.py (no Qloo data)
 │   ├── personas.yaml          # taste-only personas + audience_policy (docs/scenarios.md)
 │   ├── probe_types.yaml       # core, swap, bridge, audience, freshness: allowed domains, caps
+│   ├── targets.yaml           # target models (D49, D50): env variable names, never values
 │   └── resolved_ids.lock.json # Planned (Phase 2): IDs + our query text only
 ├── src/blindspot/
 │   ├── config.py              # settings from env
@@ -193,7 +194,7 @@ blindspot/
 │   ├── web/                   # the web UI (#47): static/ HTML, CSS, JS, labels.json, mock/
 │   ├── scenarios/             # Planned (Phase 2)
 │   ├── groundtruth/           # Planned (Phase 2)
-│   ├── targets/               # Planned (Phase 3)
+│   ├── targets/               # target models (#27): protocol, OpenAI-compatible client, parse, cache, CLI
 │   ├── resolve/               # entity resolver (#29): resolver, match, report
 │   ├── metrics/               # Planned (Phase 3)
 │   ├── auditor/               # Planned (Phase 4)
@@ -394,7 +395,7 @@ The answer key is only useful if it's stable and discriminating. Phase 2 must re
 
 ## 8. Targets and entity resolution
 
-**Planned, Phase 3.**
+Phase 3. Built: target adapters (#27, D50) and the resolver (#29, D47).
 
 ### 8.1 Target adapters
 
@@ -410,6 +411,18 @@ Preloaded targets (decisions D49): GPT-OSS 120B (the fix-loop agent) and GPT-OSS
 Qwen3.8 27B (all on Groq), and Gemini 3.8 Flash (Google AI Studio; an audited target, precomputed only),
 all on free tiers. Only GPT-OSS 20B is called live from the hosted demo, behind caps; the rest are
 precomputed.
+
+Built in #27 (D50): `targets.Target` is a protocol, `async recommend(prompt, k, *, scenario_id) ->
+TargetResponse`, and a target never raises for a model or endpoint failure: the response has an
+`outcome` (`ok | empty | malformed | refused | timeout | error`), up to `k` items (`name`, `why`),
+`raw_text`, `model`, token `usage`, `latency_ms` and `served_from` (`live | cache`).
+`OpenAICompatTarget` reads one entry of `config/targets.yaml` (env variable names only): Bearer auth,
+temperature 0, `seed` and `extra_body` per target (D49's quirks), a per-target timeout and concurrency
+limit, and bounded retries on 429 and 5xx that honour `Retry-After`. Answers are parsed tolerantly
+(fences stripped, first JSON object, partial items of a truncated answer, one repair retry, list
+lines) and replayable ones are stored in `target_responses_cache` (`data/targets.sqlite`), keyed by
+target, model, prompt hash, temperature and `max_tokens`. `blindspot target ask --target <id>
+--scenario <id>` prints the parsed names (local use only).
 
 ### 8.2 Resolver
 
@@ -747,6 +760,11 @@ by its spec's content key, not by scenario, so a spec shared by many scenarios i
 once; `scenarios.local_key` and `global_key` point at runs. `scenario_status` is the per-scenario
 checkpoint and disposition: `pending`, then `fetched` (runs stored, not yet checked, unreadable), then `done | thin | excluded | empty`, or `failed`. Only `done`, `thin` and `excluded` are readable. Read only through
 `groundtruth.get_answer_key()`. Decisions: D41.
+
+**Target answers (built, #27).** `target_responses_cache` lives in `data/targets.sqlite` (gitignored:
+it holds model text): one row per (target id, model id, prompt hash, temperature, max_tokens) with the
+outcome and the parsed `TargetResponse`, never a key. The audit's `TARGET_RESPONSES` table (Phase 4)
+links runs to these answers. Decisions: D50.
 
 ---
 
