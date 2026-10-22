@@ -511,3 +511,53 @@ targets:
     fix_loop_agent: false
     max_tokens: 1000
 ```
+
+**D50. Target adapter and OpenAI-compatible client (#27, 2026-10-22).**
+- **Interface.** `targets.Target` is a protocol with an `id` and `async recommend(prompt, k, *,
+  scenario_id) -> TargetResponse`; #30's calibration targets implement the same one. A
+  `TargetResponse` has `outcome` (`ok | empty | malformed | refused | timeout | error`), `items`
+  (`name`, `why`; at most `k`), `raw_text` (the first answer), `model`, `usage` (prompt, completion,
+  total and reasoning tokens, and calls, summed over a repair retry), `latency_ms`, `finish_reason`,
+  `parse_method` (`json | partial | repair | lines | none`), `prompt_hash`, `served_from` (`live |
+  cache`) and a short `detail`. A target never raises for a model or endpoint failure; only a `k`
+  outside 1 to 20 (a programming error) raises.
+- **Config.** `config/targets.yaml` from D49, validated with `extra=forbid`: env variable names only
+  (`base_url_env`, `api_key_env`); exactly one `fix_loop_agent` (gpt-oss-120b), which must have
+  `tool_calling`; `max_tokens` at least 1,000. Added beyond the issue's list: `base_url_default` (the
+  public endpoint used when the base-URL variable is unset; plain https only), `json_mode` (send
+  `response_format: json_object`; default on, every D49 target supports it) and `max_concurrency`
+  (default 2). `extra_body` may not set a field the client owns (`model`, `messages`, `temperature`,
+  `max_tokens`, `seed`, `response_format`, `stream`, `n`, `tools`). Values are read from the process
+  environment, then `.env` (`targets.env_lookup`), like `Settings`.
+- **Request.** `POST {base}/chat/completions`, `Authorization: Bearer` only, temperature 0, `seed` 7
+  only where `seed: true` (Gemini: false), `extra_body` merged (Gemini: `reasoning_effort: low`), no
+  redirects. Per-target timeout (Gemini 90 s, Groq 20 s); a timeout is not retried (a second 90 s wait
+  isn't worth it). 429, 500, 502, 503, 504 and connection errors are retried, 3 attempts in all,
+  waiting `max(backoff, Retry-After)`; a `Retry-After` over 30 s ends the request as `error`. A
+  semaphore per target caps requests in flight.
+- **Parsing order.** Refusal field or `finish_reason: content_filter` → `refused`; no text → `empty`
+  (or `malformed` when `finish_reason: length`: hidden thinking ate the budget, D49); the first JSON
+  object or array that decodes, fences stripped, with the list under `recommendations` (or the only
+  list in the object) → `ok`, or `empty` for an empty list; truncated (`length`) → the complete flat
+  item objects it has (`partial`), else `malformed`, with no repair (it would truncate again); a short
+  apology → `refused`; otherwise one repair retry asking for the JSON again, then numbered or bulleted
+  lines of the first answer, then `malformed`. Names are capped at 200 characters and reasons at 500,
+  with control and bidi characters removed (rule 10).
+- **Cache.** `target_responses_cache` in its own file, `TARGET_CACHE_PATH` (default
+  `data/targets.sqlite`, gitignored), keyed by (target id, model id, prompt hash, temperature,
+  max_tokens). The prompt hash is sha256 over the system and user messages, so `k` is in it. Only
+  `ok`, `empty`, `malformed` and `refused` are stored; a timeout or HTTP error says nothing about the
+  model and is retried next time. So is an answer whose repair request failed (its lines parse or
+  `malformed` is returned, not stored). A hit is returned with `served_from: cache` and its original usage
+  and latency, and makes no network call.
+- **Secrets.** The client registers its key with `qloo.redact` at construction (the targets package
+  imports only that module from `qloo/`; it never reaches Qloo), the header pattern now covers
+  `Authorization: Bearer`, and every text field of a response is redacted before it is returned or
+  cached. `scripts/scan_secrets.py` also checks the values of `GROQ_API_KEY` and `GEMINI_API_KEY` and
+  the `gsk_` and `AIza` key shapes. Mutation-checked: removing the registration, the Bearer pattern or
+  the response scrub each fails `tests/test_targets.py`.
+- **CLI.** `blindspot target list` (ids, models, flags, and whether each key variable is set, never
+  its value) and `blindspot target ask --target <id> --scenario <id> [--variant N] [--no-cache]`
+  (outcome, usage, latency and parsed names). Local use only; its output is never committed.
+- **Left for the maintainer:** two real targets answering a demo scenario, run locally with the keys
+  (`blindspot target ask`), with token usage reported. Out of scope: tool calling for the fix loop (#42).

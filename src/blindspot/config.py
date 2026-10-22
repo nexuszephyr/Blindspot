@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # True when the store was built from synthetic data (the public demo store): the answer-key
     # route labels every response `synthetic: true` (rule 2, ADR 0002)
     groundtruth_synthetic: bool = False
+    # Target-model answers (#27): `target_responses_cache`, so a repeated prompt costs nothing.
+    # Holds model text, never keys; gitignored like the rest of data/.
+    target_cache_path: Path = Path("data/targets.sqlite")
 
     qloo_timeout_s: float = 10.0
     qloo_max_concurrency: int = 4

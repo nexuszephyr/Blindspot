@@ -36,3 +36,13 @@ These steps need your accounts. Nothing here is automated, and no step needs the
   `/docs`, `/redoc` and the OpenAPI schema off (small attack surface, `CSP default-src 'none'` also blocks the Swagger UI assets).
   Options: (a) keep it off and document the routes in architecture Section 12 (done; my recommendation);
   (b) serve only `/api/openapi.json` (schema, no UI); (c) enable `/docs` and relax the CSP for that path.
+
+- [ ] **#27: AGENTS.md repo map.** AGENTS.md is protected, so the build loop didn't edit it. Suggested change
+  to the `targets/` line in Section 4: `targets/  target models (#27, D50): Target protocol, OpenAI-compatible
+  client, tolerant parser, response cache, `blindspot target` CLI`; and add `targets.yaml` (target models,
+  env variable names only) to the `config/` line. Also add `target` to the CLI groups on the `cli.py` line.
+
+- [ ] **#27: two real targets.** Run locally with `GROQ_API_KEY` and `GEMINI_API_KEY` in `.env`:
+  `blindspot scenarios build`, then `blindspot target ask --target gpt-oss-20b --scenario <a demo scenario id>`
+  and the same with `--target gemini-flash`. Each should print 1 to k names; report the outcome and token lines
+  (not the names) in the PR.

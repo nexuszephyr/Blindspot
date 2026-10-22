@@ -1,4 +1,4 @@
-"""`blindspot <group> ...`: the project's command line. Groups: scenarios, groundtruth, param.
+"""`blindspot <group> ...`: the project's command line. Groups: scenarios, groundtruth, target, param.
 
 Also runs as `python -m blindspot ...`, which works without reinstalling the package.
 """
@@ -8,7 +8,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-GROUPS = {"scenarios": "blindspot.scenarios.cli", "groundtruth": "blindspot.groundtruth.cli", "param": ""}
+GROUPS = {
+    "scenarios": "blindspot.scenarios.cli",
+    "groundtruth": "blindspot.groundtruth.cli",
+    "target": "blindspot.targets.cli",
+    "param": "",
+}
 
 
 def _param(args: list[str]) -> int:

@@ -29,3 +29,12 @@ def test_finds_an_unquoted_env_style_key():
 
 def test_clean_input_finds_nothing():
     assert scan("QLOO_API_KEY=\nQLOO_RPS=4\nprint('hello')\n", {"QLOO_API_KEY": FAKE_VALUE.encode()}) == []
+
+
+def test_target_model_keys_are_scanned():
+    # #27: the Groq and Gemini keys, by value and by their well-known shapes
+    assert {"GROQ_API_KEY", "GEMINI_API_KEY"} <= set(S["SECRET_VARS"])
+    groq = "gs" + "k_" + "A1b2C3d4" * 6
+    google = "AI" + "za" + "B" * 35
+    assert any("groq-api-key" in f for f in scan(f"key = {groq}\n"))
+    assert any("google-api-key" in f for f in scan(f"url?key={google}\n"))

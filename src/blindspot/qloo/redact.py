@@ -1,4 +1,6 @@
-"""Key redaction. The key is registered once at client construction and scrubbed everywhere."""
+"""Key redaction. Keys are registered once at client construction and scrubbed everywhere: the Qloo
+key (`QlooClient`) and the target-model keys, `GROQ_API_KEY` and `GEMINI_API_KEY` among them
+(`targets.OpenAICompatTarget`, #27)."""
 
 from __future__ import annotations
 
@@ -9,8 +11,9 @@ import threading
 _lock = threading.Lock()
 _secrets: set[str] = set()
 MASK = "[REDACTED]"
-# Header-style leaks, in case something stringifies a request.
-_HEADER_RE = re.compile(r"(?i)(x-api-key['\"]?\s*[:=]\s*['\"]?)[^'\"\s,}]+")
+# Header-style leaks, in case something stringifies a request: Qloo's X-Api-Key and the targets'
+# `Authorization: Bearer` (#27).
+_HEADER_RE = re.compile(r"(?i)((?:x-api-key|authorization)['\"]?\s*[:=]\s*['\"]?(?:bearer\s+)?)[^'\"\s,}]+")
 
 
 def register_secret(value: str) -> None:
