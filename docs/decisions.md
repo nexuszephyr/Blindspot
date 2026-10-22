@@ -405,3 +405,109 @@ The TestClient makes no network calls. `requirements.lock` is unchanged.
   with the real route's). The views (#48 onward) swap it for the real routes.
 - **Left for the maintainer:** desktop and 360 px screenshots in light and dark from a real device, the
   keyboard-only pass and the Lighthouse-style check.
+
+**D49. Target models (#11, 2026-10-22).** The maintainer chose the lineup: a big closed model, a large
+and a small open model, and a multilingual model from a non-US lab, all on free tiers behind
+OpenAI-compatible endpoints. Each was checked live on 2026-10-22 with 16 requests (Groq 9, Gemini 7):
+the model listing, a structured JSON answer, tool calling with a follow-up turn, and a Japanese prompt.
+Groq no longer serves any Llama chat model (its listing has none), so the planned Llama 3.3 70B, Llama
+3.1 8B and Qwen3 32B became their closest current equivalents: GPT-OSS 120B, GPT-OSS 20B and
+Qwen3.8 27B. The ids below name the real models.
+
+| | gemini-flash | gpt-oss-120b | gpt-oss-20b | qwen-27b (optional) |
+|---|---|---|---|---|
+| Display name | Gemini 3.8 Flash | GPT-OSS 120B | GPT-OSS 20B | Qwen3.8 27B |
+| Role | Big closed model; audited target, precomputed in batches | Large open model; fix-loop agent (tool calling) (was llama-70b) | Small open model (was llama-8b) | Multilingual, non-US lab (was qwen-32b) |
+| Provider | Google AI Studio, OpenAI-compatible | Groq | Groq | Groq |
+| Base URL | `https://generativelanguage.googleapis.com/v1beta/openai/` | `https://api.groq.com/openai/v1` | same | same |
+| Model id | `models/gemini-3.8-flash` as listed; sent as `gemini-3.8-flash` | `openai/gpt-oss-120b` | `openai/gpt-oss-20b` | `qwen/qwen3.8-27b` (a Groq **Preview** model) |
+| Context / output limit | 1,048,576 / 65,536 (VERIFIED, native model API) | 131,072 / 65,536 (VERIFIED, `/models`) | 131,072 / 65,536 (VERIFIED) | 131,072 / 16,384 (VERIFIED) |
+| Price | Free tier $0. Paid $0.75 in / $3.75 out per 1M until 2026-12-31, then $1.50 / $7.50 (UNVERIFIED, ai.google.dev pricing page) | Free tier $0. Paid $0.15 / $0.60 per 1M (UNVERIFIED, Groq models page) | Free tier $0. Paid $0.075 / $0.30 per 1M (UNVERIFIED) | Free tier $0. Paid $0.80 / $4.00 per 1M (UNVERIFIED) |
+| Tool calling | Yes | Yes | Yes | Not tested |
+| JSON mode (`json_object`) | Yes, but see the thinking quirk | Yes | Yes | Yes |
+| `seed` | **No** (400 "Unknown name seed") | Yes | Yes | Yes |
+| Free-tier limits | Not sent in headers; the rate-limits page lists none and points to AI Studio (UNVERIFIED) | 1,000 requests/day and 8,000 tokens/min (VERIFIED, `x-ratelimit-limit-*` headers); 30 requests/min and 200K tokens/day (UNVERIFIED, Groq docs) | Same as gpt-oss-120b | Same as gpt-oss-120b |
+| Latency seen | 15 to 62 s per request | 0.9 to 1.5 s | 0.8 to 1.0 s | 0.7 s |
+| `live_in_demo` | No, precomputed | No, precomputed | **Yes, capped** | No, precomputed |
+
+**Live-demo policy.** Only gpt-oss-20b is called live from the hosted demo, behind a per-client cap of 3
+audits per hour and a global cap of 300 target requests per day (well under Groq's 1,000/day), both
+enforced in #38. Every other target is precomputed (#57). There is no paid model: the keys are free-tier
+keys with no billing attached, so a judge can't create a bill.
+
+- **Fix-loop agent.** gpt-oss-120b is the tool-calling agent for #42/#43: ~1 s per tool round trip and
+  1,000 requests/day (VERIFIED). Gemini is too slow on the free tier (15 to 62 s) and its daily limit
+  is unknown, so it stays an audited target, precomputed in batches (#57); check its daily request
+  limit in AI Studio before precomputing. gpt-oss-20b is the tool-calling backup.
+
+**Data.** Google's pricing page says free-tier content is used to improve Google's products (outside
+the EU, UK and EEA). Our prompts hold only a persona's interests, an age band and a city (AGENTS
+section 8), never personal data.
+
+**Approval.** These are new external network services (AGENTS section 13), approved by the maintainer
+for this lineup.
+
+**Quirks, for #27 and #42.**
+- **Set `max_tokens` to at least 1,000 for every target** (reasoning tokens count against it; a 400-token
+  tool follow-up ended `length`). Try `reasoning_effort: low` on GPT-OSS too (UNVERIFIED on Groq here).
+- **Gemini thinks by default, and thinking counts against `max_tokens`.** With 400, about 380 hidden
+  thinking tokens left 16 visible ones: finish `length`, truncated JSON. The usage block doesn't report
+  them (total minus prompt minus completion is the hidden part). `reasoning_effort: "low"` fixed it:
+  valid JSON, 3 items, finish `stop`, no hidden tokens. Send it, and don't send `seed`.
+- **Gemini is slow on the free tier** (15 to 62 s). Use a timeout of at least 90 s; it's precomputed only.
+- **GPT-OSS models report `completion_tokens_details.reasoning_tokens`** (25 to 109 here), which also
+  count against `max_tokens`. The content itself is clean JSON. One 400-token tool follow-up from
+  gpt-oss-120b finished `length` (a long answer, not an error).
+- **Tool calls** come back in the OpenAI shape on all three tested models: one call, with an id,
+  arguments that parse as JSON with both fields, finish `tool_calls`, and no parallel calls. A
+  follow-up with `role: tool` plus `tool_call_id` produced a final answer everywhere; Gemini needed no
+  `name` on the tool message.
+- **Non-Latin prompts:** a Japanese prompt to gpt-oss-20b round-tripped as UTF-8 on Windows. The
+  reasons came back in Japanese, but all 3 shop names were in Latin script, so the resolver (#29) should
+  expect romanized names for non-Latin cities.
+
+Suggested `config/targets.yaml` for #27 (an example only; #27 creates the file, and values come from
+env):
+
+```yaml
+targets:
+  - id: gemini-flash
+    display_name: Gemini 3.8 Flash
+    base_url_env: GEMINI_BASE_URL   # default https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_env: GEMINI_API_KEY
+    model: gemini-3.8-flash
+    live_in_demo: false
+    tool_calling: true
+    fix_loop_agent: false
+    max_tokens: 1000
+    seed: false                     # Gemini rejects it
+    extra_body: {reasoning_effort: low}
+    timeout_s: 90
+  - id: gpt-oss-120b
+    display_name: GPT-OSS 120B
+    base_url_env: GROQ_BASE_URL     # default https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    model: openai/gpt-oss-120b
+    live_in_demo: false
+    tool_calling: true
+    fix_loop_agent: true            # #42/#43
+    max_tokens: 1000
+  - id: gpt-oss-20b
+    display_name: GPT-OSS 20B
+    base_url_env: GROQ_BASE_URL
+    api_key_env: GROQ_API_KEY
+    model: openai/gpt-oss-20b
+    live_in_demo: true              # capped in #38
+    tool_calling: true
+    fix_loop_agent: false           # tool-calling backup
+    max_tokens: 1000
+  - id: qwen-27b                    # optional; a Groq Preview model
+    display_name: Qwen3.8 27B
+    base_url_env: GROQ_BASE_URL
+    api_key_env: GROQ_API_KEY
+    model: qwen/qwen3.8-27b
+    live_in_demo: false
+    tool_calling: false             # not tested
+    fix_loop_agent: false
+    max_tokens: 1000
+```
