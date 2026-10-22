@@ -12,7 +12,7 @@ from typing import Literal
 
 Priority = Literal["adhoc", "demo"]
 # What a call is for; live-call reporting is broken down by it.
-Purpose = Literal["app", "audit", "recon", "coverage", "smoke", "script", "groundtruth"]
+Purpose = Literal["app", "audit", "recon", "coverage", "smoke", "script", "groundtruth", "fix"]
 
 # Used when IP_HASH_SALT is unset: hashes stay stable for the life of the process only.
 _PROCESS_SALT = secrets.token_bytes(32)

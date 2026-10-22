@@ -20,8 +20,11 @@ from ..catalog import ConfigError, _load, _Strict
 ENV_NAME = r"^[A-Z][A-Z0-9_]*$"
 # Request fields the client sets itself; `extra_body` may not override them.
 RESERVED_BODY_KEYS = frozenset(
-    {"model", "messages", "temperature", "max_tokens", "seed", "response_format", "stream", "n", "tools"}
-)
+    {
+        "model", "messages", "temperature", "max_tokens", "seed", "response_format", "stream", "n",
+        "tools", "tool_choice",
+    }
+)  # fmt: skip
 
 EnvLookup = Callable[[str], str]
 

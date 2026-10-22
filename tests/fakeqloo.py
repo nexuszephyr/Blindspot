@@ -77,6 +77,8 @@ class FakeQloo:
         self.unresolvable_signal_400 = False  # the other UNVERIFIED case: a signal gets the 400 too
         # /search answers with search_body(params) when set (default: the one-result SEARCH_RESULT)
         self.search_body = None
+        # /v2/tags answers with tags_body(params) when set (default: the one-result SEARCH_RESULT)
+        self.tags_body = None
 
     @property
     def behaviour(self) -> str:
@@ -117,6 +119,9 @@ class FakeQloo:
             if scope["path"] == "/search" and status == 200 and b in ("ok", "slow") and self.search_body:
                 params = dict(parse_qsl(scope["query_string"].decode()))
                 body = json.dumps(self.search_body(params), ensure_ascii=False).encode()
+            if scope["path"] == "/v2/tags" and status == 200 and b in ("ok", "slow") and self.tags_body:
+                params = dict(parse_qsl(scope["query_string"].decode()))
+                body = json.dumps(self.tags_body(params), ensure_ascii=False).encode()
         except Exception as exc:  # recorded for the harness to fail on, then a 500 like a broken server
             self.errors.append(f"{type(exc).__name__}: {exc}")
             status, body, out_headers = 500, b'{"message": "fake failed"}', {}

@@ -7,11 +7,14 @@ it, and the target's `extra_body` (D49: Gemini needs `reasoning_effort: low`). B
 
 `recommend()` never raises for a model or endpoint failure: every answer is a `TargetResponse`
 with an outcome. Replayable answers go to `ResponseCache`, so a repeat makes no network call.
+`chat()` is one request with tool definitions (#42): the fix loop drives it, through the same
+retries, timeout, concurrency limit and redaction.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -34,6 +37,8 @@ MAX_ATTEMPTS = 3  # per chat request: the first try plus two retries on 429 / 5x
 MAX_RETRY_AFTER_S = 30.0  # a longer Retry-After ends the request instead of holding it
 MAX_BODY_BYTES = 1024 * 1024
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+MAX_TOOL_CALLS_PER_REPLY = 8  # more in one reply are dropped; the fix loop caps calls per scenario
+MAX_TOOL_ARGUMENT_CHARS = 4000  # longer arguments are cut, so they no longer parse (a tool error)
 
 
 def _retry_after(value: str | None) -> float | None:
@@ -67,17 +72,49 @@ def _usage(body: dict[str, Any]) -> Usage:
     )
 
 
+@dataclass(frozen=True)
+class ToolCall:
+    """One function call the model asked for. Every field is untrusted model text (rule 10)."""
+
+    id: str
+    name: str
+    arguments: str  # JSON text as the model wrote it, cut at MAX_TOOL_ARGUMENT_CHARS
+
+
 @dataclass
-class _Reply:
+class ChatReply:
     """One chat completion, or why there isn't one (`failure` set)."""
 
     text: str = ""
+    tool_calls: list[ToolCall] = field(default_factory=list)
     finish_reason: str | None = None
     refusal: str = ""
     model: str = ""
     usage: Usage = field(default_factory=Usage)
     failure: Outcome | None = None
     detail: str = ""
+
+
+def _tool_calls(raw: Any) -> list[ToolCall]:
+    """The OpenAI `tool_calls` shape (D49: id, `function.name`, `function.arguments` as JSON text).
+    Malformed entries are dropped; a missing id gets a local one so the reply can still answer it."""
+    out: list[ToolCall] = []
+    for n, c in enumerate(raw[:MAX_TOOL_CALLS_PER_REPLY] if isinstance(raw, list) else []):
+        fn = c.get("function") if isinstance(c, dict) else None
+        if not isinstance(fn, dict):
+            continue
+        args = fn.get("arguments")
+        if isinstance(args, dict):  # some providers send an object rather than JSON text
+            args = json.dumps(args, ensure_ascii=False)
+        call_id = parse.clean(c.get("id") or "", 100) or f"call_local_{n}"
+        out.append(
+            ToolCall(
+                id=call_id,
+                name=parse.clean(fn.get("name") or "", 64),
+                arguments=(args if isinstance(args, str) else "")[:MAX_TOOL_ARGUMENT_CHARS],
+            )
+        )
+    return out
 
 
 class OpenAICompatTarget:
@@ -112,7 +149,16 @@ class OpenAICompatTarget:
         u = urlsplit(self.base_url)
         return bool(self._key) and u.scheme in {"http", "https"} and bool(u.hostname)
 
-    def request_body(self, messages: list[dict[str, str]]) -> dict[str, Any]:
+    def request_body(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+    ) -> dict[str, Any]:
+        """The chat request. With `tools`, JSON mode is left off: the reply may be a tool call,
+        and the final answer is parsed tolerantly anyway. `tool_choice: "none"` asks for an answer
+        with the tools still described (the history holds tool calls)."""
         body: dict[str, Any] = {
             **self.cfg.extra_body,
             "model": self.cfg.model,
@@ -122,7 +168,11 @@ class OpenAICompatTarget:
         }
         if self.cfg.seed:
             body["seed"] = SEED
-        if self.cfg.json_mode:
+        if tools:
+            body["tools"] = tools
+            if tool_choice:
+                body["tool_choice"] = tool_choice
+        elif self.cfg.json_mode:
             body["response_format"] = {"type": "json_object"}
         return body
 
@@ -221,7 +271,7 @@ class OpenAICompatTarget:
         items: list[Recommendation] | None = None,
         method: ParseMethod = "none",
         detail: str = "",
-        reply: _Reply | None = None,
+        reply: ChatReply | None = None,
         usage: Usage | None = None,
     ) -> TargetResponse:
         return TargetResponse(
@@ -250,16 +300,48 @@ class OpenAICompatTarget:
             }
         )
 
+    # ------------------------------------------------------------------ tool calling (#42)
+    async def chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+    ) -> ChatReply:
+        """One chat request, optionally offering `tools`. Never raises for a model or endpoint
+        failure (`failure` says); text is redacted, and nothing is cached: a tool conversation
+        depends on what the tools returned."""
+        if not self.configured:
+            return ChatReply(
+                failure="error", detail=f"not configured: set {self.cfg.api_key_env} (and a base URL)"
+            )
+        reply = await self._chat(messages, tools=tools, tool_choice=tool_choice)
+        reply.text = redact(reply.text)
+        reply.refusal = redact(reply.refusal)
+        reply.detail = redact(reply.detail)
+        reply.model = redact(reply.model)
+        reply.tool_calls = [
+            ToolCall(id=redact(c.id), name=redact(c.name), arguments=redact(c.arguments))
+            for c in reply.tool_calls
+        ]
+        return reply
+
     # ------------------------------------------------------------------ one chat request
     def _client(self) -> httpx.AsyncClient:
         if self._http is None:
             self._http = httpx.AsyncClient(transport=self._transport, follow_redirects=False)
         return self._http
 
-    async def _chat(self, messages: list[dict[str, str]]) -> _Reply:
+    async def _chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+    ) -> ChatReply:
         url = f"{self.base_url}/chat/completions"
         headers = {"Authorization": f"Bearer {self._key}", "Content-Type": "application/json"}
-        body = self.request_body(messages)
+        body = self.request_body(messages, tools=tools, tool_choice=tool_choice)
         detail = ""
         for attempt in range(1, MAX_ATTEMPTS + 1):
             wait = min(8.0, 2.0 ** (attempt - 1))
@@ -267,7 +349,7 @@ class OpenAICompatTarget:
                 async with self._sem:
                     r = await self._client().post(url, json=body, headers=headers, timeout=self.cfg.timeout_s)
             except httpx.TimeoutException:
-                return _Reply(failure="timeout", detail=f"no answer within {self.cfg.timeout_s:g} s")
+                return ChatReply(failure="timeout", detail=f"no answer within {self.cfg.timeout_s:g} s")
             except httpx.HTTPError as exc:  # connection refused or reset: retried
                 detail = f"connection failed ({type(exc).__name__})"
             else:
@@ -275,15 +357,15 @@ class OpenAICompatTarget:
                     ra = _retry_after(r.headers.get("Retry-After"))
                     detail = f"HTTP {r.status_code}" + (f", Retry-After {ra:g} s" if ra is not None else "")
                     if ra is not None and ra > MAX_RETRY_AFTER_S:
-                        return _Reply(failure="error", detail=detail + " (too long to wait)")
+                        return ChatReply(failure="error", detail=detail + " (too long to wait)")
                     wait = max(wait, ra or 0.0)
                 elif r.status_code >= 400:
-                    return _Reply(failure="error", detail=f"HTTP {r.status_code}: {self._error_text(r)}")
+                    return ChatReply(failure="error", detail=f"HTTP {r.status_code}: {self._error_text(r)}")
                 else:
                     return self._read(r)
             if attempt < MAX_ATTEMPTS:
                 await self._sleep(wait)
-        return _Reply(failure="error", detail=f"{detail}; gave up after {MAX_ATTEMPTS} attempts")
+        return ChatReply(failure="error", detail=f"{detail}; gave up after {MAX_ATTEMPTS} attempts")
 
     @staticmethod
     def _error_text(r: httpx.Response) -> str:
@@ -296,22 +378,23 @@ class OpenAICompatTarget:
             text = r.text
         return parse.clean(redact(text), 200)
 
-    def _read(self, r: httpx.Response) -> _Reply:
+    def _read(self, r: httpx.Response) -> ChatReply:
         if len(r.content) > MAX_BODY_BYTES:
-            return _Reply(failure="error", detail="response too large")
+            return ChatReply(failure="error", detail="response too large")
         try:
             body = r.json()
             choice = body["choices"][0]
             msg = choice.get("message") or {}
         except (ValueError, KeyError, IndexError, TypeError, AttributeError):
-            return _Reply(failure="error", detail="unreadable response body")
+            return ChatReply(failure="error", detail="unreadable response body")
         if not isinstance(body, dict) or not isinstance(msg, dict):
-            return _Reply(failure="error", detail="unreadable response body")
+            return ChatReply(failure="error", detail="unreadable response body")
         content = msg.get("content")
         refusal = msg.get("refusal")
         finish = choice.get("finish_reason")
-        return _Reply(
+        return ChatReply(
             text=content if isinstance(content, str) else "",
+            tool_calls=_tool_calls(msg.get("tool_calls")),
             finish_reason=finish if isinstance(finish, str) else None,
             refusal=refusal if isinstance(refusal, str) else "",
             model=parse.clean(body.get("model") or "", 100),
@@ -319,4 +402,4 @@ class OpenAICompatTarget:
         )
 
 
-__all__ = ["MAX_ATTEMPTS", "MAX_K", "SEED", "TEMPERATURE", "OpenAICompatTarget"]
+__all__ = ["MAX_ATTEMPTS", "MAX_K", "SEED", "TEMPERATURE", "ChatReply", "OpenAICompatTarget", "ToolCall"]
