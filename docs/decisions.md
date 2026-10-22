@@ -593,3 +593,65 @@ targets:
   a nameless Qloo entity, or over 200 characters) is skipped, never returned. Tests patch
   `httpx.AsyncClient.send` to fail and check no request is made.
 - **Seed.** Default `DEFAULT_SEED` (the scenario generator's); `blindspot target ask --seed N`.
+
+**D52. Qloo tools for the grounded agent (#42, 2026-10-22).**
+- **Where.** `src/blindspot/fix/`: `tools.py` (the two tool definitions and `QlooTools`, their
+  executor) and `loop.py` (`run_grounded`, the tool loop). The agent is gpt-oss-120b
+  (`fix_loop_agent`, D49); gpt-oss-20b is the backup. Both run the loop in the tests.
+- **Honesty rule (most important).** The answer key is the persona's audience plus the location
+  (D35, D38). If a tool could send that query, "grounded" would mean "copied the answer key", and the
+  held-out set (#43) couldn't catch it, because the same query works on held-out scenarios too. So:
+  - the tools take no audience, demographic or raw Qloo parameter from the model (arguments are
+    `extra=forbid`), and `assert_honest` refuses any query with a `signal.demographics.*` parameter;
+  - `qloo_recommend` signals only with ids resolved from the model's own free-text `interests`
+    (`signal.interests.tags` or `.entities`), on top of the domain's standard shape;
+  - `QlooTools(answer_key_shapes=...)` refuses a query whose shape equals an exam spec's, compared
+    without `take` (it doesn't change the top of a list, E12) and the own-seed exclusion. #43 passes
+    every local and baseline spec of the exam.
+  A test runs every demo scenario's tool query against the fake Qloo with the persona's own stated
+  interests and checks that what reaches Qloo never equals that scenario's `local_spec` or
+  `global_spec` params, with or without `take` and the exclusion. Mutation spot-checks: removing the
+  guard fails two tests; dropping dining's interest signal (its query becomes the city baseline, D43)
+  fails the honesty test as well.
+  An interest the persona states as a seed may still be sent: it is the stated taste the prompt
+  names, not the audience the key is built from. If a domain's `query_shape.signal` ever becomes
+  `tag` or `entity`, the shape guard is what keeps the tools off its answer key; pass the shapes.
+- **`qloo_search(query, type)`.** `type` is one of the scenario domain's `search_types`;
+  `search_entities`, `take` 10; returns name, type and id.
+- **`qloo_recommend(domain, city, interests)`.** `domain` and `city` are enums of the catalog's ids;
+  1 to 5 interests of at most 80 characters. Each interest is resolved first: `/v2/tags` (`take` 10)
+  through `idlock.resolve_tag`, so only a tag of the asked domain's families counts (#15's rule);
+  failing that, `/search` over every audited type (`take` 5) and an entity whose normalized name
+  matches exactly (a cross-domain taste, such as an artist for restaurants, is a valid signal, E3).
+  Unresolved interests are dropped and reported to the model with a reason (`not found`, `lookup
+  failed`); with none resolved, no insights call is made. The query: `filter.type`, the domain's
+  `params`, the city's location param from `cities.yaml` (dining: the location filter with the
+  restaurant tag, E13), the interest ids, `take` 20; then `check_params(strict=True)`, `check_ids`
+  and the honesty guard, before the call. Returns rank, name, type and id, trimmed to 20; never
+  scores, params or the raw response. Dining with a tag or entity signal is the slow shape (p50 5 to
+  16 s, E13), so a hosted run needs a deadline that allows it.
+- **Validation.** Arguments longer than 2,000 characters, non-JSON, a non-object, extra fields, bad
+  enums or lengths become a tool error message to the model (field and problem only; the model's
+  value isn't echoed), never an exception and never a Qloo call. So does an unknown tool name.
+- **Budgets and receipts.** Every call goes through `QlooClient` with the caller's `RequestContext`
+  (its run id, per-run budget, deadline, cache, breaker and call log); the new purpose `fix` separates
+  these calls in `live_attempts`. Caps per scenario: 4 tool calls, 6 model turns and 24 Qloo calls
+  (`max_qloo_calls`, cached calls included; 4 recommend calls of 5 interests could need 44). When the
+  tool cap, the turn cap or a budget (the scenario's or the client's run budget) is hit, the model
+  gets one last turn with `tool_choice: "none"` and the tools still described (the history holds tool
+  calls), so it answers from what it has. The deadline stops at once, before the next request. The
+  result's `stop` (`answer | tool_cap | turn_cap | budget | deadline | error`) says which; `outcome`
+  is #27's. The client marks a budget or deadline result `not_live` with that word in its reason; the
+  tools read it from there.
+- **Tool-calling client.** `OpenAICompatTarget.chat(messages, tools=, tool_choice=)` is one request
+  through #27's retries, timeout, concurrency limit and redaction; it returns the text and
+  `tool_calls` (OpenAI shape, D49: at most 8 per reply, arguments cut at 4,000 characters, an object
+  re-encoded as JSON, a missing id given a local one). JSON mode is off when tools are sent (the reply
+  may be a call); the final answer is parsed like #27's, without a repair request. `extra_body` may
+  not set `tool_choice`. Tool conversations are not cached: they depend on what the tools returned.
+- **Grounding set.** `GroundedResponse.returned_ids` is every entity id a tool showed the model, so
+  #43 can enforce "recommend only Qloo-returned entities"; each `ToolCallRecord` keeps the tool's
+  ids and its client calls (`call_id`, `served_from`, outcome) for #51's Truth Receipts.
+- **UNVERIFIED until the maintainer's live run:** `tool_choice: "none"` on Groq, and tools sent with
+  JSON mode off. **Left for the maintainer:** one real tool loop with gpt-oss-120b on one demo
+  scenario, run locally, reporting the live Qloo calls (by purpose) and model tokens used.

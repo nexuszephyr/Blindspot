@@ -199,7 +199,7 @@ blindspot/
 │   ├── resolve/               # entity resolver (#29): resolver, match, report
 │   ├── metrics/               # Planned (Phase 3)
 │   ├── auditor/               # Planned (Phase 4)
-│   └── fix/                   # Planned (Phase 5)
+│   └── fix/                   # Qloo tools and the tool loop for the grounded agent (#42); wrapper #43
 ├── scripts/                   # dev (task runner), _common, smoke, recon, coverage_matrix, warm_cache,
 │                              # export_snapshot, scan_secrets, promote_param
 ├── tests/                     # offline by default; fixtures tiny and synthetic or trimmed
@@ -536,7 +536,8 @@ stateDiagram-v2
 
 ## 11. Fix loop
 
-**Planned, Phase 5.**
+Phase 5. Built: the Qloo tools and the tool loop (#42, D52). Planned: the grounded wrapper and the
+same-exam re-run with the held-out set (#43), and the export (#44).
 
 ```mermaid
 sequenceDiagram
@@ -560,6 +561,28 @@ sequenceDiagram
 - A held-out set of scenarios guards against the fix just memorizing the answer key: report both.
 - Export: a system prompt plus an MCP server config that others can install. A full MCP server is a
   stretch goal.
+
+**Tools (built in #42, D52).** Exactly two JSON-schema functions, run by `fix.QlooTools` through
+`QlooClient` with the audit's `RequestContext`:
+
+| Tool | Arguments (validated, `extra=forbid`) | Qloo calls | Returns to the model |
+|---|---|---|---|
+| `qloo_search` | `query` (1 to 100 chars), `type` (the domain's `search_types`) | `/search`, `take` 10 | name, type, id |
+| `qloo_recommend` | `domain`, `city` (catalog ids), `interests` (1 to 5, up to 80 chars each) | per interest `/v2/tags` (tag of the domain's families) else `/search` (exact name); then `/v2/insights`: the domain's standard shape + `signal.interests.tags`/`.entities`, `take` 20 | rank, name, type, id; unresolved interests with a reason |
+
+- **Honesty rule.** The answer key is audience + location. The tools never take an audience,
+  demographic or raw Qloo param from the model, never send `signal.demographics.*`, and refuse a
+  query whose shape (without `take` and the own-seed exclusion) equals an exam spec's. A test runs
+  every demo scenario's tool query and checks it never equals that scenario's local or baseline spec.
+- **Invalid calls** (bad JSON, extra fields, enums, lengths, unknown tool) are tool errors sent back to
+  the model, never exceptions and never Qloo calls. Free text never goes where an id belongs.
+- **Loop.** `fix.run_grounded(agent, tools, prompt, k)` uses `OpenAICompatTarget.chat` (#27's client):
+  send `tools`, run each `tool_call`, append `role: tool` with its `tool_call_id`, repeat. Caps per
+  scenario: 4 tool calls, 6 turns, 24 Qloo calls, plus the run budget and the deadline. A cap or
+  budget gives the model one last turn with `tool_choice: "none"`; the deadline stops at once. The
+  result has `stop` (`answer | tool_cap | turn_cap | budget | deadline | error`), #27's `outcome`,
+  usage, the tool trail with call ids and `served_from` (for Truth Receipts), and `returned_ids`, the
+  entities the tools showed the model (#43 enforces the grounding rule with it).
 
 ---
 
