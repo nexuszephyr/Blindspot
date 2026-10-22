@@ -561,3 +561,32 @@ targets:
   (outcome, usage, latency and parsed names). Local use only; its output is never committed.
 - **Left for the maintainer:** two real targets answering a demo scenario, run locally with the keys
   (`blindspot target ask`), with token usage reported. Out of scope: tool calling for the fix loop (#42).
+
+**D51. Calibration targets (#30, 2026-10-22).**
+- **Four built-in targets** in `targets/calibration.py`, selectable by id through
+  `targets.open_target(id, configs, ...)`, the same lookup that builds a configured model (and
+  `blindspot target ask --target calib:...`): `calib:qloo-copy`, `calib:global-top`,
+  `calib:random-real`, `calib:invented`. They implement D50's `Target` protocol unchanged. Each needs
+  the catalog and the exam (to find a scenario's domain and the domain's baselines) and reads the
+  answer-key store only through the `groundtruth` read API (`get_answer_key`, `list_entities`,
+  `find_entities`); a test hands them a store that fails on any caller outside `groundtruth`.
+- **qloo-copy:** the local answer key's top `k`, in rank order.
+- **global-top:** one fixed list per domain, the same for every scenario: entities counted once per
+  distinct baseline list (`AnswerKey.global_`, deduplicated by the scenario's global spec key) over
+  every built scenario of the domain, most frequent first, ties broken by Qloo id. Dining's baseline
+  is the city list with no persona (D43), so dining's list is built from the city baselines; it is
+  still one list for every dining scenario, whatever the city. It is never hand-written.
+- **random-real:** `k` index entities of the domain's `search_types`, outside the scenario's own
+  membership pool (so a hit is never luck), one per normalized name, drawn with
+  `random.Random(f"{seed}:{scenario_id}")` from the id-sorted index: the same per scenario and seed.
+- **invented:** "{adjective} {noun} {domain word}" from neutral English word lists in code (the domain
+  word by the domain's `filter_type`; never a real name or a configured city, rule 9), drawn with the
+  same seeding. Every candidate's normalized forms (`aliases`) are checked with `find_entities`
+  against the whole index, any type; a collision or a repeat is skipped and the next one drawn (up to
+  50 draws per name), so an invented name is never real.
+- **Envelope.** `outcome: ok` (`empty` if nothing could be drawn), `served_from: cache` (stored data,
+  never `live`), zero usage, `model` = the target id, `prompt_hash` over the user prompt. Answers are
+  not written to the response cache. A scenario that isn't in the exam or has no built answer key
+  (for global-top: no baseline built in its domain) is `outcome: error` with a short `detail`; a
+  target never raises. Tests patch `httpx.AsyncClient.send` to fail and check no request is made.
+- **Seed.** Default `DEFAULT_SEED` (the scenario generator's); `blindspot target ask --seed N`.
