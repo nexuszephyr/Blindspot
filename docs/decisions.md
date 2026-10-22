@@ -639,7 +639,8 @@ targets:
   (`max_qloo_calls`, cached calls included; 4 recommend calls of 5 interests could need 44). When the
   tool cap, the turn cap or a budget (the scenario's or the client's run budget) is hit, the model
   gets one last turn with `tool_choice: "none"` and the tools still described (the history holds tool
-  calls), so it answers from what it has. The deadline stops at once, before the next request. The
+  calls), so it answers from what it has. The deadline stops at once, before the next request, and
+  also bounds each model request (the agent's 90 s timeout and #27's retries could outlast it). The
   result's `stop` (`answer | tool_cap | turn_cap | budget | deadline | error`) says which; `outcome`
   is #27's. The client marks a budget or deadline result `not_live` with that word in its reason; the
   tools read it from there.

@@ -7,7 +7,8 @@ Requests go through `OpenAICompatTarget.chat` (#27's HTTP client, timeouts, retr
 Caps per scenario: tool calls (4), model turns (6) and Qloo calls (`QlooTools.max_qloo_calls`), plus
 the client's per-run budget and the context's deadline. When the tool cap or a budget is hit, the
 model gets one last turn with `tool_choice: "none"` to answer from what it already has; on the last
-allowed turn too. The deadline stops at once. Either way the result says why it stopped (`stop`).
+allowed turn too. The deadline stops at once, and bounds each model request (its timeout and
+retries can be longer). Either way the result says why it stopped (`stop`).
 
 The result exposes `returned_ids`, every entity id a tool showed the model, so #43 can enforce
 "recommend only Qloo-returned entities". Nothing is cached: the conversation depends on the tools.
@@ -15,6 +16,7 @@ The result exposes `returned_ids`, every entity id a tool showed the model, so #
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from dataclasses import dataclass
@@ -185,8 +187,13 @@ async def run_grounded(
             return done("deadline", "timeout", detail="the run's deadline passed before a final answer")
         if limit is None and turns == caps.max_turns - 1:
             limit = "turn_cap"  # the last allowed turn: ask for the answer
-        reply = await agent.chat(messages, tools=definitions, tool_choice="none" if limit else None)
+        request = agent.chat(messages, tools=definitions, tool_choice="none" if limit else None)
         turns += 1
+        try:
+            # the model's own timeout and retries can outlast the run: the deadline bounds them
+            reply = await (request if rem is None else asyncio.wait_for(request, rem))
+        except TimeoutError:
+            return done("deadline", "timeout", detail="the deadline passed while the model was answering")
         usage = usage + reply.usage
         model = reply.model or model
         if reply.failure:

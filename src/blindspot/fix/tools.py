@@ -254,7 +254,6 @@ class QlooTools:
         self.max_qloo_calls = max_qloo_calls
         self.qloo_calls: list[QlooCall] = []
         self.returned_ids: set[str] = set()  # every entity id a tool showed the model
-        self.sent_insights: list[dict[str, str]] = []  # params of every insights query sent (tests)
         self._search_types = sorted({t for d in catalog.domains for t in d.search_types})
 
     def definitions(self) -> list[dict[str, Any]]:
@@ -407,7 +406,6 @@ class QlooTools:
             assert_honest(params, self.answer_key_shapes)
         except InvalidQuery as exc:
             return _error(RECOMMEND, f"query refused: {exc.reason}")
-        self.sent_insights.append({k: ",".join(split_list(v)) for k, v in params.items()})
         res = await self._call(lambda: self.client.insights(params, self.ctx))
         if not res.ok and res.outcome != "empty":
             return _error(RECOMMEND, self._unavailable(res))

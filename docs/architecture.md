@@ -579,8 +579,8 @@ sequenceDiagram
 - **Loop.** `fix.run_grounded(agent, tools, prompt, k)` uses `OpenAICompatTarget.chat` (#27's client):
   send `tools`, run each `tool_call`, append `role: tool` with its `tool_call_id`, repeat. Caps per
   scenario: 4 tool calls, 6 turns, 24 Qloo calls, plus the run budget and the deadline. A cap or
-  budget gives the model one last turn with `tool_choice: "none"`; the deadline stops at once. The
-  result has `stop` (`answer | tool_cap | turn_cap | budget | deadline | error`), #27's `outcome`,
+  budget gives the model one last turn with `tool_choice: "none"`; the deadline stops at once and
+  bounds each model request. The result has `stop` (`answer | tool_cap | turn_cap | budget | deadline | error`), #27's `outcome`,
   usage, the tool trail with call ids and `served_from` (for Truth Receipts), and `returned_ids`, the
   entities the tools showed the model (#43 enforces the grounding rule with it).
 

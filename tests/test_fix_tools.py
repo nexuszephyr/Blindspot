@@ -440,16 +440,32 @@ async def test_deadline_before_start_makes_no_request(catalog, agent_cfg, qloo):
     assert model.requests == [] and fake.seen == []
 
 
-async def test_deadline_during_the_loop(catalog, exam, agent_cfg, qloo):
+async def test_deadline_during_a_tool_call(catalog, exam, agent_cfg, qloo):
     sc = a_scenario(exam, "music")
     fake, client = qloo()
+    fake.behaviour = "slow"
+    fake.slow_s = 2.0  # Qloo is slower than the deadline
     tools = QlooTools(client, catalog, ctx(deadline=time.monotonic() + 0.3), domain_id="music")
     args = {"domain": "music", "city": sc.city_id, "interests": ["jazz"]}
-    model = ScriptedModel(call(RECOMMEND, args), answer(["x"]), delay=0.4)  # the model is slower
+    model = ScriptedModel(call(RECOMMEND, args), answer(["x"]))
     resp = await run_grounded(make_agent(agent_cfg, model), tools, "prompt", 3)
     assert resp.stop == "deadline" and resp.outcome == "timeout"
-    assert len(model.requests) == 1 and fake.seen == []
-    assert resp.tool_calls[0].error and "time" in resp.tool_calls[0].error
+    assert len(model.requests) == 1 and insights_seen(fake) == []
+    assert resp.tool_calls[0].ran and not resp.tool_calls[0].ok
+    assert resp.tool_calls[0].qloo_calls[0]["served_from"] == "degraded"
+    assert resp.latency_ms < 1500  # the client's deadline cut the slow call; no second model turn
+
+
+async def test_the_deadline_bounds_a_slow_model_request(catalog, agent_cfg, qloo):
+    """The model's timeout (90 s for the agent) and retries must not outlive the run's deadline."""
+    fake, client = qloo()
+    tools = QlooTools(client, catalog, ctx(deadline=time.monotonic() + 0.3), domain_id="music")
+    model = ScriptedModel(answer(["x"]), delay=5.0)
+    started = time.monotonic()
+    resp = await run_grounded(make_agent(agent_cfg, model), tools, "prompt", 3)
+    assert time.monotonic() - started < 2.0
+    assert resp.stop == "deadline" and resp.outcome == "timeout" and resp.turns == 1
+    assert "model" in resp.detail and fake.seen == []
 
 
 async def test_the_model_never_sees_scores_or_params(catalog, exam, agent_cfg, qloo):
