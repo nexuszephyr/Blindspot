@@ -60,6 +60,15 @@ DOMAIN_WORDS: dict[str, tuple[str, ...]] = {
 }
 GENERIC_WORDS = ("Project", "Society", "House", "Club", "Room", "Hour")
 MAX_TRIES_PER_NAME = 50  # candidates drawn per name asked for before giving up on the rest
+# The longest name a Recommendation holds (models.py), read from the model so the two never drift.
+MAX_NAME = next(
+    m.max_length for m in Recommendation.model_fields["name"].metadata if hasattr(m, "max_length")
+)
+
+
+def _nameable(name: str) -> bool:
+    """A stored name a target can say: the build stores \"\" for an entity Qloo sent without one."""
+    return 0 < len(name) <= MAX_NAME
 
 
 def _response(target_id: str, prompt: str, names: list[str]) -> TargetResponse:
@@ -119,7 +128,7 @@ class CalibrationTarget:
     def _names(self, sc: Scenario, k: int) -> list[str]:
         domain = self.catalog.domain(sc.domain_id)
         if self.id == QLOO_COPY:
-            return [it.name for it in get_answer_key(sc.id, self.store).local.items[:k]]
+            return [it.name for it in get_answer_key(sc.id, self.store).local.items if _nameable(it.name)][:k]
         if self.id == GLOBAL_TOP:
             return self._global_top(domain)[:k]
         key = get_answer_key(sc.id, self.store)  # NotBuilt for an unbuilt scenario, like the others
@@ -145,7 +154,7 @@ class CalibrationTarget:
                 continue  # another scenario with the same baseline may be built
             seen.add(sc.global_spec.key)
             for it in baseline.items:
-                if it.name:
+                if _nameable(it.name):
                     counts[it.qloo_id] += 1
                     names[it.qloo_id] = it.name
         if not counts:
@@ -161,7 +170,12 @@ class CalibrationTarget:
         forms = {f for e in index if e.qloo_id in pool for f in (e.norm_name, *e.aliases)}
         cands = []
         for e in index:
-            if e.qloo_id not in pool and e.name and e.norm_name not in forms and not forms & set(e.aliases):
+            if (
+                e.qloo_id not in pool
+                and _nameable(e.name)
+                and e.norm_name not in forms
+                and not forms & set(e.aliases)
+            ):
                 forms.add(e.norm_name)
                 cands.append(e.name)
         return rng.sample(cands, min(k, len(cands)))

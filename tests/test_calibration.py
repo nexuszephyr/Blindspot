@@ -291,3 +291,22 @@ def test_cli_ask_runs_a_calibration_target_offline(store, picked, tmp_path, monk
     assert main(["--config", str(cfgdir), "list"]) == 0
     listed = capsys.readouterr().out
     assert all(tid in listed for tid in CALIBRATION_IDS)
+
+
+async def test_an_unnameable_index_name_is_skipped_never_raised(catalog, exam, store, picked):
+    """The build stores "" for an entity Qloo sent without a name, and a name can outrun
+    `Recommendation`'s 200 characters: no target may raise on either, and the key's other names fill k."""
+    sc = next(s for s in picked if s.domain_id == "music")
+    top = get_answer_key(sc.id, store).local.items
+    store.transaction(
+        [
+            ("UPDATE entity_index SET name = '' WHERE qloo_id = ?", (top[0].qloo_id,)),
+            ("UPDATE entity_index SET name = ? WHERE qloo_id = ?", ("x" * 300, top[1].qloo_id)),
+        ]
+    )
+    for tid in CALIBRATION_IDS:
+        r = await ask(target(tid, catalog, exam, store), sc, k=1000 if tid == "calib:random-real" else K)
+        assert r.outcome == "ok", (tid, r.detail)
+        assert all(0 < len(n) <= 200 for n in names(r))
+    r = await ask(target("calib:qloo-copy", catalog, exam, store), sc)
+    assert names(r) == [it.name for it in top[2 : K + 2]]

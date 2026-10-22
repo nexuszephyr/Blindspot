@@ -589,5 +589,7 @@ targets:
   never `live`), zero usage, `model` = the target id, `prompt_hash` over the user prompt. Answers are
   not written to the response cache. A scenario that isn't in the exam or has no built answer key
   (for global-top: no baseline built in its domain) is `outcome: error` with a short `detail`; a
-  target never raises. Tests patch `httpx.AsyncClient.send` to fail and check no request is made.
+  target never raises. A stored name a `Recommendation` can't hold (empty, as the build stores for
+  a nameless Qloo entity, or over 200 characters) is skipped, never returned. Tests patch
+  `httpx.AsyncClient.send` to fail and check no request is made.
 - **Seed.** Default `DEFAULT_SEED` (the scenario generator's); `blindspot target ask --seed N`.
